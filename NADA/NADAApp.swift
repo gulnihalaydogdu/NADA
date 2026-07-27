@@ -2,16 +2,21 @@
 //  NADAApp.swift
 //  NADA
 //
-//  Created by GÜLNİHAL on 17.07.2026.
-//
 
 import SwiftUI
 
 @main
 struct NADAApp: App {
+    @State private var authManager = AuthManager()
+
+    init() {
+        FirebaseAuthService().configureFirebaseIfNeeded()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environment(authManager)
         }
     }
 }

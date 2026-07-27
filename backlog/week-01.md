@@ -1,5 +1,7 @@
 # Week 1 Backlog — Foundation
 
+**Dates:** Jul 27 – Aug 2, 2026 · **Theme:** Auth, User, app shell, photo upload path
+
 **Sprint goal:** A new user can sign up / sign in, complete friends-only onboarding, land in the app shell; a `User` row exists on the backend; photo upload path has a smoke test.
 
 **Demo (Definition of Done):**  

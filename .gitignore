@@ -1,0 +1,7 @@
+# Firebase secrets
+NADA/GoogleService-Info.plist
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+.DS_Store

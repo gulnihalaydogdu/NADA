@@ -64,10 +64,15 @@ A single-purpose app shaped around one job: friendship and hangouts. Faster way 
 - [x] Like a whole profile **or** like/comment on a specific prompt/photo (Hinge-style “like with comment”)
 - [x] Mutual match when both sides like → unlock chat
 - [x] In-app chat for matched friends (text + **voicemail** / async voice messages)
+- [x] Incoming likes inbox — see who liked you before matching (Hinge-style)
+- [x] Undo last skip (unlimited or generous cap)
+- [x] First-launch product tour (short blur/highlight of Discover, like, match)
+- [x] Hangout ideas in chat/match (friend version of Hinge “date ideas”: coffee, bowling, film, walk…)
 - [x] Clear “friends only / not dating” framing in onboarding and profile
 - [x] Basic safety: report, block, unmatch — report reasons include **flirting**
 - [x] Women-focused safety: track & audit men’s **% of women** among likes/matches/connections; surface or act on skewed patterns
-- [x] Location radius preference (e.g. same city / within X km)
+- [x] Location radius preference (city + within X km)
+- [x] Minimal, low-visual-load UI (see §12 Design direction)
 
 ### Explicitly out of MVP
 
@@ -79,9 +84,17 @@ A single-purpose app shaped around one job: friendship and hangouts. Faster way 
 - [x] Full multi-language UI (ship Turkish or EN first; others later)
 - [x] Android
 
-### Notes for later versions
+### Deferred to later versions (confirmed from Hinge analysis)
 
-Group hangout invites, “I’m free this weekend” status, interest-based filters, verification badge, richer safety (photo verify), public-facing women safety prefs, and localization for ES / FR / RU / ZH.
+- Selfie / photo verification badge
+- Monetization: extra likes, discovery boost, more photo/prompt slots, filters (active today, age)
+- Rich demographics (height, ethnicity, sexuality, politics, religion, kids, smoking/drugs) — kept out to protect the “not dating” framing
+- Friend-type intent (“summer buddy / neighbor / best friend”) — one optional Preferences field in v1.1
+- Pronouns field (optional, v1.1)
+- Poll prompts, video on profile
+- Group hangout invites, “I’m free this weekend” status
+- AI prompt feedback
+- Localization for ES / FR / RU / ZH
 
 ---
 
@@ -100,8 +113,9 @@ Group hangout invites, “I’m free this weekend” status, interest-based filt
 
 1. User browses a profile: photos + prompt answers.
 2. Likes a specific prompt/photo (optionally with a short comment) or skips.
-3. Profile moves on; likes are not revealed until mutual (or shown as “they liked you” later — TBD).
-4. Repeat until they want to check Matches / Likes.
+3. Accidental skip can be undone (back to previous profile).
+4. Likes you send appear in the other person’s **Likes inbox**; you can also see who liked you.
+5. Repeat until they want to check Matches / Likes.
 
 ### Flow 3: Match & first chat
 
@@ -247,23 +261,63 @@ Copy and UI must reinforce “not dating.” No “looking for relationship” f
 
 ---
 
-## 11. Open questions
+## 11. Decisions & open questions
 
-- [ ] Auth method for v1: Apple + email, or phone OTP?
-- [ ] Show “Someone liked you” before mutual match (Hinge-like), or only notify on match?
-- [ ] Exact location model: city only vs approximate radius vs neighborhood?
-- [ ] Gender filters / “who I want to meet” — include in MVP or keep fully open?
-- [ ] Launch language: Turkish-only UI first, or bilingual TR+EN?
+### Decided
+
+- **Auth:** Apple + email for v1 (phone optional later).
+- **Incoming likes:** Yes — show “someone liked you” via a Likes inbox (Hinge-like), matches still require mutual like.
+- **Location:** City + approximate radius (km). No precise pin, no neighborhood in MVP.
+- **Onboarding demographics:** Gender only (required, for women-% audit). No height / ethnicity / sexuality / politics / religion / kids / drugs — these stay out.
+- **Voicemail:** In MVP (async voice message; skippable). No video calls, ever, in MVP.
+- **Undo skip:** In MVP.
+- **Launch language:** Turkish-first UI; English strings prepared in parallel.
+- **Monetization:** Off at launch; introduced after reaching enough users.
+
+### Still open
+
 - [ ] Age display: exact age vs age range vs hidden?
 - [ ] Do we allow group chats / third person later, or always 1:1?
 - [ ] Women-% audit: exact threshold, min sample size, and whether women see a soft signal vs ops-only flag?
-- [ ] Voicemail in MVP day-one, or text-first then voice in v1.1?
 - [ ] How do we handle non-binary / prefer-not-to-say in women-% stats without breaking audits?
+- [ ] Friend-type intent (“summer buddy / neighbor / best friend”): confirm v1.1 placement.
+
+---
+
+## 12. Design / UI direction
+
+**Principle:** Hinge-level restraint (one focus, lots of air, photos carry the screen) — with a **soft lilac brand** that feels light, calm, and inviting (not loud orange, not dating pink). SF Pro, large type, generous spacing, gentle micro-animations on like / skip / match.
+
+**Chosen palette — “NADA Lilac”** (soft lilac paper + dark ink + light lilac brand):
+
+| Token | Light | Dark | Use |
+|-------|-------|------|-----|
+| Background (paper) | `#F7F5FA` | `#121014` | App base — cool soft paper (lilac-friendly) |
+| Surface / sheet | `#EFEAF6` | `#1C1922` | Sheets, secondary panels |
+| Ink | `#1A1625` | `#F4F1FA` | Headings, body |
+| Secondary text | `#6F687A` | `#A59CB0` | Captions, hints |
+| Brand / primary CTA | `#B8A4DC` | `#C9B8F0` | Buttons, active tab, key links — **soft lilac** |
+| Brand pressed | `#9B87C7` | `#B8A4DC` | Pressed / focused (slightly deeper lilac) |
+| Brand soft fill | `#EDE6F7` | `#2A2438` | Chip / selected / light brand wash |
+| Like / highlight | `#B8A4DC` | `#C9B8F0` | Like glow, selected prompt (same as brand) |
+| Match flash | `#1A1625` on `#B8A4DC` | Inverse | Match celebration |
+| Soft / safe | `#5B7C6E` | `#7FA08F` | Safety prefs, “friends only” chips (rare, muted green) |
+| Danger | `#B42318` | `#F97066` | Report / block only |
+| Hairline | `#E0D9EB` | `#2E2938` | Dividers |
+
+**How it should feel on screen**
+- Mostly quiet: soft paper + photos + dark ink (Hinge calm).
+- Brand lilac on CTAs, like, active tab, and light washes — airy and soft, never neon or heavy purple blocks.
+- Do not flood the UI with purple gradients; one soft lilac voice + restraint = gentle and premium.
+
+**Rationale:** Soft lilac preferred over orange/ember — friendly and light without dating pink or aggressive CTA energy. Muted green stays for safety so those moments don’t compete with brand.
+
+**Hard rejects:** orange/coral CTAs, loud purple–indigo gradients, pastel pink romance, teal SaaS kits.
 
 ---
 
 ## How to use this doc
 
-1. Treat sections 4–11 as a **Hinge-for-friends** starting draft — change anything that doesn’t match your vision.
+1. Treat sections 4–12 as a **Hinge-for-friends** draft — change anything that doesn’t match your vision.
 2. Keep the MVP list short; keep “out of MVP” honest.
-3. When screen inventory + data schema feel solid, move on to SwiftUI skeleton and backend shape.
+3. Build order and weekly plan live in [`backlog/ROADMAP.md`](backlog/ROADMAP.md) and the weekly backlogs.
