@@ -15,7 +15,7 @@ Sections 4–11 are **example fill** inspired by Hinge’s model, adapted for fr
 | Short name / brand | NADA! |
 | One-line promise | Make friends nearby to hang out with — not for dating, only for hanging out. |
 | Target platform | iOS (iPhone / iPad) |
-| Language(s) | Launch in Turkish first; then English, Spanish, French, Russian, and Chinese. |
+| Language(s) | English at MVP launch; Turkish in v1.1+, then Spanish, French, Russian, and Chinese. |
 
 **Positioning shorthand:** Hinge, but for friends.
 
@@ -81,7 +81,7 @@ A single-purpose app shaped around one job: friendship and hangouts. Faster way 
 - [x] In-app features that encourage flirting (no “compliment romance” flows, no dating prompts)
 - [x] Group hangouts / event host tools / map of public events
 - [x] Paid boosts, Super Likes economy, or full subscription paywall
-- [x] Full multi-language UI (ship Turkish or EN first; others later)
+- [x] Full multi-language UI (ship English first for MVP; Turkish and others later)
 - [x] Android
 
 ### Deferred to later versions (confirmed from Hinge analysis)
@@ -271,7 +271,8 @@ Copy and UI must reinforce “not dating.” No “looking for relationship” f
 - **Onboarding demographics:** Gender only (required, for women-% audit). No height / ethnicity / sexuality / politics / religion / kids / drugs — these stay out.
 - **Voicemail:** In MVP (async voice message; skippable). No video calls, ever, in MVP.
 - **Undo skip:** In MVP.
-- **Launch language:** Turkish-first UI; English strings prepared in parallel.
+- **Launch language:** English-first UI for MVP; Turkish in v1.1+.
+- **Profile Q&A (user-facing):** **Bits** — short personality/hangout answers on a profile. Internal models/API stay `Prompt` / `PromptAnswer`.
 - **Monetization:** Off at launch; introduced after reaching enough users.
 
 ### Still open
@@ -313,6 +314,19 @@ Copy and UI must reinforce “not dating.” No “looking for relationship” f
 **Rationale:** Soft lilac preferred over orange/ember — friendly and light without dating pink or aggressive CTA energy. Muted green stays for safety so those moments don’t compete with brand.
 
 **Hard rejects:** orange/coral CTAs, loud purple–indigo gradients, pastel pink romance, teal SaaS kits.
+
+**Copy — “Bits” (not “prompts” in UI):** Profile question-and-answer cards are called **bits** in all user-facing copy (“Photos and bits”, “Add 3 bits”, “Like a bit”). Avoid “prompts” in the app — it reads as Hinge. Backend/code may still use `Prompt` / `PromptAnswer`.
+
+**Illustrations (sketches) — tied to app icon, not Hinge purple:**
+- **Do not use lilac/purple in sketch assets.** Hinge owns purple sketch + purple UI.
+- **App icon anchor:** warm dusty coral/salmon (logo background ~`#C96A5E`; letter cream ~`#E8E4DF`).
+- **Sketch palette (muted — softer than the icon block):**
+  - Ink lines: `#1A1625`
+  - Fill accent: **dusty coral** `#C17B6F` (crosshatch/stipple on clothing or props)
+  - Background wash: **pale blush** `#F3DFDB` or `#F0D5CE` (optional oval behind figures)
+  - Secondary shading: warm gray `#C4B8B2`
+- **UI stays lilac** for CTAs/tabs (`#B8A4DC`) — icon + sketches share warm coral; in-app chrome stays lilac until/unless palette is unified.
+- **Ink-only variant** still OK for max restraint.
 
 ---
 

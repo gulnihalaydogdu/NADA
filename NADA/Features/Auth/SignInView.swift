@@ -12,22 +12,22 @@ struct SignInView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Tekrar hoş geldin")
+                    Text("Welcome back")
                         .font(NADATheme.titleFont)
                         .foregroundStyle(NADATheme.ink)
-                    Text("Arkadaşlık ve takılma — dating değil.")
+                    Text("Pick up where you left off.")
                         .font(NADATheme.bodyFont)
                         .foregroundStyle(NADATheme.secondaryInk)
                 }
 
                 VStack(spacing: 16) {
-                    authField(title: "E-posta", text: $email, isSecure: false)
+                    authField(title: "Email", text: $email, isSecure: false)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
-                    authField(title: "Şifre", text: $password, isSecure: true)
+                    authField(title: "Password", text: $password, isSecure: true)
                         .textContentType(.password)
                 }
 
@@ -46,13 +46,13 @@ struct SignInView: View {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                     } else {
-                        Text("Giriş yap")
+                        Text("Sign in")
                     }
                 }
                 .buttonStyle(NADAPrimaryButtonStyle())
                 .disabled(auth.isLoading || email.isEmpty || password.isEmpty)
 
-                dividerLabel("veya")
+                dividerLabel("or")
 
                 AppleSignInButton(isLoading: auth.isLoading) {
                     Task { await handleAppleSignIn() }

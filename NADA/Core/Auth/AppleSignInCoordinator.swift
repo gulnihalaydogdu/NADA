@@ -100,7 +100,7 @@ struct AppleSignInButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: "apple.logo")
-                Text("Apple ile devam et")
+                Text("Continue with Apple")
             }
             .font(NADATheme.headlineFont)
             .foregroundStyle(NADATheme.ink)

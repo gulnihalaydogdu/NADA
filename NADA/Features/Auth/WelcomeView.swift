@@ -2,53 +2,87 @@ import SwiftUI
 
 struct WelcomeView: View {
     @Environment(AuthManager.self) private var auth
+    @State private var pageIndex = 0
+
+    private let slides = OnboardingSlide.welcomePages
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                Spacer()
+            ZStack {
+                NADAScreenBackground()
 
-                VStack(spacing: 12) {
-                    Text("NADA!")
-                        .font(.system(size: 42, weight: .bold))
-                        .foregroundStyle(NADATheme.ink)
+                VStack(spacing: 0) {
+                    brandBadge
+                        .padding(.top, 16)
 
-                    Text("Not a Dating App")
-                        .font(NADATheme.headlineFont)
-                        .foregroundStyle(NADATheme.secondaryInk)
-
-                    Text("Yakınındaki insanlarla takılmak için — flört için değil, arkadaşlık için.")
-                        .font(NADATheme.bodyFont)
-                        .foregroundStyle(NADATheme.secondaryInk)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                        .padding(.top, 8)
-                }
-
-                Spacer()
-
-                VStack(spacing: 12) {
-                    NavigationLink {
-                        SignUpView()
-                    } label: {
-                        Text("Kayıt ol")
+                    TabView(selection: $pageIndex) {
+                        ForEach(Array(slides.enumerated()), id: \.offset) { index, slide in
+                            OnboardingSlideView(slide: slide)
+                                .tag(index)
+                                .padding(.top, 24)
+                        }
                     }
-                    .buttonStyle(NADAPrimaryButtonStyle())
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .frame(maxHeight: .infinity)
 
-                    NavigationLink {
-                        SignInView()
-                    } label: {
-                        Text("Giriş yap")
+                    pageIndicator
+                        .padding(.bottom, 20)
+
+                    if !auth.isFirebaseReady {
+                        firebaseSetupHint
+                            .padding(.bottom, 8)
                     }
-                    .buttonStyle(NADASecondaryButtonStyle())
+
+                    VStack(spacing: 16) {
+                        NavigationLink {
+                            SignUpView()
+                        } label: {
+                            Text("Get started")
+                        }
+                        .buttonStyle(NADAPrimaryButtonStyle())
+
+                        NavigationLink {
+                            SignInView()
+                        } label: {
+                            Text("I already have an account")
+                        }
+                        .buttonStyle(NADATextLinkButtonStyle())
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 36)
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 40)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(NADATheme.paper)
             .navigationBarHidden(true)
         }
+    }
+
+    private var brandBadge: some View {
+        Text("Not a Dating App!")
+            .font(NADATheme.captionFont.weight(.semibold))
+            .foregroundStyle(NADATheme.brandPressed)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(NADATheme.brandSoft)
+            .clipShape(Capsule())
+    }
+
+    private var pageIndicator: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<slides.count, id: \.self) { index in
+                Capsule()
+                    .fill(index == pageIndex ? NADATheme.brand : NADATheme.hairline)
+                    .frame(width: index == pageIndex ? 24 : 8, height: 8)
+                    .animation(.easeInOut(duration: 0.2), value: pageIndex)
+            }
+        }
+    }
+
+    private var firebaseSetupHint: some View {
+        Text("Add GoogleService-Info.plist to enable Firebase")
+            .font(NADATheme.captionFont)
+            .foregroundStyle(NADATheme.danger)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 24)
     }
 }
 

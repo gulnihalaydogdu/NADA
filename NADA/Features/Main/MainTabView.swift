@@ -3,17 +3,29 @@ import SwiftUI
 struct MainTabView: View {
     var body: some View {
         TabView {
-            PlaceholderTabView(title: "Keşfet", systemImage: "sparkles")
-                .tabItem { Label("Keşfet", systemImage: "sparkles") }
+            PlaceholderTabView(
+                title: "Discover",
+                systemImage: "sparkles",
+                message: "Nearby profiles will show up here. Coming in Week 3."
+            )
+            .tabItem { Label("Discover", systemImage: "sparkles") }
 
-            PlaceholderTabView(title: "Beğeniler", systemImage: "heart")
-                .tabItem { Label("Beğeniler", systemImage: "heart") }
+            PlaceholderTabView(
+                title: "Likes",
+                systemImage: "heart",
+                message: "People who liked you will appear here."
+            )
+            .tabItem { Label("Likes", systemImage: "heart") }
 
-            PlaceholderTabView(title: "Eşleşmeler", systemImage: "bubble.left.and.bubble.right")
-                .tabItem { Label("Eşleşmeler", systemImage: "bubble.left.and.bubble.right") }
+            PlaceholderTabView(
+                title: "Matches",
+                systemImage: "bubble.left.and.bubble.right",
+                message: "Chat with mutual matches here."
+            )
+            .tabItem { Label("Matches", systemImage: "bubble.left.and.bubble.right") }
 
             ProfileTabView()
-                .tabItem { Label("Profil", systemImage: "person.crop.circle") }
+                .tabItem { Label("Profile", systemImage: "person.crop.circle") }
         }
         .tint(NADATheme.brand)
     }
@@ -22,21 +34,31 @@ struct MainTabView: View {
 private struct PlaceholderTabView: View {
     let title: String
     let systemImage: String
+    let message: String
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.system(size: 40))
-                .foregroundStyle(NADATheme.brand)
-            Text(title)
-                .font(NADATheme.headlineFont)
-                .foregroundStyle(NADATheme.ink)
-            Text("Yakında")
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.secondaryInk)
+        ZStack {
+            NADAScreenBackground()
+
+            VStack(spacing: 16) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 44, weight: .medium))
+                    .foregroundStyle(NADATheme.brand)
+                    .padding(20)
+                    .background(NADATheme.brandSoft)
+                    .clipShape(Circle())
+
+                Text(title)
+                    .font(NADATheme.displayFont)
+                    .foregroundStyle(NADATheme.ink)
+
+                Text(message)
+                    .font(NADATheme.bodyFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(NADATheme.paper)
     }
 }
 
@@ -44,27 +66,39 @@ private struct ProfileTabView: View {
     @Environment(AuthManager.self) private var auth
 
     var body: some View {
-        VStack(spacing: 16) {
-            if let user = auth.currentUser {
-                Text(user.displayName ?? user.email ?? "Kullanıcı")
-                    .font(NADATheme.titleFont)
-                    .foregroundStyle(NADATheme.ink)
-                if let email = user.email {
-                    Text(email)
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.secondaryInk)
-                }
-            }
+        ZStack {
+            NADAScreenBackground()
 
-            Button("Çıkış yap") {
-                auth.signOut()
+            VStack(spacing: 20) {
+                Image("NADALogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 72, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                if let user = auth.currentUser {
+                    Text(user.displayName ?? user.email ?? "User")
+                        .font(NADATheme.titleFont)
+                        .foregroundStyle(NADATheme.ink)
+                    if let email = user.email {
+                        Text(email)
+                            .font(NADATheme.captionFont)
+                            .foregroundStyle(NADATheme.secondaryInk)
+                    }
+                }
+
+                Text("Profile setup coming in Week 2.")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+
+                Button("Sign out") {
+                    auth.signOut()
+                }
+                .buttonStyle(NADASecondaryButtonStyle())
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
             }
-            .buttonStyle(NADASecondaryButtonStyle())
-            .padding(.horizontal, 24)
-            .padding(.top, 24)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(NADATheme.paper)
     }
 }
 

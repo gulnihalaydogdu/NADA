@@ -5,23 +5,39 @@ import Observation
 @MainActor
 final class AuthManager {
     private(set) var currentUser: NADAUser?
+    private(set) var isBootstrapped = false
     private(set) var isLoading = false
     private(set) var errorMessage: String?
-    var hasCompletedFriendsIntent: Bool {
-        get { UserDefaults.standard.bool(forKey: Self.friendsIntentKey) }
-        set { UserDefaults.standard.set(newValue, forKey: Self.friendsIntentKey) }
-    }
 
-    private static let friendsIntentKey = "nada.friendsIntentCompleted"
     private let authService: FirebaseAuthService
+    private let userService: FirestoreUserService
     private var authStateHandle: AuthStateHandle?
 
-    init(authService: FirebaseAuthService = FirebaseAuthService()) {
+    init() {
+        self.authService = FirebaseAuthService()
+        self.userService = FirestoreUserService()
+    }
+
+    init(authService: FirebaseAuthService, userService: FirestoreUserService) {
         self.authService = authService
+        self.userService = userService
+    }
+
+    var hasCompletedFriendsIntent: Bool {
+        currentUser?.friendsIntentCompleted == true
+    }
+
+    /// Call once at launch — configures Firebase and restores session without blocking first frame.
+    func bootstrap() {
+        guard !isBootstrapped else { return }
+        authService.configureFirebaseIfNeeded()
+        currentUser = authService.cachedUser
         listenForAuthChanges()
+        isBootstrapped = true
     }
 
     var isAuthenticated: Bool { currentUser != nil }
+    var isFirebaseReady: Bool { authService.isReady }
 
     func signInWithEmail(email: String, password: String) async {
         await perform {
@@ -41,11 +57,27 @@ final class AuthManager {
         }
     }
 
+    func completeFriendsIntent() async {
+        guard let userId = currentUser?.id else { return }
+        await perform {
+            let updated = try await self.userService.setFriendsIntentCompleted(userId: userId)
+            self.currentUser = updated
+        }
+    }
+
+    func refreshCurrentUser() async {
+        guard let userId = currentUser?.id else { return }
+        await perform {
+            if let profile = try await self.userService.fetchUser(id: userId) {
+                self.currentUser = profile
+            }
+        }
+    }
+
     func signOut() {
         do {
             try authService.signOut()
             currentUser = nil
-            hasCompletedFriendsIntent = false
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -63,8 +95,23 @@ final class AuthManager {
     private func listenForAuthChanges() {
         authStateHandle = authService.onAuthStateChanged { [weak self] user in
             Task { @MainActor in
-                self?.currentUser = user
+                await self?.handleAuthUser(user)
             }
+        }
+    }
+
+    private func handleAuthUser(_ authUser: NADAUser?) async {
+        guard let authUser else {
+            currentUser = nil
+            return
+        }
+
+        currentUser = authUser
+
+        do {
+            currentUser = try await userService.ensureUserDocument(for: authUser)
+        } catch {
+            errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
         }
     }
 

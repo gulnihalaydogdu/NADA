@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		F82E9A9230174C0500CA8270 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001002 /* FirebaseAuth */; };
 		F82E9A9330174C0500CA8270 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001003 /* FirebaseCore */; };
+		F82E9A9430174C0500CA8270 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001004 /* FirebaseFirestore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 			files = (
 				F82E9A9330174C0500CA8270 /* FirebaseCore in Frameworks */,
 				F82E9A9230174C0500CA8270 /* FirebaseAuth in Frameworks */,
+				F82E9A9430174C0500CA8270 /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -121,6 +123,7 @@
 			packageProductDependencies = (
 				F8FB001002 /* FirebaseAuth */,
 				F8FB001003 /* FirebaseCore */,
+				F8FB001004 /* FirebaseFirestore */,
 			);
 			productName = NADA;
 			productReference = F8B642BA300ACD1F00463F95 /* NADA.app */;
@@ -416,6 +419,8 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_UIColorName = LaunchPaper;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -449,6 +454,8 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_UIColorName = LaunchPaper;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -614,6 +621,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = F8FB001001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
+		};
+		F8FB001004 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8FB001001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

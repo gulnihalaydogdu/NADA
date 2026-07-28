@@ -17,29 +17,29 @@ struct SignUpView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Hesap oluştur")
+                    Text("Create your account")
                         .font(NADATheme.titleFont)
                         .foregroundStyle(NADATheme.ink)
-                    Text("Profilin bir parçası. Takılma arkadaşları bul — dating değil.")
+                    Text("Match with people to hang out with — not for dating.")
                         .font(NADATheme.bodyFont)
                         .foregroundStyle(NADATheme.secondaryInk)
                 }
 
                 VStack(spacing: 16) {
-                    authField(title: "E-posta", text: $email, isSecure: false)
+                    authField(title: "Email", text: $email, isSecure: false)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
-                    authField(title: "Şifre (en az 6 karakter)", text: $password, isSecure: true)
+                    authField(title: "Password (min. 6 characters)", text: $password, isSecure: true)
                         .textContentType(.newPassword)
 
-                    authField(title: "Şifreyi tekrarla", text: $confirmPassword, isSecure: true)
+                    authField(title: "Confirm password", text: $confirmPassword, isSecure: true)
                         .textContentType(.newPassword)
 
                     if !confirmPassword.isEmpty && !passwordsMatch {
-                        Text("Şifreler eşleşmiyor.")
+                        Text("Passwords don't match.")
                             .font(NADATheme.captionFont)
                             .foregroundStyle(NADATheme.danger)
                     }
@@ -63,13 +63,13 @@ struct SignUpView: View {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                     } else {
-                        Text("Kayıt ol")
+                        Text("Sign up")
                     }
                 }
                 .buttonStyle(NADAPrimaryButtonStyle())
                 .disabled(auth.isLoading || email.isEmpty || !passwordsMatch)
 
-                dividerLabel("veya")
+                dividerLabel("or")
 
                 AppleSignInButton(isLoading: auth.isLoading) {
                     Task { await handleAppleSignIn() }

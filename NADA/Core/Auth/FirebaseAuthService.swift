@@ -7,7 +7,7 @@ final class FirebaseAuthService {
     private var isConfigured: Bool { FirebaseApp.app() != nil }
 
     init() {
-        configureFirebaseIfNeeded()
+        // Firebase is configured in AuthManager.bootstrap() so first frame can render quickly.
     }
 
     func configureFirebaseIfNeeded() {
@@ -19,6 +19,12 @@ final class FirebaseAuthService {
     }
 
     var isReady: Bool { isConfigured }
+
+    /// Resolves the signed-in user synchronously after configure (avoids welcome flash on cold start).
+    var cachedUser: NADAUser? {
+        guard isConfigured else { return nil }
+        return Self.mapUser(Auth.auth().currentUser)
+    }
 
     func onAuthStateChanged(_ handler: @escaping (NADAUser?) -> Void) -> AuthStateHandle {
         guard isConfigured else {
@@ -113,7 +119,8 @@ final class FirebaseAuthService {
             city: nil,
             intent: .friendsOnly,
             locale: Locale.current.identifier,
-            createdAt: firebaseUser.metadata.creationDate
+            createdAt: firebaseUser.metadata.creationDate,
+            friendsIntentCompleted: false
         )
     }
 }

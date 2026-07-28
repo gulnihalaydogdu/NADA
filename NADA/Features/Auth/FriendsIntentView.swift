@@ -4,38 +4,50 @@ struct FriendsIntentView: View {
     @Environment(AuthManager.self) private var auth
 
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        ZStack {
+            NADAScreenBackground()
 
-            VStack(spacing: 16) {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(NADATheme.brand)
+            VStack(spacing: 0) {
+                Spacer()
 
-                Text("Burada ne arıyorsun?")
-                    .font(NADATheme.titleFont)
-                    .foregroundStyle(NADATheme.ink)
+                VStack(spacing: 20) {
+                    Image("SketchFriendsIntent")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 220)
+                        .padding(.horizontal, 32)
 
-                Text("NADA sadece arkadaşlık ve birlikte vakit geçirmek için. Flört veya dating beklentisi yok.")
-                    .font(NADATheme.bodyFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    Text("You're here for friendship.")
+                        .font(NADATheme.displayFont)
+                        .foregroundStyle(NADATheme.ink)
+                        .multilineTextAlignment(.center)
+
+                    Text("NADA is for hangouts and good company only. No romance, no flirting expectations — and we take that seriously.")
+                        .font(NADATheme.bodyFont)
+                        .foregroundStyle(NADATheme.secondaryInk)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                        .padding(.horizontal, 32)
+                }
+
+                Spacer()
+
+                Button {
+                    Task { await auth.completeFriendsIntent() }
+                } label: {
+                    if auth.isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Text("Got it, continue")
+                    }
+                }
+                .buttonStyle(NADAPrimaryButtonStyle())
+                .disabled(auth.isLoading)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 36)
             }
-
-            Spacer()
-
-            Button {
-                auth.hasCompletedFriendsIntent = true
-            } label: {
-                Text("Arkadaşlık ve takılma için buradayım")
-            }
-            .buttonStyle(NADAPrimaryButtonStyle())
-            .padding(.horizontal, 24)
-            .padding(.bottom, 40)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(NADATheme.paper)
     }
 }
 

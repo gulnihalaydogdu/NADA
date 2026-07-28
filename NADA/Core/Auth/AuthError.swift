@@ -14,19 +14,19 @@ enum AuthError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .notConfigured:
-            return "Firebase yapılandırılmamış. GoogleService-Info.plist dosyasını ekleyin."
+            return "Firebase is not configured. Add GoogleService-Info.plist."
         case .invalidEmail:
-            return "Geçerli bir e-posta adresi girin."
+            return "Enter a valid email address."
         case .weakPassword:
-            return "Şifre en az 6 karakter olmalı."
+            return "Password must be at least 6 characters."
         case .wrongPassword:
-            return "E-posta veya şifre hatalı."
+            return "Incorrect email or password."
         case .userNotFound:
-            return "Bu e-posta ile kayıtlı hesap bulunamadı."
+            return "No account found with this email."
         case .emailAlreadyInUse:
-            return "Bu e-posta zaten kullanımda."
+            return "This email is already in use."
         case .appleSignInFailed:
-            return "Apple ile giriş başarısız oldu."
+            return "Sign in with Apple failed."
         case .cancelled:
             return nil
         case .unknown(let message):
