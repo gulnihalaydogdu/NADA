@@ -36,6 +36,14 @@ else
 fi
 
 echo ""
+echo "Firestore (W1-02) — users/{uid} schema:"
+echo "  docs/FIRESTORE_USERS.md"
+echo ""
+echo "Expected fields on first sign-up:"
+echo "  intent, friendsIntentCompleted, locale, createdAt"
+echo "  optional: email, displayName"
+echo "  null until profile wizard: gender, city"
+echo ""
 echo "Firestore (W1-02) — Console'da elle yapılır:"
 echo "  1. Build → Firestore Database → Create database (yoksa)"
 echo "  2. Rules → firebase/firestore.rules içeriğini yapıştır → Publish"

@@ -170,6 +170,16 @@ A single-purpose app shaped around one job: friendship and hangouts. Faster way 
 | Entity | Short description | Main fields |
 |--------|-------------------|-------------|
 | User | Account holder | id, displayName, gender, birthYear (or age range), bio, city, createdAt, locale, moderationStatus |
+
+**Firestore MVP (Week 1)** — subset persisted today in `users/{uid}`:
+
+| Field | Week 1 |
+|-------|--------|
+| id, displayName, gender, city, createdAt, locale, intent | ✅ |
+| email, friendsIntentCompleted | ✅ (onboarding) |
+| birthYear, bio, moderationStatus | Later |
+
+Detail: [`docs/FIRESTORE_USERS.md`](docs/FIRESTORE_USERS.md)
 | Photo | Profile images | id, userId, url, sortOrder, isPrimary |
 | Prompt | Catalog of prompt questions | id, textKey, category, isActive |
 | PromptAnswer | User’s answer to a prompt | id, userId, promptId, answerText, sortOrder |

@@ -2,23 +2,27 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AuthManager.self) private var auth
+    @Environment(SplashController.self) private var splash
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
             NADAScreenBackground()
+            routedContent
 
-            if auth.isBootstrapped {
-                routedContent
+            if splash.isShowingSplash {
+                LaunchSplashView()
                     .transition(.opacity)
-            } else {
-                bootSplash
+                    .zIndex(1)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: auth.isBootstrapped)
-        .animation(.easeInOut(duration: 0.25), value: auth.isAuthenticated)
-        .animation(.easeInOut(duration: 0.25), value: auth.hasCompletedFriendsIntent)
+        .animation(.easeOut(duration: 0.25), value: splash.isShowingSplash)
         .task {
             auth.bootstrap()
+            splash.handleColdStart()
+        }
+        .onChange(of: scenePhase) { _, current in
+            splash.handleScenePhase(current)
         }
     }
 
@@ -32,23 +36,10 @@ struct RootView: View {
             MainTabView()
         }
     }
-
-    private var bootSplash: some View {
-        VStack(spacing: 12) {
-            Image("NADALogo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 72, height: 72)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-            Text("Not a Dating App!")
-                .font(NADATheme.captionFont.weight(.semibold))
-                .foregroundStyle(NADATheme.brandPressed)
-        }
-    }
 }
 
 #Preview {
     RootView()
         .environment(AuthManager())
+        .environment(SplashController())
 }

@@ -11,8 +11,8 @@ struct OnboardingSlide: Identifiable {
         OnboardingSlide(
             imageName: "SketchWelcomeHangout",
             systemImage: nil,
-            headline: "Find people to hang out with.",
-            subline: "Not a dating app — friendship and good times only."
+            headline: "Hang out, not match.",
+            subline: "Profiles built for plans — coffee, walks, game night."
         ),
         OnboardingSlide(
             imageName: "SketchWelcomeBits",
@@ -31,25 +31,28 @@ struct OnboardingSlide: Identifiable {
 
 struct OnboardingSlideView: View {
     let slide: OnboardingSlide
+    var showsText: Bool = true
+    var illustrationHeight: CGFloat = 220
 
     var body: some View {
         VStack(spacing: 20) {
             illustration
-                .frame(height: 220)
 
-            VStack(spacing: 12) {
-                Text(slide.headline)
-                    .font(NADATheme.displayFont)
-                    .foregroundStyle(NADATheme.ink)
-                    .multilineTextAlignment(.center)
+            if showsText {
+                VStack(spacing: 12) {
+                    Text(slide.headline)
+                        .font(NADATheme.displayFont)
+                        .foregroundStyle(NADATheme.ink)
+                        .multilineTextAlignment(.center)
 
-                Text(slide.subline)
-                    .font(NADATheme.bodyFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
+                    Text(slide.subline)
+                        .font(NADATheme.bodyFont)
+                        .foregroundStyle(NADATheme.secondaryInk)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                }
+                .padding(.horizontal, 28)
             }
-            .padding(.horizontal, 28)
         }
         .frame(maxWidth: .infinity)
     }
@@ -60,11 +63,13 @@ struct OnboardingSlideView: View {
             Image(imageName)
                 .resizable()
                 .scaledToFit()
-                .padding(.horizontal, 32)
+                .frame(height: illustrationHeight)
+                .padding(.horizontal, 28)
         } else if let systemImage = slide.systemImage {
             Image(systemName: systemImage)
                 .font(.system(size: 56, weight: .medium))
                 .foregroundStyle(NADATheme.brand)
+                .frame(height: illustrationHeight)
         }
     }
 }

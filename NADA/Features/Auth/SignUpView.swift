@@ -8,14 +8,24 @@ struct SignUpView: View {
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var appleCoordinator = AppleSignInCoordinator()
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case email
+        case password
+        case confirmPassword
+    }
 
     private var passwordsMatch: Bool {
         !password.isEmpty && password == confirmPassword
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+        ZStack {
+            NADATheme.paper.ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Create your account")
                         .font(NADATheme.titleFont)
@@ -26,16 +36,16 @@ struct SignUpView: View {
                 }
 
                 VStack(spacing: 16) {
-                    authField(title: "Email", text: $email, isSecure: false)
+                    authField(title: "Email", text: $email, field: .email, isSecure: false)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
-                    authField(title: "Password (min. 6 characters)", text: $password, isSecure: true)
+                    authField(title: "Password (min. 6 characters)", text: $password, field: .password, isSecure: true)
                         .textContentType(.newPassword)
 
-                    authField(title: "Confirm password", text: $confirmPassword, isSecure: true)
+                    authField(title: "Confirm password", text: $confirmPassword, field: .confirmPassword, isSecure: true)
                         .textContentType(.newPassword)
 
                     if !confirmPassword.isEmpty && !passwordsMatch {
@@ -52,6 +62,7 @@ struct SignUpView: View {
                 }
 
                 Button {
+                    focusedField = nil
                     Task {
                         await auth.signUpWithEmail(
                             email: email.trimmingCharacters(in: .whitespaces),
@@ -67,17 +78,23 @@ struct SignUpView: View {
                     }
                 }
                 .buttonStyle(NADAPrimaryButtonStyle())
-                .disabled(auth.isLoading || email.isEmpty || !passwordsMatch)
+                .disabled(auth.isLoading || email.isEmpty || !passwordsMatch || !auth.isFirebaseReady)
 
-                dividerLabel("or")
+                if NADAAuthConfig.isAppleSignInEnabled {
+                    dividerLabel("or")
 
-                AppleSignInButton(isLoading: auth.isLoading) {
-                    Task { await handleAppleSignIn() }
+                    AppleSignInButton(isLoading: auth.isLoading) {
+                        focusedField = nil
+                        Task { await handleAppleSignIn() }
+                    }
+                    .disabled(auth.isLoading || !auth.isFirebaseReady)
+                }
                 }
             }
             .padding(24)
         }
-        .background(NADATheme.paper)
+        .scrollDismissesKeyboard(.interactively)
+        .toolbar(.hidden, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { auth.clearError() }
         .onChange(of: auth.isAuthenticated) { _, isAuth in
@@ -101,21 +118,31 @@ struct SignUpView: View {
     }
 
     @ViewBuilder
-    private func authField(title: String, text: Binding<String>, isSecure: Bool) -> some View {
+    private func authField(
+        title: String,
+        text: Binding<String>,
+        field: Field,
+        isSecure: Bool
+    ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(NADATheme.captionFont)
                 .foregroundStyle(NADATheme.secondaryInk)
+
             Group {
                 if isSecure {
-                    SecureField("", text: text)
+                    SecureField(title, text: text)
                 } else {
-                    TextField("", text: text)
+                    TextField(title, text: text)
                 }
             }
+            .focused($focusedField, equals: field)
+            .textFieldStyle(.plain)
             .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(NADATheme.surface)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 

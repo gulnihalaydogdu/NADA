@@ -61,9 +61,11 @@
 | **Estimate** | 1 day |
 
 **Acceptance criteria**
-- [ ] User entity stores: `id`, `displayName`, `gender`, `city`, `intent`, `createdAt`, `locale` (nullable OK where needed)
-- [ ] `intent` defaults to / constrained as friends-only
-- [ ] Can create and read a user via console or API
+- [x] User entity stores: `id`, `displayName`, `gender`, `city`, `intent`, `createdAt`, `locale` (nullable OK where needed)
+- [x] `intent` defaults to / constrained as friends-only
+- [x] Can create and read a user via console or API
+
+**Done (29 Jul 2026):** `NADAUser`, `FirestoreUserService`, `firebase/firestore.rules`, schema doc [`docs/FIRESTORE_USERS.md`](../docs/FIRESTORE_USERS.md). Extra MVP fields: `email`, `friendsIntentCompleted`.
 
 ---
 

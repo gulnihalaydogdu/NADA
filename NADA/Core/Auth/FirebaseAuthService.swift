@@ -6,16 +6,19 @@ import FirebaseCore
 final class FirebaseAuthService {
     private var isConfigured: Bool { FirebaseApp.app() != nil }
 
-    init() {
-        // Firebase is configured in AuthManager.bootstrap() so first frame can render quickly.
-    }
+    init() {}
 
-    func configureFirebaseIfNeeded() {
+    /// Call once at app launch — before any Auth/Firestore access.
+    static func configureAtLaunch() {
         guard FirebaseApp.app() == nil else { return }
         guard Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil else {
             return
         }
         FirebaseApp.configure()
+    }
+
+    func configureFirebaseIfNeeded() {
+        Self.configureAtLaunch()
     }
 
     var isReady: Bool { isConfigured }

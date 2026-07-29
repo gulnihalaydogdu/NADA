@@ -41,9 +41,14 @@ Firebase Console → **Build → Authentication → Get started**
 1. **Sign-in method** sekmesi
 2. **Email/Password** → **Enable** → Save
 
-### Apple
-1. **Apple** → **Enable** → Save  
-2. iOS native Sign in with Apple için ek Service ID (MVP) genelde gerekmez; Xcode’da capability zaten var (`NADA.entitlements`).
+### Apple (paid developer account only)
+Personal Team **cannot** use Sign in with Apple. Skip until Apple Developer Program enrollment.
+
+When ready:
+1. **Apple** → **Enable** → Save in Firebase Console
+2. Xcode → **Sign in with Apple** capability
+3. `NADA.entitlements` → add `com.apple.developer.applesignin`
+4. `NADAAuthConfig.isAppleSignInEnabled = true`
 
 ---
 
@@ -83,7 +88,9 @@ Bu rule: giriş yapmış kullanıcı yalnızca `users/{kendi-uid}` dokümanını
 
 ### 4c. Doğrula (Console)
 
-1. Uygulamadan **yeni hesap** ile kayıt ol (veya Apple ile giriş)
+Tam şema: [`docs/FIRESTORE_USERS.md`](../docs/FIRESTORE_USERS.md)
+
+1. Uygulamadan **yeni hesap** ile kayıt ol (email/şifre)
 2. Firestore → **Data** sekmesi
 3. **`users`** koleksiyonu → `{uid}` dokümanı görünmeli
 
@@ -119,7 +126,6 @@ Xcode:
 1. **Product → Clean Build Folder** (⇧⌘K)
 2. Run (⌘R)
 3. **Kayıt ol** → test email + şifre (min 6 karakter)
-4. veya **Apple ile devam et** (gerçek cihaz veya simülatör + Apple ID)
 
 ---
 
@@ -130,7 +136,7 @@ Xcode:
 | “Firebase yapılandırılmamış…” | `GoogleService-Info.plist` `NADA/` içinde mi? Dosya adı tam böyle mi? |
 | Bundle ID mismatch | Firebase’deki bundle ID = `com.gulnihal.NADA` |
 | Email auth failed | Authentication → Email/Password enabled mi? |
-| Apple auth failed | Authentication → Apple enabled mi? Gerçek cihazda dene. |
+| Apple auth failed | Paid Apple Developer account required; MVP uses email only |
 | Build: Missing FirebaseFirestore | File → Packages → Resolve Package Versions |
 | Firestore permission denied | Firestore rules + Authentication uid eşleşiyor mu? |
 | User doc yok | Firestore Database oluşturuldu mu? Console’da `users` koleksiyonuna bak |

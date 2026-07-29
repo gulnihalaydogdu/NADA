@@ -1,14 +1,17 @@
 # Week 1 — Technical decisions (locked 27 Jul 2026)
 
 ## Auth
-- **Methods:** Apple Sign In + email/password
-- **Fallback:** If email slips, ship Apple-only first; email follows in Week 2 Mon AM
+- **Methods:** Email/password for MVP (Personal Team dev account).
+- **Apple Sign In:** Code ready; **disabled until paid Apple Developer Program** ($99/yr). Personal teams cannot use Sign in with Apple capability.
 - **Provider:** Firebase Auth (BaaS)
 - **Session:** Firebase auth state listener; token attached to future API calls
 
 ## Backend
 - **BaaS:** Firebase (Auth + Firestore + Storage in later weeks)
-- **User fields (v1):** `id`, `displayName`, `gender`, `city`, `createdAt`, `intent` (= friendsOnly), `locale`
+- **User fields (v1, Firestore `users/{uid}`):**
+  - **Core (W1-02):** `id` (doc id = Auth uid), `displayName`, `gender`, `city`, `intent`, `createdAt`, `locale`
+  - **MVP extras:** `email` (from Auth), `friendsIntentCompleted` (onboarding gate)
+  - **Schema reference:** [`docs/FIRESTORE_USERS.md`](../docs/FIRESTORE_USERS.md)
 - **Secrets:** `GoogleService-Info.plist` is gitignored; use `GoogleService-Info.example.plist` as template
 
 ## iOS
@@ -36,4 +39,4 @@
 2. Download `GoogleService-Info.plist` → place in `NADA/` folder
 3. Enable **Authentication → Apple** and **Email/Password** in Firebase Console
 4. Run `./scripts/check-firebase-setup.sh` to verify
-5. Xcode: Sign in with Apple capability (entitlements file included)
+5. **Apple Sign In (optional):** Requires **paid** Apple Developer Program — not available on Personal Team. When enrolled: add Sign in with Apple capability, restore entitlement in `NADA.entitlements`, set `NADAAuthConfig.isAppleSignInEnabled = true`.

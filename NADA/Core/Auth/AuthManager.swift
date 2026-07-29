@@ -5,7 +5,6 @@ import Observation
 @MainActor
 final class AuthManager {
     private(set) var currentUser: NADAUser?
-    private(set) var isBootstrapped = false
     private(set) var isLoading = false
     private(set) var errorMessage: String?
 
@@ -27,13 +26,19 @@ final class AuthManager {
         currentUser?.friendsIntentCompleted == true
     }
 
-    /// Call once at launch — configures Firebase and restores session without blocking first frame.
+    /// Attaches auth listener and hydrates cached session.
     func bootstrap() {
-        guard !isBootstrapped else { return }
+        guard authStateHandle == nil else { return }
+
         authService.configureFirebaseIfNeeded()
-        currentUser = authService.cachedUser
-        listenForAuthChanges()
-        isBootstrapped = true
+
+        Task {
+            if let cached = authService.cachedUser {
+                await handleAuthUser(cached)
+            }
+
+            listenForAuthChanges()
+        }
     }
 
     var isAuthenticated: Bool { currentUser != nil }
@@ -111,7 +116,11 @@ final class AuthManager {
         do {
             currentUser = try await userService.ensureUserDocument(for: authUser)
         } catch {
-            errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
+            // Keep auth session; surface Firestore issues without blocking sign-in UI.
+            currentUser = authUser
+            if isLoading {
+                errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
+            }
         }
     }
 
