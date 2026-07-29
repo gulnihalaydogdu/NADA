@@ -1,5 +1,8 @@
 # Week 1 Backlog — Foundation
 
+**Kickoff locked:** [decisions-week-01.md](decisions-week-01.md) (27 Jul 2026) — Firebase Auth + Firestore, email MVP, EN UI.  
+**Run locally:** [README.md](../README.md) at repo root.
+
 **Dates:** Jul 27 – Aug 2, 2026 · **Theme:** Auth, User, app shell, photo upload path
 
 **Sprint goal:** A new user can sign up / sign in, complete friends-only onboarding, land in the app shell; a `User` row exists on the backend; photo upload path has a smoke test.
@@ -31,9 +34,11 @@
 - Repo layout, secrets rule, shared Notion/doc for API notes
 
 **Acceptance criteria**
-- [ ] Auth + backend choice written in a short `backlog/decisions-week-01.md` note or comment at top of this file after kickoff
-- [ ] User field list agreed (matches schema §7 essentials)
-- [ ] Both devs can pull/run their side of the monorepo or linked repos
+- [x] Auth + backend choice written in a short `backlog/decisions-week-01.md` note or comment at top of this file after kickoff
+- [x] User field list agreed (matches schema §7 essentials)
+- [x] Both devs can pull/run their side of the monorepo or linked repos
+
+**Done (29 Jul 2026):** Decisions doc, [`docs/FIRESTORE_USERS.md`](../docs/FIRESTORE_USERS.md), root [`README.md`](../README.md).
 
 ---
 
@@ -47,9 +52,11 @@
 | **Estimate** | 0.5–1 day |
 
 **Acceptance criteria**
-- [ ] Dev project/app created (Firebase/Supabase/custom)
-- [ ] Env documented (how to run locally / console URL)
-- [ ] No production secrets in git
+- [x] Dev project/app created (Firebase/Supabase/custom)
+- [x] Env documented (how to run locally / console URL)
+- [x] No production secrets in git
+
+**Done (29 Jul 2026):** Firebase project `nada-app-33`, [`docs/FIREBASE_SETUP.md`](../docs/FIREBASE_SETUP.md), `./scripts/check-firebase-setup.sh`, `.gitignore` for plist.
 
 ---
 
