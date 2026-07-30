@@ -2,16 +2,6 @@ import SwiftUI
 
 struct WelcomeView: View {
     @Environment(AuthManager.self) private var auth
-    @State private var pageIndex = 0
-
-    private let slides = OnboardingSlide.welcomePages
-
-    private enum Layout {
-        static let brandTopPadding: CGFloat = 4
-        static let gapAboveSketch: CGFloat = 0
-        static let sketchTop: CGFloat = 200
-        static let sketchHeight: CGFloat = 240
-    }
 
     var body: some View {
         NavigationStack {
