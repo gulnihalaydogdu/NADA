@@ -5,35 +5,20 @@ import SwiftUI
 @Observable
 @MainActor
 final class SplashController {
-    static let firstLaunchDuration: Duration = .seconds(2.75)
-    static let timeoutResumeDuration: Duration = .seconds(1.2)
-    /// Background / away time before the reopen splash plays.
+    static let splashDuration: Duration = .seconds(1.5)
     static let inactivityTimeout: TimeInterval = 5 * 60
 
-    private static let firstLaunchKey = "nada.hasCompletedFirstLaunchSplash"
     private static let lastBackgroundKey = "nada.lastBackgroundDate"
 
-    private(set) var isShowingSplash = false
+    /// Starts true so Welcome never flashes before splash on cold start.
+    private(set) var isShowingSplash = true
     private var hideTask: Task<Void, Never>?
     private var backgroundEnteredAt: Date?
     private var enteredBackgroundThisSession = false
 
-    /// Cold start: first install open, or reopen after inactivity timeout.
+    /// Every cold start (incl. app switcher kill): 1.5s splash.
     func handleColdStart() {
-        let defaults = UserDefaults.standard
-
-        if !defaults.bool(forKey: Self.firstLaunchKey) {
-            showSplash(for: Self.firstLaunchDuration, markFirstLaunchComplete: true)
-            return
-        }
-
-        if let lastBackground = defaults.object(forKey: Self.lastBackgroundKey) as? Date,
-           Date().timeIntervalSince(lastBackground) >= Self.inactivityTimeout {
-            showSplash(for: Self.timeoutResumeDuration)
-            return
-        }
-
-        isShowingSplash = false
+        showSplash(for: Self.splashDuration)
     }
 
     func handleScenePhase(_ phase: ScenePhase) {
@@ -52,17 +37,16 @@ final class SplashController {
         }
     }
 
-    func recordBackgroundEntry() {
+    private func recordBackgroundEntry() {
         let now = Date()
         backgroundEnteredAt = now
         UserDefaults.standard.set(now, forKey: Self.lastBackgroundKey)
     }
 
-    /// Warm resume after inactivity timeout (quick app-switch skips splash).
-    func handleResumeFromBackground() {
-        guard UserDefaults.standard.bool(forKey: Self.firstLaunchKey) else { return }
+    /// Warm resume after 5+ min in background: 1.5s splash.
+    private func handleResumeFromBackground() {
         guard elapsedSinceBackground >= Self.inactivityTimeout else { return }
-        showSplash(for: Self.timeoutResumeDuration)
+        showSplash(for: Self.splashDuration)
     }
 
     private var elapsedSinceBackground: TimeInterval {
@@ -75,16 +59,13 @@ final class SplashController {
         return 0
     }
 
-    private func showSplash(for duration: Duration, markFirstLaunchComplete: Bool = false) {
+    private func showSplash(for duration: Duration) {
         isShowingSplash = true
         hideTask?.cancel()
         hideTask = Task {
             try? await Task.sleep(for: duration)
             guard !Task.isCancelled else { return }
             isShowingSplash = false
-            if markFirstLaunchComplete {
-                UserDefaults.standard.set(true, forKey: Self.firstLaunchKey)
-            }
         }
     }
 }

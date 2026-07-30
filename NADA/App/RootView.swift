@@ -5,21 +5,27 @@ struct RootView: View {
     @Environment(SplashController.self) private var splash
     @Environment(\.scenePhase) private var scenePhase
 
-    var body: some View {
-        ZStack {
-            NADAScreenBackground()
-            routedContent
+    /// Keeps the splash up until the stored session is known, so launch never
+    /// routes through a screen the user has already completed.
+    private var showsSplash: Bool {
+        splash.isShowingSplash || !auth.isSessionResolved
+    }
 
-            if splash.isShowingSplash {
+    var body: some View {
+        Group {
+            if showsSplash {
                 LaunchSplashView()
-                    .transition(.opacity)
-                    .zIndex(1)
+            } else {
+                ZStack {
+                    NADAScreenBackground()
+                    routedContent
+                }
             }
         }
-        .animation(.easeOut(duration: 0.25), value: splash.isShowingSplash)
+        .animation(.easeOut(duration: 0.2), value: showsSplash)
         .task {
-            auth.bootstrap()
             splash.handleColdStart()
+            auth.bootstrap()
         }
         .onChange(of: scenePhase) { _, current in
             splash.handleScenePhase(current)

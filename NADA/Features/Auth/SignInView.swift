@@ -26,20 +26,18 @@ struct SignInView: View {
             }
 
             VStack(spacing: 16) {
-                authField(title: "Email", text: $email, field: .email, isSecure: false)
+                NADAAuthField(title: "Email", text: $email, focusedField: $focusedField, field: .email)
                     .textContentType(.emailAddress)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
 
-                authField(title: "Password", text: $password, field: .password, isSecure: true)
+                NADAAuthField(title: "Password", text: $password, isSecure: true, focusedField: $focusedField, field: .password)
                     .textContentType(.password)
             }
 
             if let error = auth.errorMessage {
-                Text(error)
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.danger)
+                NADAAuthErrorBanner(message: error)
             }
 
             Button {
@@ -51,7 +49,7 @@ struct SignInView: View {
                     )
                 }
             } label: {
-                if auth.isLoading {
+                if auth.isBusy {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                 } else {
@@ -59,16 +57,16 @@ struct SignInView: View {
                 }
             }
             .buttonStyle(NADAPrimaryButtonStyle())
-            .disabled(auth.isLoading || email.isEmpty || password.isEmpty || !auth.isFirebaseReady)
+            .disabled(auth.isBusy || email.isEmpty || password.isEmpty || !auth.isFirebaseReady)
 
             if NADAAuthConfig.isAppleSignInEnabled {
-                dividerLabel("or")
+                NADAAuthDivider(label: "or")
 
-                AppleSignInButton(isLoading: auth.isLoading) {
+                AppleSignInButton(isLoading: auth.isBusy) {
                     focusedField = nil
-                    Task { await handleAppleSignIn() }
+                    Task { await AuthAppleSignIn.signIn(auth: auth, coordinator: appleCoordinator) }
                 }
-                .disabled(auth.isLoading || !auth.isFirebaseReady)
+                .disabled(auth.isBusy || !auth.isFirebaseReady)
             }
 
             Spacer(minLength: 0)
@@ -76,64 +74,10 @@ struct SignInView: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(NADATheme.paper)
-        .navigationBarTitleDisplayMode(.inline)
+        .nadaAuthNavigationBar()
         .onAppear { auth.clearError() }
         .onChange(of: auth.isAuthenticated) { _, isAuth in
             if isAuth { dismiss() }
-        }
-    }
-
-    private func handleAppleSignIn() async {
-        do {
-            let result = try await appleCoordinator.signIn()
-            await auth.signInWithApple(
-                idToken: result.idToken,
-                nonce: result.nonce,
-                fullName: result.fullName
-            )
-        } catch AuthError.cancelled {
-            // dismissed
-        } catch {
-            auth.presentError((error as? AuthError)?.errorDescription ?? error.localizedDescription)
-        }
-    }
-
-    @ViewBuilder
-    private func authField(
-        title: String,
-        text: Binding<String>,
-        field: Field,
-        isSecure: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.secondaryInk)
-
-            Group {
-                if isSecure {
-                    SecureField(title, text: text)
-                } else {
-                    TextField(title, text: text)
-                }
-            }
-            .focused($focusedField, equals: field)
-            .textFieldStyle(.plain)
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NADATheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-    }
-
-    private func dividerLabel(_ text: String) -> some View {
-        HStack {
-            NADATheme.hairline.frame(height: 1)
-            Text(text)
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.secondaryInk)
-            NADATheme.hairline.frame(height: 1)
         }
     }
 }

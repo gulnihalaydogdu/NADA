@@ -297,33 +297,33 @@ Copy and UI must reinforce “not dating.” No “looking for relationship” f
 
 ## 12. Design / UI direction
 
-**Principle:** Hinge-level restraint (one focus, lots of air, photos carry the screen) — with a **soft lilac brand** that feels light, calm, and inviting (not loud orange, not dating pink). SF Pro, large type, generous spacing, gentle micro-animations on like / skip / match.
+**Principle:** Hinge-level restraint (one focus, lots of air, photos carry the screen) — with a **warm dusty coral brand** that matches sketches and app icon (not lilac/Hinge purple, not dating pink). SF Pro, large type, generous spacing, gentle micro-animations on like / skip / match.
 
-**Chosen palette — “NADA Lilac”** (soft lilac paper + dark ink + light lilac brand):
+**Chosen palette — “NADA Coral”** (warm paper + dark ink + dusty coral brand):
 
 | Token | Light | Dark | Use |
 |-------|-------|------|-----|
-| Background (paper) | `#F7F5FA` | `#121014` | App base — cool soft paper (lilac-friendly) |
-| Surface / sheet | `#EFEAF6` | `#1C1922` | Sheets, secondary panels |
+| Background (paper) | `#FAF8F6` | `#121014` | App base — warm soft paper |
+| Surface / sheet | `#F5EDE8` | `#1C1922` | Sheets, secondary panels, CTA dock |
 | Ink | `#1A1625` | `#F4F1FA` | Headings, body |
 | Secondary text | `#6F687A` | `#A59CB0` | Captions, hints |
-| Brand / primary CTA | `#B8A4DC` | `#C9B8F0` | Buttons, active tab, key links — **soft lilac** |
-| Brand pressed | `#9B87C7` | `#B8A4DC` | Pressed / focused (slightly deeper lilac) |
-| Brand soft fill | `#EDE6F7` | `#2A2438` | Chip / selected / light brand wash |
-| Like / highlight | `#B8A4DC` | `#C9B8F0` | Like glow, selected prompt (same as brand) |
-| Match flash | `#1A1625` on `#B8A4DC` | Inverse | Match celebration |
+| Brand / primary CTA | `#C17B6F` | `#D49286` | Buttons, active tab, key links — **dusty coral** |
+| Brand pressed | `#A56458` | `#C17B6F` | Pressed / focused |
+| Brand soft fill | `#F5E8E3` | `#2A2438` | Chip / selected / light coral wash |
+| Like / highlight | `#C17B6F` | `#D49286` | Like glow, selected bit (same as brand) |
+| Match flash | `#1A1625` on `#C17B6F` | Inverse | Match celebration |
 | Soft / safe | `#5B7C6E` | `#7FA08F` | Safety prefs, “friends only” chips (rare, muted green) |
 | Danger | `#B42318` | `#F97066` | Report / block only |
-| Hairline | `#E0D9EB` | `#2E2938` | Dividers |
+| Hairline | `#E5D5CF` | `#2E2938` | Dividers |
 
 **How it should feel on screen**
-- Mostly quiet: soft paper + photos + dark ink (Hinge calm).
-- Brand lilac on CTAs, like, active tab, and light washes — airy and soft, never neon or heavy purple blocks.
-- Do not flood the UI with purple gradients; one soft lilac voice + restraint = gentle and premium.
+- Mostly quiet: warm paper + photos + dark ink (Hinge calm).
+- Brand coral on CTAs, like, active tab, and light blush washes — warm and friendly, never neon.
+- Do not flood the UI with heavy color blocks; one coral voice + restraint = gentle and premium.
 
-**Rationale:** Soft lilac preferred over orange/ember — friendly and light without dating pink or aggressive CTA energy. Muted green stays for safety so those moments don’t compete with brand.
+**Rationale:** Coral unifies UI chrome with sketch art and app icon — distinct from Hinge’s purple. Muted green stays for safety so those moments don’t compete with brand.
 
-**Hard rejects:** orange/coral CTAs, loud purple–indigo gradients, pastel pink romance, teal SaaS kits.
+**Hard rejects:** lilac/purple UI chrome (Hinge territory), loud purple–indigo gradients, pastel pink romance, teal SaaS kits.
 
 **Copy — “Bits” (not “prompts” in UI):** Profile question-and-answer cards are called **bits** in all user-facing copy (“Photos and bits”, “Add 3 bits”, “Like a bit”). Avoid “prompts” in the app — it reads as Hinge. Backend/code may still use `Prompt` / `PromptAnswer`.
 
@@ -335,7 +335,7 @@ Copy and UI must reinforce “not dating.” No “looking for relationship” f
   - Fill accent: **dusty coral** `#C17B6F` (crosshatch/stipple on clothing or props)
   - Background wash: **pale blush** `#F3DFDB` or `#F0D5CE` (optional oval behind figures)
   - Secondary shading: warm gray `#C4B8B2`
-- **UI stays lilac** for CTAs/tabs (`#B8A4DC`) — icon + sketches share warm coral; in-app chrome stays lilac until/unless palette is unified.
+- **UI coral** (`#C17B6F`) for CTAs/tabs — unified with sketch accent and app icon.
 - **Ink-only variant** still OK for max restraint.
 
 ---

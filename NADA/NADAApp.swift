@@ -11,9 +11,9 @@ struct NADAApp: App {
         FirebaseAuthService.configureAtLaunch()
 
         UIWindow.appearance().backgroundColor = UIColor(
-            red: 0.969,
-            green: 0.961,
-            blue: 0.980,
+            red: 0.980,
+            green: 0.973,
+            blue: 0.965,
             alpha: 1
         )
     }

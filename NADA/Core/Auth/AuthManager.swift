@@ -8,6 +8,12 @@ final class AuthManager {
     private(set) var isLoading = false
     private(set) var errorMessage: String?
 
+    /// True while a signed-in user's Firestore profile is still being read.
+    private(set) var isResolvingProfile = false
+
+    /// False until the initial session has been fully resolved on launch.
+    private(set) var isSessionResolved = false
+
     private let authService: FirebaseAuthService
     private let userService: FirestoreUserService
     private var authStateHandle: AuthStateHandle?
@@ -15,11 +21,6 @@ final class AuthManager {
     init() {
         self.authService = FirebaseAuthService()
         self.userService = FirestoreUserService()
-    }
-
-    init(authService: FirebaseAuthService, userService: FirestoreUserService) {
-        self.authService = authService
-        self.userService = userService
     }
 
     var hasCompletedFriendsIntent: Bool {
@@ -38,11 +39,15 @@ final class AuthManager {
             }
 
             listenForAuthChanges()
+            isSessionResolved = true
         }
     }
 
     var isAuthenticated: Bool { currentUser != nil }
     var isFirebaseReady: Bool { authService.isReady }
+
+    /// Covers both the network call and the profile read that follows it.
+    var isBusy: Bool { isLoading || isResolvingProfile }
 
     func signInWithEmail(email: String, password: String) async {
         await perform {
@@ -108,17 +113,21 @@ final class AuthManager {
     private func handleAuthUser(_ authUser: NADAUser?) async {
         guard let authUser else {
             currentUser = nil
+            isResolvingProfile = false
             return
         }
 
-        currentUser = authUser
+        // Firebase Auth cannot tell us `friendsIntentCompleted`, so publishing the
+        // user before Firestore answers would briefly route to the intent screen.
+        isResolvingProfile = true
+        defer { isResolvingProfile = false }
 
         do {
             currentUser = try await userService.ensureUserDocument(for: authUser)
         } catch {
             // Keep auth session; surface Firestore issues without blocking sign-in UI.
             currentUser = authUser
-            if isLoading {
+            if isBusy {
                 errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
             }
         }

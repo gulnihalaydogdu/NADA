@@ -16,7 +16,7 @@
 
 ## iOS
 - **UI language (MVP):** English first; Turkish in v1.1+
-- **Design tokens:** NADA Lilac — brand `#B8A4DC`, paper `#F7F5FA`, ink `#1A1625`
+- **Design tokens:** NADA Coral — brand `#C17B6F`, paper `#FAF8F6`, ink `#1A1625`, blush wash `#F5E8E3`
 - **Bundle ID:** `com.gulnihal.NADA` (must match Firebase iOS app + `GoogleService-Info.plist`)
 
 ## Copy / terminology
@@ -28,7 +28,7 @@
 - Hand-drawn editorial style (Hinge-like *line quality*, not Hinge colors).
 - **No lilac/purple in art** — Hinge territory.
 - **Match app icon:** dusty coral fill `#C17B6F`, pale blush wash `#F3DFDB`, ink `#1A1625`.
-- UI lilac (`#B8A4DC`) stays for buttons/tabs only.
+- UI coral (`#C17B6F`) for buttons, tabs, links — matches sketch accent
 - Asset naming: `SketchWelcomeHangout`, `SketchWelcomeBits`, etc.
 
 ## Setup required (one-time)

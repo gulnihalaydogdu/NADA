@@ -3,5 +3,5 @@ NADA/GoogleService-Info.plist
 
 # Xcode
 *.xcuserstate
-xcuserdata/
+**/xcuserdata/
 .DS_Store

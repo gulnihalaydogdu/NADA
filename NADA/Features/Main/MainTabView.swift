@@ -70,7 +70,7 @@ private struct ProfileTabView: View {
             NADAScreenBackground()
 
             VStack(spacing: 20) {
-                Image("NADALogo")
+                Image("SplashMark")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 72, height: 72)

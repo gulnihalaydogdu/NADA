@@ -15,10 +15,10 @@
 
 ## iOS (Dev A) — lead this week
 
-### W7-01 — Design system pass (§12 “NADA Lilac”)
+### W7-01 — Design system pass (§12 “NADA Coral”)
 - **P0 · 2d** — Centralize colors/typography/spacing tokens; apply across all screens.
-- [ ] Light + dark tokens from §12 (paper `#F7F5FA`, ink `#1A1625`, brand `#B8A4DC`)
-- [ ] Brand lilac only on CTAs / like / active tab / soft fills — no heavy purple gradients
+- [ ] Light + dark tokens from §12 (paper `#FAF8F6`, ink `#1A1625`, brand `#C17B6F`)
+- [ ] Brand coral only on CTAs / like / active tab / soft fills — no heavy color blocks
 - [ ] Buttons, cards, inputs, tab bar consistent; no leftover ember/teal/amber tokens
 
 ### W7-02 — First-launch product tour

@@ -26,133 +26,74 @@ struct SignUpView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Create your account")
-                        .font(NADATheme.titleFont)
-                        .foregroundStyle(NADATheme.ink)
-                    Text("Match with people to hang out with — not for dating.")
-                        .font(NADATheme.bodyFont)
-                        .foregroundStyle(NADATheme.secondaryInk)
-                }
-
-                VStack(spacing: 16) {
-                    authField(title: "Email", text: $email, field: .email, isSecure: false)
-                        .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                    authField(title: "Password (min. 6 characters)", text: $password, field: .password, isSecure: true)
-                        .textContentType(.newPassword)
-
-                    authField(title: "Confirm password", text: $confirmPassword, field: .confirmPassword, isSecure: true)
-                        .textContentType(.newPassword)
-
-                    if !confirmPassword.isEmpty && !passwordsMatch {
-                        Text("Passwords don't match.")
-                            .font(NADATheme.captionFont)
-                            .foregroundStyle(NADATheme.danger)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Create your account")
+                            .font(NADATheme.titleFont)
+                            .foregroundStyle(NADATheme.ink)
+                        Text("Match with people to hang out with — not for dating.")
+                            .font(NADATheme.bodyFont)
+                            .foregroundStyle(NADATheme.secondaryInk)
                     }
-                }
 
-                if let error = auth.errorMessage {
-                    Text(error)
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.danger)
-                }
+                    VStack(spacing: 16) {
+                        NADAAuthField(title: "Email", text: $email, focusedField: $focusedField, field: .email)
+                            .textContentType(.emailAddress)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
 
-                Button {
-                    focusedField = nil
-                    Task {
-                        await auth.signUpWithEmail(
-                            email: email.trimmingCharacters(in: .whitespaces),
-                            password: password
-                        )
+                        NADAAuthField(title: "Password (min. 6 characters)", text: $password, isSecure: true, focusedField: $focusedField, field: .password)
+                            .textContentType(.newPassword)
+
+                        NADAAuthField(title: "Confirm password", text: $confirmPassword, isSecure: true, focusedField: $focusedField, field: .confirmPassword)
+                            .textContentType(.newPassword)
+
+                        if !confirmPassword.isEmpty && !passwordsMatch {
+                            NADAAuthErrorBanner(message: "Passwords don't match.")
+                        }
                     }
-                } label: {
-                    if auth.isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Text("Sign up")
+
+                    if let error = auth.errorMessage {
+                        NADAAuthErrorBanner(message: error)
                     }
-                }
-                .buttonStyle(NADAPrimaryButtonStyle())
-                .disabled(auth.isLoading || email.isEmpty || !passwordsMatch || !auth.isFirebaseReady)
 
-                if NADAAuthConfig.isAppleSignInEnabled {
-                    dividerLabel("or")
-
-                    AppleSignInButton(isLoading: auth.isLoading) {
+                    Button {
                         focusedField = nil
-                        Task { await handleAppleSignIn() }
+                        Task {
+                            await auth.signUpWithEmail(
+                                email: email.trimmingCharacters(in: .whitespaces),
+                                password: password
+                            )
+                        }
+                    } label: {
+                        if auth.isBusy {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Text("Sign up")
+                        }
                     }
-                    .disabled(auth.isLoading || !auth.isFirebaseReady)
+                    .buttonStyle(NADAPrimaryButtonStyle())
+                    .disabled(auth.isBusy || email.isEmpty || !passwordsMatch || !auth.isFirebaseReady)
+
+                    if NADAAuthConfig.isAppleSignInEnabled {
+                        NADAAuthDivider(label: "or")
+
+                        AppleSignInButton(isLoading: auth.isBusy) {
+                            focusedField = nil
+                            Task { await AuthAppleSignIn.signIn(auth: auth, coordinator: appleCoordinator) }
+                        }
+                        .disabled(auth.isBusy || !auth.isFirebaseReady)
+                    }
                 }
-                }
+                .padding(24)
             }
-            .padding(24)
         }
         .scrollDismissesKeyboard(.interactively)
-        .toolbar(.hidden, for: .navigationBar)
-        .navigationBarTitleDisplayMode(.inline)
+        .nadaAuthNavigationBar()
         .onAppear { auth.clearError() }
         .onChange(of: auth.isAuthenticated) { _, isAuth in
             if isAuth { dismiss() }
-        }
-    }
-
-    private func handleAppleSignIn() async {
-        do {
-            let result = try await appleCoordinator.signIn()
-            await auth.signInWithApple(
-                idToken: result.idToken,
-                nonce: result.nonce,
-                fullName: result.fullName
-            )
-        } catch AuthError.cancelled {
-            // dismissed
-        } catch {
-            auth.presentError((error as? AuthError)?.errorDescription ?? error.localizedDescription)
-        }
-    }
-
-    @ViewBuilder
-    private func authField(
-        title: String,
-        text: Binding<String>,
-        field: Field,
-        isSecure: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.secondaryInk)
-
-            Group {
-                if isSecure {
-                    SecureField(title, text: text)
-                } else {
-                    TextField(title, text: text)
-                }
-            }
-            .focused($focusedField, equals: field)
-            .textFieldStyle(.plain)
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NADATheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-    }
-
-    private func dividerLabel(_ text: String) -> some View {
-        HStack {
-            NADATheme.hairline.frame(height: 1)
-            Text(text)
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.secondaryInk)
-            NADATheme.hairline.frame(height: 1)
         }
     }
 }
