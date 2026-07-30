@@ -62,46 +62,6 @@ private struct PlaceholderTabView: View {
     }
 }
 
-private struct ProfileTabView: View {
-    @Environment(AuthManager.self) private var auth
-
-    var body: some View {
-        ZStack {
-            NADAScreenBackground()
-
-            VStack(spacing: 20) {
-                Image("SplashMark")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 72, height: 72)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                if let user = auth.currentUser {
-                    Text(user.displayName ?? user.email ?? "User")
-                        .font(NADATheme.titleFont)
-                        .foregroundStyle(NADATheme.ink)
-                    if let email = user.email {
-                        Text(email)
-                            .font(NADATheme.captionFont)
-                            .foregroundStyle(NADATheme.secondaryInk)
-                    }
-                }
-
-                Text("Profile setup coming in Week 2.")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-
-                Button("Sign out") {
-                    auth.signOut()
-                }
-                .buttonStyle(NADASecondaryButtonStyle())
-                .padding(.horizontal, 24)
-                .padding(.top, 8)
-            }
-        }
-    }
-}
-
 #Preview {
     MainTabView()
         .environment(AuthManager())

@@ -27,6 +27,10 @@ final class AuthManager {
         currentUser?.friendsIntentCompleted == true
     }
 
+    var hasCompletedBasicProfile: Bool {
+        currentUser?.hasCompletedBasicProfile == true
+    }
+
     /// Attaches auth listener and hydrates cached session.
     func bootstrap() {
         guard authStateHandle == nil else { return }
@@ -82,6 +86,34 @@ final class AuthManager {
                 self.currentUser = profile
             }
         }
+    }
+
+    /// Updates display name, gender, and city on Firestore. Returns `true` on success.
+    @discardableResult
+    func updateBasicProfile(displayName: String, gender: ProfileGender, city: String) async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+
+        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedName.isEmpty, !trimmedCity.isEmpty else {
+            errorMessage = "Name and city are required."
+            return false
+        }
+
+        var didSucceed = false
+        await perform {
+            let updated = try await self.userService.updateProfile(
+                userId: userId,
+                displayName: trimmedName,
+                gender: gender.rawValue,
+                city: trimmedCity,
+                locale: nil
+            )
+            self.currentUser = updated
+            didSucceed = true
+        }
+        return didSucceed
     }
 
     func signOut() {

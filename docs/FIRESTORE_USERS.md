@@ -17,9 +17,11 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
 | `locale` | string | yes | e.g. `"en_TR"` from device |
 | `createdAt` | timestamp | yes | `FieldValue.serverTimestamp()` |
 | `email` | string | no | From Auth on sign-up if available |
-| `displayName` | string | no | From Auth / Apple profile if available |
-| `gender` | string | no | Set in profile wizard (Week 2) |
-| `city` | string | no | Set in profile wizard (Week 2) |
+| `displayName` | string | no† | Required before tabs (basic profile gate) |
+| `gender` | string | no† | `woman` / `man` / `nonBinary` / `preferNotToSay` |
+| `city` | string | no† | Required before tabs |
+
+† Created empty on sign-up; **Basic Profile** gate requires them before `MainTabView`.
 
 ---
 
@@ -27,7 +29,8 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
 
 1. **Sign up / sign in** → `FirestoreUserService.ensureUserDocument` creates doc if missing.
 2. **Friends intent** → `setFriendsIntentCompleted` sets `friendsIntentCompleted: true`, reaffirms `intent`.
-3. **Profile edit** → `updateProfile` patches `displayName`, `gender`, `city`, `locale` (W1-04 wire in UI pending).
+3. **Profile basics (required)** → `updateProfile` sets `displayName`, `gender`, `city` before the tab shell opens.
+4. **Profile edit** → same fields can be updated later from Profile → Edit profile.
 
 ---
 
@@ -40,9 +43,9 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
   "locale": "en_TR",
   "createdAt": "<timestamp>",
   "email": "user@example.com",
-  "displayName": null,
-  "gender": null,
-  "city": null
+  "displayName": "Gül",
+  "gender": "woman",
+  "city": "Istanbul"
 }
 ```
 
