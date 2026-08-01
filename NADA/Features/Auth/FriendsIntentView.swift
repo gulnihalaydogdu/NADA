@@ -4,68 +4,114 @@ struct FriendsIntentView: View {
     @Environment(AuthManager.self) private var auth
 
     private enum Layout {
-        static let topPadding: CGFloat = 12
-        static let sketchHeight: CGFloat = 290
-        static let sketchHorizontal: CGFloat = 20
-        static let gapAfterSketch: CGFloat = 16
+        static let heroImage = "FriendsIntentHero"
+        static let brandInk = Color(red: 0.867, green: 0.867, blue: 0.867) // #DDDDDD
+        static let headlineSize: CGFloat = 28
+        static let sublineSize: CGFloat = 16
         static let copyStackSpacing: CGFloat = 10
-        static let minSpacer: CGFloat = 24
         static let ctaHorizontal: CGFloat = 24
-        static let ctaTop: CGFloat = 24
-        static let ctaBottom: CGFloat = 36
-        static let ctaCornerRadius: CGFloat = 32
-        static let sublineSize: CGFloat = 17
+        static let ctaStackSpacing: CGFloat = 14
+        static let ctaBottomExtra: CGFloat = 20
+        static let copyBottomPadding: CGFloat = 20
     }
 
     var body: some View {
-        ZStack {
-            NADAScreenBackground()
+        GeometryReader { geometry in
+            let size = geometry.size
+            let topPad = max(geometry.safeAreaInsets.top, 47) + 24
+            let bottomPad = max(geometry.safeAreaInsets.bottom + Layout.ctaBottomExtra, 32)
 
-            VStack(spacing: 0) {
-                contentBlock
-                    .padding(.top, Layout.topPadding)
+            ZStack {
+                heroBackground(size: size)
 
-                Spacer(minLength: Layout.minSpacer)
+                VStack(spacing: 0) {
+                    Spacer(minLength: topPad)
 
-                ctaDock
+                    Spacer(minLength: 0)
+
+                    copyBlock
+                        .padding(.bottom, Layout.copyBottomPadding)
+
+                    ctaBlock
+                        .padding(.horizontal, Layout.ctaHorizontal)
+                        .padding(.bottom, bottomPad)
+                }
+                .frame(width: size.width, height: size.height, alignment: .top)
             }
+            .frame(width: size.width, height: size.height)
         }
+        .ignoresSafeArea()
     }
 
-    private var contentBlock: some View {
-        VStack(spacing: Layout.gapAfterSketch) {
-            Image("SketchFriendsIntent")
+    private func heroBackground(size: CGSize) -> some View {
+        ZStack {
+            Color.black
+
+            Image(Layout.heroImage)
                 .resizable()
-                .scaledToFit()
-                .frame(height: Layout.sketchHeight)
-                .padding(.horizontal, Layout.sketchHorizontal)
-                .accessibilityHidden(true)
+                .scaledToFill()
+                .frame(width: size.width, height: size.height, alignment: .center)
+                .clipped()
 
-            VStack(spacing: Layout.copyStackSpacing) {
-                Text("You're here for friendship.")
-                    .font(NADATheme.displayFont)
-                    .foregroundStyle(NADATheme.ink)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+            RadialGradient(
+                colors: [
+                    .clear,
+                    .black.opacity(0.22),
+                    .black.opacity(0.62)
+                ],
+                center: .center,
+                startRadius: 30,
+                endRadius: max(size.width, size.height) * 0.72
+            )
+            .frame(width: size.width, height: size.height)
 
-                Text("NADA is for friendship, shared plans and good company — never dating or flirting.")
-                    .font(.system(size: Layout.sublineSize, weight: .regular))
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 28)
-            }
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.35), location: 0),
+                    .init(color: .black.opacity(0.08), location: 0.28),
+                    .init(color: .black.opacity(0.20), location: 0.48),
+                    .init(color: .black.opacity(0.55), location: 0.68),
+                    .init(color: .black.opacity(0.82), location: 0.84),
+                    .init(color: .black.opacity(0.92), location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(width: size.width, height: size.height)
+        }
+        .frame(width: size.width, height: size.height)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var copyBlock: some View {
+        VStack(spacing: Layout.copyStackSpacing) {
+            Text("You're here for friendship.")
+                .font(.system(size: Layout.headlineSize, weight: .bold))
+                .foregroundStyle(Layout.brandInk)
+                .multilineTextAlignment(.center)
+                .shadow(color: .black.opacity(0.45), radius: 10, y: 2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("NADA is for friendship, shared plans and good company — never dating or flirting.")
+                .font(.system(size: Layout.sublineSize, weight: .medium))
+                .foregroundStyle(Layout.brandInk.opacity(0.88))
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+                .shadow(color: .black.opacity(0.4), radius: 8, y: 1)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 28)
         }
         .frame(maxWidth: .infinity)
     }
 
-    private var ctaDock: some View {
+    private var ctaBlock: some View {
         Button {
             Task { await auth.completeFriendsIntent() }
         } label: {
             if auth.isBusy {
                 ProgressView()
+                    .tint(.white)
                     .frame(maxWidth: .infinity)
             } else {
                 Text("Continue")
@@ -73,21 +119,7 @@ struct FriendsIntentView: View {
         }
         .buttonStyle(NADAPrimaryButtonStyle())
         .disabled(auth.isBusy)
-        .padding(.horizontal, Layout.ctaHorizontal)
-        .padding(.top, Layout.ctaTop)
-        .padding(.bottom, Layout.ctaBottom)
         .frame(maxWidth: .infinity)
-        .background {
-            UnevenRoundedRectangle(
-                cornerRadii: .init(
-                    topLeading: Layout.ctaCornerRadius,
-                    topTrailing: Layout.ctaCornerRadius
-                ),
-                style: .continuous
-            )
-            .fill(NADATheme.surface.opacity(0.96))
-            .ignoresSafeArea(edges: .bottom)
-        }
     }
 }
 
