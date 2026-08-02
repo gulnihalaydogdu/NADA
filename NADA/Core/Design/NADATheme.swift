@@ -13,6 +13,7 @@ enum NADATheme {
     static let onBrand = Color(red: 0.980, green: 0.973, blue: 0.965)       // light on coral CTA
     static let danger = Color(red: 0.706, green: 0.137, blue: 0.094)       // #B42318
     static let hairline = Color(red: 0.898, green: 0.835, blue: 0.812)    // #E5D5CF
+    static let card = Color(red: 0.996, green: 0.992, blue: 0.988)         // #FEFDFC card on paper
 
     static let titleFont = Font.system(.title, design: .default, weight: .bold)
     static let displayFont = Font.system(size: 28, weight: .bold, design: .rounded)
@@ -67,6 +68,32 @@ struct LaunchSplashView: View {
                 .frame(width: 200)
         }
         .ignoresSafeArea()
+    }
+}
+
+/// Blush capsule used for secondary actions next to a filled CTA.
+struct NADASoftCapsuleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(NADATheme.headlineFont)
+            .foregroundStyle(NADATheme.ink)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(configuration.isPressed ? NADATheme.hairline : NADATheme.brandSoft)
+            .clipShape(Capsule())
+    }
+}
+
+/// Ink capsule used for the primary profile action.
+struct NADADarkCapsuleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(NADATheme.headlineFont)
+            .foregroundStyle(NADATheme.paper)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(NADATheme.ink.opacity(configuration.isPressed ? 0.85 : 1))
+            .clipShape(Capsule())
     }
 }
 

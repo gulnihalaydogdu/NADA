@@ -9,12 +9,25 @@ struct Prompt: Identifiable, Equatable, Sendable {
     var sortOrder: Int
     var locale: String
 
-    enum Category: String, Codable, Sendable, CaseIterable {
+    enum Category: String, Codable, Sendable, CaseIterable, Identifiable {
         case hangout
         case hobby
         case gamesMemes = "gamesMemes"
         case newInTown = "newInTown"
         case energy
+
+        var id: String { rawValue }
+
+        /// Friend-coded labels — no dating language.
+        var title: String {
+            switch self {
+            case .hangout: return "Hangouts"
+            case .hobby: return "Hobbies"
+            case .gamesMemes: return "Games & memes"
+            case .newInTown: return "New in town"
+            case .energy: return "Energy"
+            }
+        }
     }
 }
 

@@ -51,6 +51,13 @@ final class FirestoreUserService {
         )
     }
 
+    func setProfileWizardCompleted(userId: String) async throws -> NADAUser {
+        try await patchUser(
+            userId: userId,
+            fields: ["profileWizardCompleted": true]
+        )
+    }
+
     func updateProfile(
         userId: String,
         displayName: String?,
@@ -92,6 +99,7 @@ final class FirestoreUserService {
         var data: [String: Any] = [
             "intent": NADAUser.UserIntent.friendsOnly.rawValue,
             "friendsIntentCompleted": false,
+            "profileWizardCompleted": false,
             "locale": user.locale ?? Locale.current.identifier,
             "createdAt": FieldValue.serverTimestamp()
         ]
@@ -123,7 +131,8 @@ final class FirestoreUserService {
             intent: intent,
             locale: data["locale"] as? String ?? fallback.locale,
             createdAt: createdAt,
-            friendsIntentCompleted: data["friendsIntentCompleted"] as? Bool ?? false
+            friendsIntentCompleted: data["friendsIntentCompleted"] as? Bool ?? false,
+            profileWizardCompleted: data["profileWizardCompleted"] as? Bool ?? false
         )
     }
 }

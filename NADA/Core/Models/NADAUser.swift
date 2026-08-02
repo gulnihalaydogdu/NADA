@@ -11,6 +11,8 @@ struct NADAUser: Identifiable, Equatable, Sendable {
     var locale: String?
     var createdAt: Date?
     var friendsIntentCompleted: Bool
+    /// Soft profile setup shell (Photos → Bits → Preferences). Skip allowed.
+    var profileWizardCompleted: Bool
 
     enum UserIntent: String, Codable, Sendable {
         case friendsOnly = "friendsOnly"
@@ -26,7 +28,8 @@ struct NADAUser: Identifiable, Equatable, Sendable {
         intent: UserIntent = .friendsOnly,
         locale: String? = nil,
         createdAt: Date? = nil,
-        friendsIntentCompleted: Bool = false
+        friendsIntentCompleted: Bool = false,
+        profileWizardCompleted: Bool = false
     ) {
         self.id = id
         self.displayName = displayName
@@ -38,5 +41,6 @@ struct NADAUser: Identifiable, Equatable, Sendable {
         self.locale = locale
         self.createdAt = createdAt
         self.friendsIntentCompleted = friendsIntentCompleted
+        self.profileWizardCompleted = profileWizardCompleted
     }
 }

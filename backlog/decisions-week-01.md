@@ -19,6 +19,21 @@
 - **Design tokens:** NADA Coral — brand `#C17B6F`, paper `#FAF8F6`, ink `#1A1625`, blush wash `#F5E8E3`
 - **Bundle ID:** `com.gulnihal.NADA` (must match Firebase iOS app + `GoogleService-Info.plist`)
 
+## Profile tab structure (target layout)
+Profile screen follows one fixed skeleton; new features slot into it instead of stacking new sections.
+
+1. **Top bar** — preview (left) · “My Profile” · settings (right)
+2. **Header** — avatar with camera badge, name, city
+3. **Completion meter** — `% complete` averaged over the five sections below
+4. **Actions** — `Preview profile` (blush) + `Edit` (ink)
+5. **Nudges** — “Make your profile feel more like you”, max 3 rows from `ProfileCompletion.suggestions`
+6. **Your profile rows** — Photos · Bits · About you · Hangout energy · Location & distance
+7. **Mission card** — “NADA is for real connections.”
+8. **Log out**
+
+**Section state (Week 1):** Photos `1 / 6` (single Storage upload), Bits `0 / 3` (catalog read-only), About you (name + gender), Hangout energy (preview chips), Location (city saves, radius preview).  
+**Rule:** each new capability updates its existing row + `ProfileCompletion`, no new top-level section without a design decision.
+
 ## Copy / terminology
 - **Bits** — user-facing name for profile Q&A cards (Hinge “prompts” equivalent). Examples: “Add 3 bits”, “Like a bit”.
 - **Internal/API:** keep `Prompt`, `PromptAnswer`, `GET /prompts` unchanged.

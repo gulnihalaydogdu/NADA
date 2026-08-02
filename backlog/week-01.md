@@ -219,10 +219,12 @@
 | **Estimate** | 1 day |
 
 **Acceptance criteria**
-- [ ] Multi-step shell: Photos → Prompts → Preferences
-- [ ] Steps navigable; can save partial progress where API exists
-- [ ] Photos step can call upload smoke path (W1-05) for at least one image **or** clearly stubbed with TODO if blocked
-- [ ] Prompts/Preferences can be UI-only placeholders if W1-06 is late
+- [x] Multi-step shell: Photos → Prompts → Preferences
+- [x] Steps navigable; can save partial progress where API exists
+- [x] Photos step can call upload smoke path (W1-05) for at least one image **or** clearly stubbed with TODO if blocked
+- [x] Prompts/Preferences can be UI-only placeholders if W1-06 is late
+
+**Ship notes:** `ProfileSetupWizardView` after basics gate; `profileWizardCompleted` on user doc. Bits/Preferences are preview/skip until Week 2.
 
 ---
 

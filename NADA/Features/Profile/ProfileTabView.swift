@@ -1,81 +1,52 @@
-import PhotosUI
 import SwiftUI
-import UIKit
 
 struct ProfileTabView: View {
     @Environment(AuthManager.self) private var auth
 
-    @State private var isEditing = false
-    @State private var showSettings = false
-    @State private var selectedPhoto: PhotosPickerItem?
-    @State private var localAvatar: Image?
-    @State private var isUploadingPhoto = false
+    @State private var route: ProfileRoute?
     @State private var catalogBits: [Prompt] = []
-    @State private var bitsLoadError: String?
     @State private var isLoadingBits = false
+    @State private var bitsLoadError: String?
+    @State private var showSignOutConfirm = false
 
     private let promptService = FirestorePromptService()
+
+    private var completion: ProfileCompletion {
+        ProfileCompletion(user: auth.currentUser)
+    }
 
     var body: some View {
         ZStack {
             NADAScreenBackground()
 
             ScrollView {
-                VStack(spacing: 0) {
+                VStack(spacing: 20) {
                     topBar
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
+                    header
 
-                    VStack(spacing: 16) {
-                        avatarPicker
-
-                        Text(auth.currentUser?.displayName ?? "Your name")
-                            .font(NADATheme.titleFont)
-                            .foregroundStyle(NADATheme.ink)
+                    if let error = auth.errorMessage {
+                        Text(error)
+                            .font(NADATheme.captionFont)
+                            .foregroundStyle(NADATheme.danger)
                             .multilineTextAlignment(.center)
-
-                        if let error = auth.errorMessage, isUploadingPhoto == false {
-                            Text(error)
-                                .font(NADATheme.captionFont)
-                                .foregroundStyle(.red.opacity(0.85))
-                                .multilineTextAlignment(.center)
-                        }
-
-                        Button("Edit profile") {
-                            auth.clearError()
-                            isEditing = true
-                        }
-                        .buttonStyle(NADACapsulePrimaryButtonStyle())
-                        .padding(.top, 4)
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 28)
-
-                    if let user = auth.currentUser {
-                        profileMeta(user)
-                            .padding(.horizontal, 28)
-                            .padding(.top, 28)
                     }
 
-                    bitsCatalogSection
-                        .padding(.horizontal, 24)
-                        .padding(.top, 32)
-                        .padding(.bottom, 36)
+                    suggestionsCard
+                    sectionsCard
+                    missionCard
+                    signOutButton
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
             }
         }
-        .sheet(isPresented: $isEditing) {
-            ProfileEditSheet()
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
+        .sheet(item: $route) { route in
+            sheet(for: route)
         }
-        .sheet(isPresented: $showSettings) {
-            ProfileSettingsSheet()
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-        }
-        .onChange(of: selectedPhoto) { _, newItem in
-            Task { await uploadPhoto(from: newItem) }
+        .confirmationDialog("Log out of NADA?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
+            Button("Log out", role: .destructive) { auth.signOut() }
+            Button("Cancel", role: .cancel) {}
         }
         .task {
             await auth.refreshCurrentUser()
@@ -84,163 +55,276 @@ struct ProfileTabView: View {
     }
 
     private var topBar: some View {
-        HStack(spacing: 12) {
-            Image("SplashMark")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 48, height: 48)
-                .accessibilityLabel("NADA")
+        HStack {
+            Button {
+                route = .preview
+            } label: {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(NADATheme.ink)
+            }
+            .accessibilityLabel("Preview profile")
+
+            Spacer()
+
+            Text("My Profile")
+                .font(NADATheme.headlineFont)
+                .foregroundStyle(NADATheme.ink)
 
             Spacer()
 
             Button {
-                showSettings = true
+                route = .settings
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(NADATheme.ink)
-                    .frame(width: 36, height: 36)
-                    .background(NADATheme.surface, in: Circle())
             }
             .accessibilityLabel("Settings")
         }
     }
 
-    private var avatarPicker: some View {
-        PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
-            ZStack {
-                Circle()
-                    .fill(NADATheme.brandSoft)
-                    .frame(width: 128, height: 128)
+    private var header: some View {
+        VStack(spacing: 14) {
+            ProfileAvatarPicker(size: 132)
 
-                avatarContent
-                    .frame(width: 128, height: 128)
-                    .clipShape(Circle())
+            VStack(spacing: 4) {
+                Text(auth.currentUser?.displayName ?? "Your name")
+                    .font(NADATheme.displayFont)
+                    .foregroundStyle(NADATheme.ink)
 
-                if isUploadingPhoto {
-                    Circle()
-                        .fill(NADATheme.ink.opacity(0.35))
-                        .frame(width: 128, height: 128)
-                    ProgressView()
-                        .tint(NADATheme.paper)
+                if let city = auth.currentUser?.city, !city.isEmpty {
+                    Label(city, systemImage: "mappin.and.ellipse")
+                        .font(NADATheme.captionFont)
+                        .foregroundStyle(NADATheme.warmSecondaryInk)
                 }
-
-                Circle()
-                    .strokeBorder(NADATheme.paper, lineWidth: 4)
-                    .frame(width: 128, height: 128)
-
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(NADATheme.onBrand)
-                            .frame(width: 32, height: 32)
-                            .background(NADATheme.brand, in: Circle())
-                            .overlay(Circle().strokeBorder(NADATheme.paper, lineWidth: 3))
-                    }
-                }
-                .frame(width: 128, height: 128)
             }
+
+            completionMeter
+            actionButtons
         }
-        .buttonStyle(.plain)
-        .disabled(isUploadingPhoto || auth.isBusy)
-        .accessibilityLabel("Upload profile photo")
+    }
+
+    private var completionMeter: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("\(completion.percentComplete)% complete")
+                .font(NADATheme.captionFont)
+                .foregroundStyle(NADATheme.brandPressed)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(NADATheme.brandSoft)
+
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [NADATheme.brand, NADATheme.brandPressed],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: proxy.size.width * (Double(completion.percentComplete) / 100))
+                }
+            }
+            .frame(height: 8)
+        }
+        .animation(.easeOut(duration: 0.25), value: completion.percentComplete)
+        .padding(.top, 4)
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: 12) {
+            Button {
+                route = .preview
+            } label: {
+                Label("Preview profile", systemImage: "eye")
+            }
+            .buttonStyle(NADASoftCapsuleButtonStyle())
+
+            Button {
+                auth.clearError()
+                route = .edit
+            } label: {
+                Text("Edit")
+            }
+            .buttonStyle(NADADarkCapsuleButtonStyle())
+            .frame(maxWidth: 140)
+        }
     }
 
     @ViewBuilder
-    private var avatarContent: some View {
-        if let localAvatar {
-            localAvatar
-                .resizable()
-                .scaledToFill()
-        } else if let urlString = auth.currentUser?.photoURL,
-                  let url = URL(string: urlString) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                case .failure:
-                    placeholderAvatar
-                case .empty:
-                    ProgressView()
-                @unknown default:
-                    placeholderAvatar
+    private var suggestionsCard: some View {
+        let suggestions = completion.suggestions
+        if !suggestions.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Make your profile feel more like you")
+                    .font(NADATheme.headlineFont)
+                    .foregroundStyle(NADATheme.brandPressed)
+
+                ForEach(suggestions) { suggestion in
+                    Button {
+                        route = ProfileRoute(section: suggestion.section)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: suggestion.section.systemImage)
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(NADATheme.warmSecondaryInk)
+                                .frame(width: 22)
+
+                            Text(suggestion.title)
+                                .font(NADATheme.bodyFont)
+                                .foregroundStyle(NADATheme.ink)
+                                .multilineTextAlignment(.leading)
+
+                            Spacer(minLength: 8)
+
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(NADATheme.brand)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-        } else {
-            placeholderAvatar
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
     }
 
-    private var placeholderAvatar: some View {
-        Image(systemName: "person.fill")
-            .font(.system(size: 48, weight: .medium))
-            .foregroundStyle(NADATheme.brand)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(NADATheme.brandSoft)
-    }
-
-    private func profileMeta(_ user: NADAUser) -> some View {
-        VStack(spacing: 10) {
-            if let email = user.email {
-                Text(email)
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-            }
-
-            HStack(spacing: 16) {
-                if let gender = ProfileGender.fromStored(user.gender)?.title {
-                    Label(gender, systemImage: "person")
-                }
-                if let city = user.city, !city.isEmpty {
-                    Label(city, systemImage: "mappin")
-                }
-            }
-            .font(NADATheme.captionFont)
-            .foregroundStyle(NADATheme.warmSecondaryInk)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var bitsCatalogSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Bits")
+    private var sectionsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Your profile")
                 .font(NADATheme.headlineFont)
                 .foregroundStyle(NADATheme.ink)
 
-            Text("Questions you can answer on your profile. Answering comes in Week 2.")
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.secondaryInk)
+            VStack(spacing: 0) {
+                ForEach(Array(ProfileSection.allCases.enumerated()), id: \.element.id) { index, section in
+                    Button {
+                        route = ProfileRoute(section: section)
+                    } label: {
+                        sectionRow(section)
+                    }
+                    .buttonStyle(.plain)
 
-            if isLoadingBits {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-            } else if let bitsLoadError {
-                Text(bitsLoadError)
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(.red.opacity(0.85))
-            } else if catalogBits.isEmpty {
-                Text("No bits in the catalog yet. Seed `prompts` in Firestore.")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
-            } else {
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(catalogBits) { bit in
-                        Text(bit.text)
-                            .font(NADATheme.bodyFont)
-                            .foregroundStyle(NADATheme.ink)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    if index < ProfileSection.allCases.count - 1 {
+                        Rectangle()
+                            .fill(NADATheme.hairline.opacity(0.6))
+                            .frame(height: 1)
+                            .padding(.leading, 52)
                     }
                 }
-                .padding(.top, 4)
             }
+            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func sectionRow(_ section: ProfileSection) -> some View {
+        let detail = completion.detail(for: section)
+        let isComplete = completion.progress(for: section) >= 1
+
+        return HStack(spacing: 12) {
+            Image(systemName: section.systemImage)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(NADATheme.warmSecondaryInk)
+                .frame(width: 24)
+
+            Text(section.title)
+                .font(NADATheme.bodyFont)
+                .foregroundStyle(NADATheme.ink)
+
+            Spacer(minLength: 8)
+
+            if let detail {
+                Text(detail)
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(isComplete ? NADATheme.secondaryInk : NADATheme.brand)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(NADATheme.secondaryInk)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 15)
+        .contentShape(Rectangle())
+    }
+
+    private var missionCard: some View {
+        VStack(spacing: 6) {
+            Text("NADA is for real connections.")
+                .font(NADATheme.headlineFont)
+                .foregroundStyle(NADATheme.ink)
+
+            Text("We're building a safe, friendly space for people who just want to hang out.")
+                .font(NADATheme.captionFont)
+                .foregroundStyle(NADATheme.warmSecondaryInk)
+                .multilineTextAlignment(.center)
+
+            Image("SketchWelcomeHangout")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 96)
+                .padding(.top, 6)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(NADATheme.brandSoft.opacity(0.7), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var signOutButton: some View {
+        Button {
+            showSignOutConfirm = true
+        } label: {
+            HStack(spacing: 8) {
+                Text("Log out")
+                Image(systemName: "rectangle.portrait.and.arrow.right")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .font(NADATheme.headlineFont)
+            .foregroundStyle(NADATheme.brandPressed)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func sheet(for route: ProfileRoute) -> some View {
+        switch route {
+        case .edit, .about:
+            ProfileEditSheet()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        case .settings:
+            ProfileSettingsSheet()
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        case .photos:
+            ProfilePhotosSheet(photoCount: completion.photoCount)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        case .bits:
+            ProfileBitsSheet(initialBits: catalogBits)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        case .hangoutEnergy:
+            ProfileHangoutEnergySheet()
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        case .location:
+            ProfileLocationSheet()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        case .preview:
+            ProfilePreviewSheet(bits: catalogBits)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     private func loadBitsCatalog() async {
@@ -253,173 +337,6 @@ struct ProfileTabView: View {
         } catch {
             bitsLoadError = "Couldn't load bits. Check Firestore rules and seed."
             catalogBits = []
-        }
-    }
-
-    private func uploadPhoto(from item: PhotosPickerItem?) async {
-        guard let item else { return }
-        guard let data = try? await item.loadTransferable(type: Data.self),
-              let uiImage = UIImage(data: data) else {
-            return
-        }
-
-        localAvatar = Image(uiImage: uiImage)
-        isUploadingPhoto = true
-        auth.clearError()
-        let ok = await auth.uploadProfilePhoto(uiImage)
-        isUploadingPhoto = false
-        if ok {
-            localAvatar = nil
-            selectedPhoto = nil
-        }
-    }
-}
-
-/// Narrow coral capsule used under the avatar (not full-width primary CTA).
-struct NADACapsulePrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(NADATheme.headlineFont)
-            .foregroundStyle(NADATheme.onBrand)
-            .padding(.horizontal, 28)
-            .padding(.vertical, 12)
-            .background(configuration.isPressed ? NADATheme.brandPressed : NADATheme.brand)
-            .clipShape(Capsule())
-            .opacity(configuration.isPressed ? 0.92 : 1)
-    }
-}
-
-private struct ProfileSettingsSheet: View {
-    @Environment(AuthManager.self) private var auth
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                NADATheme.paper.ignoresSafeArea()
-
-                VStack(spacing: 16) {
-                    Button {
-                        dismiss()
-                        auth.signOut()
-                    } label: {
-                        Text("Sign out")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(NADASecondaryButtonStyle())
-
-                    Text("More settings coming soon.")
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.secondaryInk)
-
-                    Spacer()
-                }
-                .padding(24)
-            }
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(NADATheme.brandPressed)
-                }
-            }
-        }
-    }
-}
-
-private struct ProfileEditSheet: View {
-    @Environment(AuthManager.self) private var auth
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var displayName = ""
-    @State private var city = ""
-    @State private var gender: ProfileGender?
-    @State private var localError: String?
-    @State private var didSave = false
-
-    private var canSave: Bool {
-        !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && gender != nil
-            && !auth.isBusy
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                NADATheme.paper.ignoresSafeArea()
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        Text("Keep these up to date so hangouts feel personal.")
-                            .font(NADATheme.bodyFont)
-                            .foregroundStyle(NADATheme.warmSecondaryInk)
-
-                        ProfileBasicsForm(
-                            displayName: $displayName,
-                            city: $city,
-                            gender: $gender,
-                            errorMessage: localError ?? auth.errorMessage
-                        )
-
-                        if didSave {
-                            Text("Saved.")
-                                .font(NADATheme.captionFont)
-                                .foregroundStyle(NADATheme.brandPressed)
-                        }
-
-                        Button {
-                            Task { await save() }
-                        } label: {
-                            if auth.isBusy {
-                                ProgressView()
-                                    .frame(maxWidth: .infinity)
-                            } else {
-                                Text("Save")
-                            }
-                        }
-                        .buttonStyle(NADAPrimaryButtonStyle())
-                        .disabled(!canSave)
-                    }
-                    .padding(24)
-                }
-            }
-            .navigationTitle("Edit profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(NADATheme.brandPressed)
-                }
-            }
-            .onAppear {
-                auth.clearError()
-                displayName = auth.currentUser?.displayName ?? ""
-                city = auth.currentUser?.city ?? ""
-                gender = ProfileGender.fromStored(auth.currentUser?.gender)
-            }
-        }
-    }
-
-    private func save() async {
-        localError = nil
-        didSave = false
-        guard let gender else {
-            localError = "Please select a gender option."
-            return
-        }
-
-        let ok = await auth.updateBasicProfile(
-            displayName: displayName,
-            gender: gender,
-            city: city
-        )
-        if ok {
-            didSave = true
-            dismiss()
-        } else if auth.errorMessage == nil {
-            localError = "Couldn't save your profile. Try again."
         }
     }
 }

@@ -34,6 +34,10 @@ final class AuthManager {
         currentUser?.hasCompletedBasicProfile == true
     }
 
+    var hasCompletedProfileWizard: Bool {
+        currentUser?.profileWizardCompleted == true
+    }
+
     /// Attaches auth listener and hydrates cached session.
     func bootstrap() {
         guard authStateHandle == nil else { return }
@@ -113,6 +117,20 @@ final class AuthManager {
                 city: trimmedCity,
                 locale: nil
             )
+            self.currentUser = updated
+            didSucceed = true
+        }
+        return didSucceed
+    }
+
+    /// Marks the soft profile setup shell (Photos → Bits → Preferences) as done.
+    @discardableResult
+    func completeProfileWizard() async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+
+        var didSucceed = false
+        await perform {
+            let updated = try await self.userService.setProfileWizardCompleted(userId: userId)
             self.currentUser = updated
             didSucceed = true
         }

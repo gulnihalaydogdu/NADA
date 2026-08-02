@@ -40,6 +40,8 @@ struct RootView: View {
             FriendsIntentView()
         } else if !auth.hasCompletedBasicProfile {
             BasicProfileSetupView()
+        } else if !auth.hasCompletedProfileWizard {
+            ProfileSetupWizardView()
         } else {
             MainTabView()
         }

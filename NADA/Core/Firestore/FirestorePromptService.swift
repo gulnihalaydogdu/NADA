@@ -14,36 +14,65 @@ final class FirestorePromptService {
     }
 
     /// Active catalog bits, ordered by `sortOrder` (English MVP seed).
-    /// Filters `locale` in-memory so we avoid a composite index for Week 1.
+    /// Loads the collection and filters in memory so Console type mismatches
+    /// (`isActive` as string, `sortOrder` as Int64) still work.
     func fetchActivePrompts(locale: String = "en") async throws -> [Prompt] {
         guard let database else { throw AuthError.notConfigured }
 
-        let snapshot = try await database.collection(Self.promptsCollection)
-            .whereField("isActive", isEqualTo: true)
-            .getDocuments()
+        let snapshot = try await database.collection(Self.promptsCollection).getDocuments()
 
-        let prompts = snapshot.documents.compactMap { doc -> Prompt? in
-            mapPrompt(id: doc.documentID, data: doc.data())
-        }
-        .filter { $0.locale == locale }
-
-        return prompts.sorted { $0.sortOrder < $1.sortOrder }
+        return snapshot.documents
+            .compactMap { doc -> Prompt? in
+                mapPrompt(id: doc.documentID, data: doc.data())
+            }
+            .filter { $0.isActive && $0.locale == locale }
+            .sorted { $0.sortOrder < $1.sortOrder }
     }
 
     private func mapPrompt(id: String, data: [String: Any]) -> Prompt? {
         guard let text = data["text"] as? String, !text.isEmpty else { return nil }
+
         let categoryRaw = data["category"] as? String ?? Prompt.Category.hangout.rawValue
         let category = Prompt.Category(rawValue: categoryRaw) ?? .hangout
-        let isActive = data["isActive"] as? Bool ?? false
-        let sortOrder = data["sortOrder"] as? Int ?? 0
         let locale = data["locale"] as? String ?? "en"
+
         return Prompt(
             id: id,
             text: text,
             category: category,
-            isActive: isActive,
-            sortOrder: sortOrder,
+            isActive: boolValue(data["isActive"]) ?? false,
+            sortOrder: intValue(data["sortOrder"]) ?? 0,
             locale: locale
         )
+    }
+
+    private func boolValue(_ value: Any?) -> Bool? {
+        switch value {
+        case let bool as Bool:
+            return bool
+        case let number as NSNumber:
+            return number.boolValue
+        case let string as String:
+            switch string.lowercased() {
+            case "true", "1", "yes": return true
+            case "false", "0", "no": return false
+            default: return nil
+            }
+        default:
+            return nil
+        }
+    }
+
+    private func intValue(_ value: Any?) -> Int? {
+        switch value {
+        case let int as Int:
+            return int
+        case let number as NSNumber:
+            return number.intValue
+        case let string as String:
+            return Int(string)
+        default:
+            return nil
+        }
     }
 }

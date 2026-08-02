@@ -21,8 +21,9 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
 | `gender` | string | no† | `woman` / `man` / `nonBinary` / `preferNotToSay` |
 | `city` | string | no† | Required before tabs |
 | `photoURL` | string | no | Download URL from Storage after profile photo upload (W1-05) |
+| `profileWizardCompleted` | boolean | yes | `false` until Photos → Bits → Preferences shell finishes or is skipped (W1-12) |
 
-† Created empty on sign-up; **Basic Profile** gate requires them before `MainTabView`.
+† Created empty on sign-up; **Basic Profile** gate requires them before the profile wizard / tabs.
 
 ---
 
@@ -30,9 +31,10 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
 
 1. **Sign up / sign in** → `FirestoreUserService.ensureUserDocument` creates doc if missing.
 2. **Friends intent** → `setFriendsIntentCompleted` sets `friendsIntentCompleted: true`, reaffirms `intent`.
-3. **Profile basics (required)** → `updateProfile` sets `displayName`, `gender`, `city` before the tab shell opens.
-4. **Profile photo (optional)** → Storage upload → `photoURL` written on the user doc (see Storage section below).
-5. **Profile edit** → same fields can be updated later from Profile → Edit profile.
+3. **Profile basics (required)** → `updateProfile` sets `displayName`, `gender`, `city`.
+4. **Profile wizard shell (skippable)** → Photos (Storage) → Bits (catalog peek) → Preferences (preview) → `profileWizardCompleted: true`.
+5. **Profile photo** → also available anytime from Profile tab.
+6. **Profile edit** → basics updated later from Profile → Edit profile.
 
 ---
 
