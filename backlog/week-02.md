@@ -8,7 +8,8 @@
 **Demo (DoD):**
 > “New user adds up to 6 photos, answers 3 prompts, sets gender + city/radius, saves preferences, and re-opens the app to see a complete, editable profile.”
 
-**Depends on:** Week 1 (auth, User, `/me`, photo upload path).
+**Depends on:** Week 1 (auth, User, `/me`, photo upload path).  
+**W1 spillover in:** [`week-01.md`](week-01.md) → Spillover / carry to Week 2 (Apple Sign In, multi-photo, Bit answers, interests/radius, Preview polish).
 
 ---
 
