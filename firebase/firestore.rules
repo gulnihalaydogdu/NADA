@@ -5,5 +5,19 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Bits catalog (internal: prompts). Seed via Console; clients read only.
+    match /prompts/{promptId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Prompt answers stub (Week 2 writes). Owner-only for now.
+    match /promptAnswers/{answerId} {
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null
+                                  && resource.data.userId == request.auth.uid;
+    }
   }
 }

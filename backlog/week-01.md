@@ -129,9 +129,11 @@
 | **Estimate** | 0.5 day |
 
 **Acceptance criteria**
-- [ ] 3–5 friend/hangout prompts seeded (English or TR — match UI language)
-- [ ] `GET /prompts` (or equivalent) returns active prompts
-- [ ] Prompt answers table/collection stub exists (write can be Week 2 if time)
+- [x] 3–5 friend/hangout prompts seeded (English or TR — match UI language)
+- [x] `GET /prompts` (or equivalent) returns active prompts
+- [x] Prompt answers table/collection stub exists (write can be Week 2 if time)
+
+**Ship notes:** Seed via Console (`firebase/prompts.seed.json`). Client: `FirestorePromptService.fetchActivePrompts`. Profile shows Bits catalog preview.
 
 ---
 

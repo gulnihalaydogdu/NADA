@@ -10,47 +10,57 @@ struct ProfileTabView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var localAvatar: Image?
     @State private var isUploadingPhoto = false
+    @State private var catalogBits: [Prompt] = []
+    @State private var bitsLoadError: String?
+    @State private var isLoadingBits = false
+
+    private let promptService = FirestorePromptService()
 
     var body: some View {
         ZStack {
             NADAScreenBackground()
 
-            VStack(spacing: 0) {
-                topBar
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
+            ScrollView {
+                VStack(spacing: 0) {
+                    topBar
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
 
-                VStack(spacing: 16) {
-                    avatarPicker
+                    VStack(spacing: 16) {
+                        avatarPicker
 
-                    Text(auth.currentUser?.displayName ?? "Your name")
-                        .font(NADATheme.titleFont)
-                        .foregroundStyle(NADATheme.ink)
-                        .multilineTextAlignment(.center)
-
-                    if let error = auth.errorMessage, isUploadingPhoto == false {
-                        Text(error)
-                            .font(NADATheme.captionFont)
-                            .foregroundStyle(.red.opacity(0.85))
+                        Text(auth.currentUser?.displayName ?? "Your name")
+                            .font(NADATheme.titleFont)
+                            .foregroundStyle(NADATheme.ink)
                             .multilineTextAlignment(.center)
+
+                        if let error = auth.errorMessage, isUploadingPhoto == false {
+                            Text(error)
+                                .font(NADATheme.captionFont)
+                                .foregroundStyle(.red.opacity(0.85))
+                                .multilineTextAlignment(.center)
+                        }
+
+                        Button("Edit profile") {
+                            auth.clearError()
+                            isEditing = true
+                        }
+                        .buttonStyle(NADACapsulePrimaryButtonStyle())
+                        .padding(.top, 4)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 28)
+
+                    if let user = auth.currentUser {
+                        profileMeta(user)
+                            .padding(.horizontal, 28)
+                            .padding(.top, 28)
                     }
 
-                    Button("Edit profile") {
-                        auth.clearError()
-                        isEditing = true
-                    }
-                    .buttonStyle(NADACapsulePrimaryButtonStyle())
-                    .padding(.top, 4)
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 28)
-
-                Spacer(minLength: 24)
-
-                if let user = auth.currentUser {
-                    profileMeta(user)
-                        .padding(.horizontal, 28)
-                        .padding(.bottom, 28)
+                    bitsCatalogSection
+                        .padding(.horizontal, 24)
+                        .padding(.top, 32)
+                        .padding(.bottom, 36)
                 }
             }
         }
@@ -69,6 +79,7 @@ struct ProfileTabView: View {
         }
         .task {
             await auth.refreshCurrentUser()
+            await loadBitsCatalog()
         }
     }
 
@@ -193,6 +204,56 @@ struct ProfileTabView: View {
             .foregroundStyle(NADATheme.warmSecondaryInk)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var bitsCatalogSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Bits")
+                .font(NADATheme.headlineFont)
+                .foregroundStyle(NADATheme.ink)
+
+            Text("Questions you can answer on your profile. Answering comes in Week 2.")
+                .font(NADATheme.captionFont)
+                .foregroundStyle(NADATheme.secondaryInk)
+
+            if isLoadingBits {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            } else if let bitsLoadError {
+                Text(bitsLoadError)
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(.red.opacity(0.85))
+            } else if catalogBits.isEmpty {
+                Text("No bits in the catalog yet. Seed `prompts` in Firestore.")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.warmSecondaryInk)
+            } else {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(catalogBits) { bit in
+                        Text(bit.text)
+                            .font(NADATheme.bodyFont)
+                            .foregroundStyle(NADATheme.ink)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func loadBitsCatalog() async {
+        isLoadingBits = true
+        bitsLoadError = nil
+        defer { isLoadingBits = false }
+
+        do {
+            catalogBits = try await promptService.fetchActivePrompts(locale: "en")
+        } catch {
+            bitsLoadError = "Couldn't load bits. Check Firestore rules and seed."
+            catalogBits = []
+        }
     }
 
     private func uploadPhoto(from item: PhotosPickerItem?) async {

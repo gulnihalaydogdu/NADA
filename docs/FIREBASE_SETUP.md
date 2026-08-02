@@ -78,13 +78,25 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+
+    match /prompts/{promptId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /promptAnswers/{answerId} {
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null
+                                  && resource.data.userId == request.auth.uid;
+    }
   }
 }
 ```
 
 4. **Publish** (Yayınla)
 
-Bu rule: giriş yapmış kullanıcı yalnızca `users/{kendi-uid}` dokümanını okuyup yazabilir.
+`users` owner-only; `prompts` signed-in read; `promptAnswers` owner stub (Week 2).
 
 ### 4c. Doğrula (Console)
 
@@ -189,11 +201,19 @@ Detay: [`docs/FIRESTORE_USERS.md`](FIRESTORE_USERS.md) (Storage bölümü)
 
 ---
 
-## 8. Sonraki adım (Week 1 backend)
+## 8. Bits catalog — `prompts` (W1-06)
 
-- **Bits catalog** seed (W1-06)
+Detay: [`docs/FIRESTORE_PROMPTS.md`](FIRESTORE_PROMPTS.md) · seed: `firebase/prompts.seed.json`
 
-Console linklerini buraya not al (opsiyonel):
+1. Firestore → **Rules** → `firebase/firestore.rules` yapıştır → **Publish**  
+   (`prompts` read-only for signed-in users; `promptAnswers` stub)
+2. Firestore → **Data** → collection `prompts` → 5 dokümanı seed JSON’dan ekle  
+   (Document ID = `id`; alanlar: `text`, `category`, `isActive`, `sortOrder`, `locale`)
+3. Uygulama → Profile → **Bits** bölümünde 5 soru listelenmeli
+
+---
+
+## 9. Notlar
 
 - Project ID: `nada-app-33`
 - Storage: `gs://nada-app-33.firebasestorage.app`
