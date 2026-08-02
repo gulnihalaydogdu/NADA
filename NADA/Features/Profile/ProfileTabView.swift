@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
 struct ProfileTabView: View {
     @Environment(AuthManager.self) private var auth
@@ -7,7 +8,8 @@ struct ProfileTabView: View {
     @State private var isEditing = false
     @State private var showSettings = false
     @State private var selectedPhoto: PhotosPickerItem?
-    @State private var avatarImage: Image?
+    @State private var localAvatar: Image?
+    @State private var isUploadingPhoto = false
 
     var body: some View {
         ZStack {
@@ -25,6 +27,13 @@ struct ProfileTabView: View {
                         .font(NADATheme.titleFont)
                         .foregroundStyle(NADATheme.ink)
                         .multilineTextAlignment(.center)
+
+                    if let error = auth.errorMessage, isUploadingPhoto == false {
+                        Text(error)
+                            .font(NADATheme.captionFont)
+                            .foregroundStyle(.red.opacity(0.85))
+                            .multilineTextAlignment(.center)
+                    }
 
                     Button("Edit profile") {
                         auth.clearError()
@@ -56,7 +65,7 @@ struct ProfileTabView: View {
                 .presentationDragIndicator(.visible)
         }
         .onChange(of: selectedPhoto) { _, newItem in
-            Task { await loadPhoto(from: newItem) }
+            Task { await uploadPhoto(from: newItem) }
         }
         .task {
             await auth.refreshCurrentUser()
@@ -93,16 +102,16 @@ struct ProfileTabView: View {
                     .fill(NADATheme.brandSoft)
                     .frame(width: 128, height: 128)
 
-                if let avatarImage {
-                    avatarImage
-                        .resizable()
-                        .scaledToFill()
+                avatarContent
+                    .frame(width: 128, height: 128)
+                    .clipShape(Circle())
+
+                if isUploadingPhoto {
+                    Circle()
+                        .fill(NADATheme.ink.opacity(0.35))
                         .frame(width: 128, height: 128)
-                        .clipShape(Circle())
-                } else {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 48, weight: .medium))
-                        .foregroundStyle(NADATheme.brand)
+                    ProgressView()
+                        .tint(NADATheme.paper)
                 }
 
                 Circle()
@@ -125,7 +134,43 @@ struct ProfileTabView: View {
             }
         }
         .buttonStyle(.plain)
+        .disabled(isUploadingPhoto || auth.isBusy)
         .accessibilityLabel("Upload profile photo")
+    }
+
+    @ViewBuilder
+    private var avatarContent: some View {
+        if let localAvatar {
+            localAvatar
+                .resizable()
+                .scaledToFill()
+        } else if let urlString = auth.currentUser?.photoURL,
+                  let url = URL(string: urlString) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    placeholderAvatar
+                case .empty:
+                    ProgressView()
+                @unknown default:
+                    placeholderAvatar
+                }
+            }
+        } else {
+            placeholderAvatar
+        }
+    }
+
+    private var placeholderAvatar: some View {
+        Image(systemName: "person.fill")
+            .font(.system(size: 48, weight: .medium))
+            .foregroundStyle(NADATheme.brand)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(NADATheme.brandSoft)
     }
 
     private func profileMeta(_ user: NADAUser) -> some View {
@@ -150,11 +195,21 @@ struct ProfileTabView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func loadPhoto(from item: PhotosPickerItem?) async {
+    private func uploadPhoto(from item: PhotosPickerItem?) async {
         guard let item else { return }
-        if let data = try? await item.loadTransferable(type: Data.self),
-           let uiImage = UIImage(data: data) {
-            avatarImage = Image(uiImage: uiImage)
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let uiImage = UIImage(data: data) else {
+            return
+        }
+
+        localAvatar = Image(uiImage: uiImage)
+        isUploadingPhoto = true
+        auth.clearError()
+        let ok = await auth.uploadProfilePhoto(uiImage)
+        isUploadingPhoto = false
+        if ok {
+            localAvatar = nil
+            selectedPhoto = nil
         }
     }
 }

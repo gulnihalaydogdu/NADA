@@ -6,6 +6,7 @@ struct NADAUser: Identifiable, Equatable, Sendable {
     var email: String?
     var gender: String?
     var city: String?
+    var photoURL: String?
     var intent: UserIntent
     var locale: String?
     var createdAt: Date?
@@ -21,6 +22,7 @@ struct NADAUser: Identifiable, Equatable, Sendable {
         email: String? = nil,
         gender: String? = nil,
         city: String? = nil,
+        photoURL: String? = nil,
         intent: UserIntent = .friendsOnly,
         locale: String? = nil,
         createdAt: Date? = nil,
@@ -31,6 +33,7 @@ struct NADAUser: Identifiable, Equatable, Sendable {
         self.email = email
         self.gender = gender
         self.city = city
+        self.photoURL = photoURL
         self.intent = intent
         self.locale = locale
         self.createdAt = createdAt

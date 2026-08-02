@@ -10,6 +10,7 @@
 		F82E9A9230174C0500CA8270 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001002 /* FirebaseAuth */; };
 		F82E9A9330174C0500CA8270 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001003 /* FirebaseCore */; };
 		F82E9A9430174C0500CA8270 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001004 /* FirebaseFirestore */; };
+		F82E9A9530174C0500CA8270 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001005 /* FirebaseStorage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 				F82E9A9330174C0500CA8270 /* FirebaseCore in Frameworks */,
 				F82E9A9230174C0500CA8270 /* FirebaseAuth in Frameworks */,
 				F82E9A9430174C0500CA8270 /* FirebaseFirestore in Frameworks */,
+				F82E9A9530174C0500CA8270 /* FirebaseStorage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,6 +79,7 @@
 				F8FB001002 /* FirebaseAuth */,
 				F8FB001003 /* FirebaseCore */,
 				F8FB001004 /* FirebaseFirestore */,
+				F8FB001005 /* FirebaseStorage */,
 			);
 			productName = NADA;
 			productReference = F8B642BA300ACD1F00463F95 /* NADA.app */;
@@ -382,6 +385,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = F8FB001001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		F8FB001005 /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8FB001001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

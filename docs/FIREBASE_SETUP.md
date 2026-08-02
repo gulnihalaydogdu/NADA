@@ -140,16 +140,60 @@ Xcode:
 | Build: Missing FirebaseFirestore | File → Packages → Resolve Package Versions |
 | Firestore permission denied | Firestore rules + Authentication uid eşleşiyor mu? |
 | User doc yok | Firestore Database oluşturuldu mu? Console’da `users` koleksiyonuna bak |
+| Storage permission denied | Storage Rules publish edildi mi? Blaze açık mı? Path `users/{uid}/photos/` mi? |
+| Missing FirebaseStorage | File → Packages → Resolve Package Versions |
 
 ---
 
-## 7. Sonraki adım (Week 1 backend)
+## 7. Storage — profil fotoğrafı (W1-05)
 
-Auth + Firestore user çalışınca:
-- **Storage** → profil fotoğrafları (W1-05)
+Blaze plan gerekir (Free Trial kredisi yeterli). Bucket örneği: `gs://nada-app-33.firebasestorage.app`.
+
+### 7a. Storage aç (yoksa)
+
+1. Console → **Build → Storage** → Get started
+2. Location: **EU** (bucket oluşturulunca değişmez)
+3. Rules’ı bir sonraki adımda kendi dosyamızla değiştireceğiz
+
+### 7b. Security rules yapıştır
+
+1. Storage → **Rules**
+2. Tüm metni sil; repo’daki `firebase/storage.rules` içeriğini yapıştır:
+
+```
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{userId}/photos/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}
+```
+
+3. **Publish**
+
+### 7c. Doğrula
+
+1. Uygulama → Profile → avatar’a dokun → fotoğraf seç
+2. Storage → Files → `users/{uid}/photos/profile.jpg`
+3. Firestore → `users/{uid}` → `photoURL` dolu olmalı
+4. Uygulamayı kapatıp aç → avatar hâlâ görünmeli
+
+Detay: [`docs/FIRESTORE_USERS.md`](FIRESTORE_USERS.md) (Storage bölümü)
+
+---
+
+## 8. Sonraki adım (Week 1 backend)
+
 - **Bits catalog** seed (W1-06)
 
 Console linklerini buraya not al (opsiyonel):
 
-- Project ID: `________________`
-- Console URL: `________________`
+- Project ID: `nada-app-33`
+- Storage: `gs://nada-app-33.firebasestorage.app`

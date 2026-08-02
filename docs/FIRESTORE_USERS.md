@@ -20,6 +20,7 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
 | `displayName` | string | no† | Required before tabs (basic profile gate) |
 | `gender` | string | no† | `woman` / `man` / `nonBinary` / `preferNotToSay` |
 | `city` | string | no† | Required before tabs |
+| `photoURL` | string | no | Download URL from Storage after profile photo upload (W1-05) |
 
 † Created empty on sign-up; **Basic Profile** gate requires them before `MainTabView`.
 
@@ -30,7 +31,23 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
 1. **Sign up / sign in** → `FirestoreUserService.ensureUserDocument` creates doc if missing.
 2. **Friends intent** → `setFriendsIntentCompleted` sets `friendsIntentCompleted: true`, reaffirms `intent`.
 3. **Profile basics (required)** → `updateProfile` sets `displayName`, `gender`, `city` before the tab shell opens.
-4. **Profile edit** → same fields can be updated later from Profile → Edit profile.
+4. **Profile photo (optional)** → Storage upload → `photoURL` written on the user doc (see Storage section below).
+5. **Profile edit** → same fields can be updated later from Profile → Edit profile.
+
+---
+
+## Storage — profile photos (W1-05)
+
+**Bucket:** `gs://nada-app-33.firebasestorage.app` (or plist project bucket)  
+**Path:** `users/{uid}/photos/profile.jpg`  
+**Rules:** repo `firebase/storage.rules` — paste in Console → Storage → Rules → **Publish**
+
+| Rule | Meaning |
+|------|---------|
+| `read` | Any signed-in user |
+| `write` | Owner only (`auth.uid == userId`), image/*, &lt; 5MB |
+
+**Code:** `NADA/Core/Storage/FirebaseStorageService.swift` → `AuthManager.uploadProfilePhoto` → Profile tab PhotosPicker.
 
 ---
 
@@ -45,7 +62,8 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
   "email": "user@example.com",
   "displayName": "Gül",
   "gender": "woman",
-  "city": "Istanbul"
+  "city": "Istanbul",
+  "photoURL": "https://firebasestorage.googleapis.com/..."
 }
 ```
 

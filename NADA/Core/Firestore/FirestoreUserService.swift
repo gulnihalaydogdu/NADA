@@ -56,13 +56,15 @@ final class FirestoreUserService {
         displayName: String?,
         gender: String?,
         city: String?,
-        locale: String?
+        locale: String?,
+        photoURL: String? = nil
     ) async throws -> NADAUser {
         var fields: [String: Any] = [:]
         if let displayName { fields["displayName"] = displayName }
         if let gender { fields["gender"] = gender }
         if let city { fields["city"] = city }
         if let locale { fields["locale"] = locale }
+        if let photoURL { fields["photoURL"] = photoURL }
         return try await patchUser(userId: userId, fields: fields)
     }
 
@@ -117,6 +119,7 @@ final class FirestoreUserService {
             email: data["email"] as? String ?? fallback.email,
             gender: data["gender"] as? String,
             city: data["city"] as? String,
+            photoURL: data["photoURL"] as? String ?? fallback.photoURL,
             intent: intent,
             locale: data["locale"] as? String ?? fallback.locale,
             createdAt: createdAt,

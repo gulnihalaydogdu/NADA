@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 @Observable
 @MainActor
@@ -16,11 +17,13 @@ final class AuthManager {
 
     private let authService: FirebaseAuthService
     private let userService: FirestoreUserService
+    private let storageService: FirebaseStorageService
     private var authStateHandle: AuthStateHandle?
 
     init() {
         self.authService = FirebaseAuthService()
         self.userService = FirestoreUserService()
+        self.storageService = FirebaseStorageService()
     }
 
     var hasCompletedFriendsIntent: Bool {
@@ -109,6 +112,28 @@ final class AuthManager {
                 gender: gender.rawValue,
                 city: trimmedCity,
                 locale: nil
+            )
+            self.currentUser = updated
+            didSucceed = true
+        }
+        return didSucceed
+    }
+
+    /// Uploads a profile photo to Storage and stores `photoURL` on the user doc.
+    @discardableResult
+    func uploadProfilePhoto(_ image: UIImage) async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+
+        var didSucceed = false
+        await perform {
+            let url = try await self.storageService.uploadProfilePhoto(userId: userId, image: image)
+            let updated = try await self.userService.updateProfile(
+                userId: userId,
+                displayName: nil,
+                gender: nil,
+                city: nil,
+                locale: nil,
+                photoURL: url
             )
             self.currentUser = updated
             didSucceed = true
