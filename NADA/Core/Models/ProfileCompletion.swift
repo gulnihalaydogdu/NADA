@@ -40,7 +40,7 @@ struct ProfileSuggestion: Identifiable {
 
 /// Drives the completion meter, section rows, and "make it feel like you" nudges.
 struct ProfileCompletion {
-    static let photoTarget = 6
+    static let photoTarget = ProfilePhoto.maxCount
     static let bitTarget = 3
 
     let photoCount: Int
@@ -50,8 +50,12 @@ struct ProfileCompletion {
     let hasGender: Bool
     let hasCity: Bool
 
-    init(user: NADAUser?, answeredBits: Int = 0, interestCount: Int = 0) {
-        self.photoCount = (user?.photoURL?.isEmpty == false) ? 1 : 0
+    init(user: NADAUser?, photoCount: Int? = nil, answeredBits: Int = 0, interestCount: Int = 0) {
+        if let photoCount {
+            self.photoCount = min(max(photoCount, 0), Self.photoTarget)
+        } else {
+            self.photoCount = (user?.photoURL?.isEmpty == false) ? 1 : 0
+        }
         self.answeredBits = answeredBits
         self.interestCount = interestCount
         self.hasName = user?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false

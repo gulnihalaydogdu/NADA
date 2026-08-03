@@ -8,11 +8,12 @@ struct ProfileTabView: View {
     @State private var isLoadingBits = false
     @State private var bitsLoadError: String?
     @State private var showSignOutConfirm = false
+    @State private var photoCount = 0
 
     private let promptService = FirestorePromptService()
 
     private var completion: ProfileCompletion {
-        ProfileCompletion(user: auth.currentUser)
+        ProfileCompletion(user: auth.currentUser, photoCount: photoCount)
     }
 
     var body: some View {
@@ -51,6 +52,7 @@ struct ProfileTabView: View {
         .task {
             await auth.refreshCurrentUser()
             await loadBitsCatalog()
+            await refreshPhotoCount()
         }
     }
 
@@ -305,9 +307,12 @@ struct ProfileTabView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         case .photos:
-            ProfilePhotosSheet(photoCount: completion.photoCount)
+            ProfilePhotosSheet()
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+                .onDisappear {
+                    Task { await refreshPhotoCount() }
+                }
         case .bits:
             ProfileBitsSheet(initialBits: catalogBits)
                 .presentationDetents([.large])
@@ -337,6 +342,14 @@ struct ProfileTabView: View {
         } catch {
             bitsLoadError = "Couldn't load bits. Check Firestore rules and seed."
             catalogBits = []
+        }
+    }
+
+    private func refreshPhotoCount() async {
+        let photos = await auth.fetchPhotos()
+        photoCount = photos.count
+        if photoCount == 0, auth.currentUser?.photoURL?.isEmpty == false {
+            photoCount = 1
         }
     }
 }

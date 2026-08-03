@@ -17,9 +17,11 @@
 
 ### W2-01 — Photo API (multi-photo, ordered)
 - **P0 · 1d** — CRUD for up to 6 photos, sortOrder, primary flag; owner-only writes.
-- [ ] Add/remove/reorder photos; primary photo settable
-- [ ] Signed URLs / readable paths returned
-- [ ] Max 6 enforced server-side
+- [x] Add/remove/reorder photos; primary photo settable
+- [x] Signed URLs / readable paths returned
+- [x] Max 6 enforced server-side
+
+**Ship notes:** Subcollection `users/{uid}/photos/{photoId}` + Storage `{photoId}.jpg`. Denormalized `photoURL` = primary. Lazy migration from W1 single `photoURL`. Client enforces max 6 (`FirestorePhotoService`).
 
 ### W2-02 — Prompt catalog (friend-coded)
 - **P0 · 1d** — 15–20 hangout/hobby/humour prompts seeded; `GET /prompts`.

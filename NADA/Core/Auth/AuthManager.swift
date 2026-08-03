@@ -18,12 +18,14 @@ final class AuthManager {
     private let authService: FirebaseAuthService
     private let userService: FirestoreUserService
     private let storageService: FirebaseStorageService
+    private let photoService: FirestorePhotoService
     private var authStateHandle: AuthStateHandle?
 
     init() {
         self.authService = FirebaseAuthService()
         self.userService = FirestoreUserService()
         self.storageService = FirebaseStorageService()
+        self.photoService = FirestorePhotoService(storageService: storageService)
     }
 
     var hasCompletedFriendsIntent: Bool {
@@ -137,26 +139,86 @@ final class AuthManager {
         return didSucceed
     }
 
-    /// Uploads a profile photo to Storage and stores `photoURL` on the user doc.
+    /// Adds or replaces the primary profile photo (avatar / wizard compatibility).
     @discardableResult
     func uploadProfilePhoto(_ image: UIImage) async -> Bool {
         guard let userId = currentUser?.id else { return false }
 
         var didSucceed = false
         await perform {
-            let url = try await self.storageService.uploadProfilePhoto(userId: userId, image: image)
-            let updated = try await self.userService.updateProfile(
+            _ = try await self.photoService.upsertPrimaryPhoto(
                 userId: userId,
-                displayName: nil,
-                gender: nil,
-                city: nil,
-                locale: nil,
-                photoURL: url
+                image: image,
+                legacyPhotoURL: self.currentUser?.photoURL
             )
-            self.currentUser = updated
+            if let profile = try await self.userService.fetchUser(id: userId) {
+                self.currentUser = profile
+            }
             didSucceed = true
         }
         return didSucceed
+    }
+
+    func fetchPhotos() async -> [ProfilePhoto] {
+        guard let userId = currentUser?.id else { return [] }
+        do {
+            return try await photoService.fetchPhotos(
+                userId: userId,
+                legacyPhotoURL: currentUser?.photoURL
+            )
+        } catch {
+            errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
+            return []
+        }
+    }
+
+    @discardableResult
+    func addPhoto(_ image: UIImage) async -> ProfilePhoto? {
+        guard let userId = currentUser?.id else { return nil }
+        var result: ProfilePhoto?
+        await perform {
+            result = try await self.photoService.addPhoto(userId: userId, image: image)
+            if let profile = try await self.userService.fetchUser(id: userId) {
+                self.currentUser = profile
+            }
+        }
+        return result
+    }
+
+    @discardableResult
+    func deletePhoto(id: String) async -> [ProfilePhoto]? {
+        guard let userId = currentUser?.id else { return nil }
+        var result: [ProfilePhoto]?
+        await perform {
+            result = try await self.photoService.deletePhoto(userId: userId, photoId: id)
+            if let profile = try await self.userService.fetchUser(id: userId) {
+                self.currentUser = profile
+            }
+        }
+        return result
+    }
+
+    @discardableResult
+    func setPrimaryPhoto(id: String) async -> [ProfilePhoto]? {
+        guard let userId = currentUser?.id else { return nil }
+        var result: [ProfilePhoto]?
+        await perform {
+            result = try await self.photoService.setPrimary(userId: userId, photoId: id)
+            if let profile = try await self.userService.fetchUser(id: userId) {
+                self.currentUser = profile
+            }
+        }
+        return result
+    }
+
+    @discardableResult
+    func reorderPhotos(orderedIds: [String]) async -> [ProfilePhoto]? {
+        guard let userId = currentUser?.id else { return nil }
+        var result: [ProfilePhoto]?
+        await perform {
+            result = try await self.photoService.reorder(userId: userId, orderedIds: orderedIds)
+        }
+        return result
     }
 
     func signOut() {

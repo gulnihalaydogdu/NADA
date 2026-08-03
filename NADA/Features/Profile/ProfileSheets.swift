@@ -54,28 +54,6 @@ struct ProfileSheetScaffold<Content: View>: View {
     }
 }
 
-struct ProfilePhotosSheet: View {
-    let photoCount: Int
-
-    var body: some View {
-        ProfileSheetScaffold(title: "Photos") {
-            VStack(spacing: 18) {
-                ProfileAvatarPicker(size: 180)
-
-                Text("\(photoCount) of \(ProfileCompletion.photoTarget) photos")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-
-                Text("One main photo for now. The full gallery of up to six photos arrives in Week 2.")
-                    .font(NADATheme.bodyFont)
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-        }
-    }
-}
-
 struct ProfileBitsSheet: View {
     /// Optional seed from the parent; sheet always refreshes on open.
     var initialBits: [Prompt] = []
