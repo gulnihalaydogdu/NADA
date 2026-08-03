@@ -1,25 +1,31 @@
 import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 import UIKit
 
-/// Up to 6 ordered profile photos with multi-select upload, sequential crop, primary / delete / reorder.
+/// Up to 6 ordered profile photos: drag to reorder (first = primary), ✕ to delete (must replace).
 struct ProfilePhotosSheet: View {
     @Environment(AuthManager.self) private var auth
+    @Environment(\.dismiss) private var dismiss
 
     @State private var photos: [ProfilePhoto] = []
     @State private var isLoading = false
     @State private var isSaving = false
     @State private var localError: String?
-    @State private var selectedPhoto: ProfilePhoto?
 
     @State private var libraryItems: [PhotosPickerItem] = []
     @State private var isLibraryPresented = false
 
-    /// Remaining images waiting to be framed after the one currently in the editor.
     @State private var cropQueue: [UIImage] = []
     @State private var isEditorPresented = false
     @State private var editorImage: UIImage?
     @State private var editorImageID = UUID()
+
+    @State private var draggingPhotoId: String?
+    /// After a delete, user must add at least one photo before dismissing.
+    @State private var needsReplacement = false
+    /// Slot (0-based) where the replacement photo should land.
+    @State private var replacementIndex: Int?
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
 
@@ -27,11 +33,8 @@ struct ProfilePhotosSheet: View {
         max(0, ProfilePhoto.maxCount - photos.count)
     }
 
-    /// Square crop only while there is still no primary photo yet.
-    private var editorAspect: CGFloat {
-        photos.isEmpty
-            ? ProfilePhotoAspect.primary
-            : ProfilePhotoAspect.gallery
+    private var canDismiss: Bool {
+        !needsReplacement && !isSaving && !isEditorPresented
     }
 
     private var editorSubtitle: String? {
@@ -45,44 +48,69 @@ struct ProfilePhotosSheet: View {
     }
 
     var body: some View {
-        ProfileSheetScaffold(title: "Photos") {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("\(photos.count) of \(ProfilePhoto.maxCount) photos")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
+        NavigationStack {
+            ZStack {
+                NADATheme.paper.ignoresSafeArea()
 
-                Text("You can select several photos at once (up to your remaining slots) and frame each one in order. Your main photo is square; the rest use a 3:4 portrait frame.")
-                    .font(NADATheme.bodyFont)
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("\(photos.count) of \(ProfilePhoto.maxCount) photos")
+                            .font(NADATheme.captionFont)
+                            .foregroundStyle(NADATheme.secondaryInk)
 
-                if isLoading && photos.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
-                } else {
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(photos) { photo in
-                            photoCell(photo)
+                        Text("Drag photos to change the order — the first one is your main photo. Tap ✕ to remove one; the next photo you add fills that same spot.")
+                            .font(NADATheme.bodyFont)
+                            .foregroundStyle(NADATheme.warmSecondaryInk)
+
+                        if isLoading && photos.isEmpty {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                        } else {
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                ForEach(photos) { photo in
+                                    photoCell(photo)
+                                }
+
+                                if remainingSlots > 0 {
+                                    addCell
+                                }
+                            }
                         }
 
-                        if remainingSlots > 0 {
-                            addCell
+                        if let message = localError ?? auth.errorMessage {
+                            Text(message)
+                                .font(NADATheme.captionFont)
+                                .foregroundStyle(NADATheme.danger)
+                        }
+
+                        if isSaving {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(24)
                 }
-
-                if let message = localError ?? auth.errorMessage {
-                    Text(message)
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.danger)
-                }
-
-                if isSaving {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
+            }
+            .navigationTitle("Photos")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        if canDismiss {
+                            dismiss()
+                        } else if needsReplacement {
+                            localError = "Add a photo to fill that spot."
+                            presentLibrary()
+                        }
+                    }
+                    .foregroundStyle(NADATheme.brandPressed)
+                    .disabled(isSaving || isEditorPresented)
                 }
             }
         }
+        .interactiveDismissDisabled(needsReplacement || isSaving || isEditorPresented)
         .task { await reload() }
         .photosPicker(
             isPresented: $isLibraryPresented,
@@ -95,11 +123,16 @@ struct ProfilePhotosSheet: View {
             guard !items.isEmpty else { return }
             Task { await enqueuePickedItems(items) }
         }
+        .onChange(of: isLibraryPresented) { _, presented in
+            if !presented, needsReplacement, libraryItems.isEmpty, !isEditorPresented {
+                localError = "Add a photo to fill that spot."
+            }
+        }
         .fullScreenCover(isPresented: $isEditorPresented) {
             if let editorImage {
                 ProfilePhotoCropView(
                     source: editorImage,
-                    aspectWidthOverHeight: editorAspect,
+                    aspectWidthOverHeight: 1,
                     subtitle: editorSubtitle,
                     onCancel: { cancelCropQueue() },
                     onCrop: { cropped in
@@ -109,47 +142,13 @@ struct ProfilePhotosSheet: View {
                 .id(editorImageID)
             }
         }
-        .confirmationDialog(
-            "Photo options",
-            isPresented: Binding(
-                get: { selectedPhoto != nil },
-                set: { if !$0 { selectedPhoto = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            if let selectedPhoto {
-                if !selectedPhoto.isPrimary {
-                    Button("Set as primary") {
-                        Task { await setPrimary(selectedPhoto.id) }
-                    }
-                }
-                if let index = photos.firstIndex(where: { $0.id == selectedPhoto.id }), index > 0 {
-                    Button("Move earlier") {
-                        Task { await movePhoto(id: selectedPhoto.id, by: -1) }
-                    }
-                }
-                if let index = photos.firstIndex(where: { $0.id == selectedPhoto.id }),
-                   index < photos.count - 1 {
-                    Button("Move later") {
-                        Task { await movePhoto(id: selectedPhoto.id, by: 1) }
-                    }
-                }
-                Button("Delete photo", role: .destructive) {
-                    Task { await delete(selectedPhoto.id) }
-                }
-                Button("Cancel", role: .cancel) {
-                    self.selectedPhoto = nil
-                }
-            }
-        }
     }
 
     private var addCell: some View {
         Button {
             localError = nil
             auth.clearError()
-            libraryItems = []
-            isLibraryPresented = true
+            presentLibrary()
         } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -160,10 +159,7 @@ struct ProfilePhotosSheet: View {
                     .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(NADATheme.brand)
             }
-            .aspectRatio(
-                photos.isEmpty ? ProfilePhotoAspect.primary : ProfilePhotoAspect.gallery,
-                contentMode: .fit
-            )
+            .aspectRatio(1, contentMode: .fit)
         }
         .buttonStyle(.plain)
         .disabled(isSaving || auth.isBusy || isEditorPresented)
@@ -171,52 +167,87 @@ struct ProfilePhotosSheet: View {
     }
 
     private func photoCell(_ photo: ProfilePhoto) -> some View {
-        Button {
-            selectedPhoto = photo
-        } label: {
-            ZStack(alignment: .topTrailing) {
-                Group {
-                    if let url = URL(string: photo.url) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            case .empty:
-                                ProgressView()
-                            default:
-                                NADATheme.brandSoft
-                            }
-                        }
-                    } else {
+        let isDragging = draggingPhotoId == photo.id
+
+        return Group {
+            if let url = URL(string: photo.url) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    case .empty:
+                        ProgressView()
+                    default:
                         NADATheme.brandSoft
                     }
                 }
-                .frame(maxWidth: .infinity)
-                .aspectRatio(
-                    photo.isPrimary ? ProfilePhotoAspect.primary : ProfilePhotoAspect.gallery,
-                    contentMode: .fit
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                if photo.isPrimary {
-                    Text("Primary")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(NADATheme.onBrand)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(NADATheme.brand, in: Capsule())
-                        .padding(8)
-                }
+            } else {
+                NADATheme.brandSoft
             }
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            if photo.isPrimary {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.94, green: 0.82, blue: 0.48),
+                                Color(red: 0.76, green: 0.58, blue: 0.26)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 2.5
+                    )
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            Button {
+                Task { await delete(photo.id) }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 24, height: 24)
+                    .background(Color.black.opacity(0.55), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(6)
+            .disabled(isSaving || auth.isBusy)
+            .accessibilityLabel("Delete photo")
+        }
+        .opacity(isDragging ? 0.55 : 1)
+        .onDrag {
+            draggingPhotoId = photo.id
+            return NSItemProvider(object: photo.id as NSString)
+        }
+        .onDrop(
+            of: [UTType.text],
+            delegate: PhotoReorderDropDelegate(
+                targetId: photo.id,
+                photos: $photos,
+                draggingPhotoId: $draggingPhotoId,
+                onFinished: { orderedIds in
+                    Task { await persistOrder(orderedIds) }
+                }
+            )
+        )
         .disabled(isSaving || auth.isBusy)
         .accessibilityLabel(photo.isPrimary ? "Primary photo" : "Photo")
+        .accessibilityHint("Drag to reorder")
     }
 
     // MARK: - Data
+
+    private func presentLibrary() {
+        libraryItems = []
+        isLibraryPresented = true
+    }
 
     private func reload() async {
         isLoading = true
@@ -226,7 +257,7 @@ struct ProfilePhotosSheet: View {
     }
 
     private func enqueuePickedItems(_ items: [PhotosPickerItem]) async {
-        let capped = Array(items.prefix(remainingSlots))
+        let capped = Array(items.prefix(max(remainingSlots, 1)))
         libraryItems = []
 
         var images: [UIImage] = []
@@ -266,6 +297,9 @@ struct ProfilePhotosSheet: View {
 
     private func cancelCropQueue() {
         closeEditor()
+        if needsReplacement {
+            localError = "Add a photo to fill that spot."
+        }
     }
 
     private func addCroppedAndContinue(_ image: UIImage) async {
@@ -273,10 +307,13 @@ struct ProfilePhotosSheet: View {
         localError = nil
         defer { isSaving = false }
 
-        if let added = await auth.addPhoto(image) {
-            photos.append(added)
-            photos.sort { $0.sortOrder < $1.sortOrder }
+        let insertAt = needsReplacement ? replacementIndex : nil
+        if let added = await auth.addPhoto(image, at: insertAt) {
             photos = await auth.fetchPhotos()
+            if needsReplacement {
+                needsReplacement = false
+                replacementIndex = nil
+            }
             presentNextInQueue()
         } else {
             if auth.errorMessage == nil {
@@ -286,41 +323,79 @@ struct ProfilePhotosSheet: View {
         }
     }
 
-    private func setPrimary(_ id: String) async {
-        selectedPhoto = nil
-        isSaving = true
-        defer { isSaving = false }
-        if let updated = await auth.setPrimaryPhoto(id: id) {
-            photos = updated
-        }
-    }
-
     private func delete(_ id: String) async {
-        selectedPhoto = nil
+        guard let index = photos.firstIndex(where: { $0.id == id }) else { return }
+
         isSaving = true
+        localError = nil
         defer { isSaving = false }
+
         if let updated = await auth.deletePhoto(id: id) {
             photos = updated
+            // Keep the same grid slot: after re-pack, insert back at this index.
+            replacementIndex = min(index, updated.count)
+            needsReplacement = true
+            localError = "Add a photo to fill that spot."
+            presentLibrary()
         }
     }
 
-    private func movePhoto(id: String, by delta: Int) async {
-        selectedPhoto = nil
-        guard let index = photos.firstIndex(where: { $0.id == id }) else { return }
-        let newIndex = index + delta
-        guard photos.indices.contains(newIndex) else { return }
-
-        var ordered = photos.map(\.id)
-        ordered.swapAt(index, newIndex)
+    private func persistOrder(_ orderedIds: [String]) async {
+        // Optimistic primary badge while saving.
+        applyLocalPrimary(from: orderedIds)
         isSaving = true
         defer { isSaving = false }
-        if let updated = await auth.reorderPhotos(orderedIds: ordered) {
+        if let updated = await auth.reorderPhotos(orderedIds: orderedIds) {
             photos = updated
+        } else {
+            photos = await auth.fetchPhotos()
+        }
+    }
+
+    private func applyLocalPrimary(from orderedIds: [String]) {
+        let byId = Dictionary(uniqueKeysWithValues: photos.map { ($0.id, $0) })
+        photos = orderedIds.enumerated().compactMap { index, id in
+            guard var photo = byId[id] else { return nil }
+            photo.sortOrder = index
+            photo.isPrimary = index == 0
+            return photo
         }
     }
 }
 
-private enum ProfilePhotoAspect {
-    static let primary: CGFloat = 1
-    static let gallery: CGFloat = 3.0 / 4.0
+// MARK: - Drag & drop reorder
+
+private struct PhotoReorderDropDelegate: DropDelegate {
+    let targetId: String
+    @Binding var photos: [ProfilePhoto]
+    @Binding var draggingPhotoId: String?
+    var onFinished: ([String]) -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let draggingPhotoId,
+              draggingPhotoId != targetId,
+              let from = photos.firstIndex(where: { $0.id == draggingPhotoId }),
+              let to = photos.firstIndex(where: { $0.id == targetId }),
+              from != to else { return }
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            photos.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+            for index in photos.indices {
+                photos[index].sortOrder = index
+                photos[index].isPrimary = index == 0
+            }
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingPhotoId = nil
+        onFinished(photos.map(\.id))
+        return true
+    }
+
+    func dropExited(info: DropInfo) {}
 }

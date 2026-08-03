@@ -173,11 +173,11 @@ final class AuthManager {
     }
 
     @discardableResult
-    func addPhoto(_ image: UIImage) async -> ProfilePhoto? {
+    func addPhoto(_ image: UIImage, at index: Int? = nil) async -> ProfilePhoto? {
         guard let userId = currentUser?.id else { return nil }
         var result: ProfilePhoto?
         await perform {
-            result = try await self.photoService.addPhoto(userId: userId, image: image)
+            result = try await self.photoService.addPhoto(userId: userId, image: image, at: index)
             if let profile = try await self.userService.fetchUser(id: userId) {
                 self.currentUser = profile
             }

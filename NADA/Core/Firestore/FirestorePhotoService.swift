@@ -44,19 +44,47 @@ final class FirestorePhotoService {
         return photos
     }
 
-    /// Adds a photo (max 6). First photo becomes primary and syncs `users/{uid}.photoURL`.
+    /// Adds a photo (max 6). Optional `at` inserts into that slot (0-based); others shift right.
+    /// Slot 0 is always primary and syncs `users/{uid}.photoURL`.
     @discardableResult
-    func addPhoto(userId: String, image: UIImage) async throws -> ProfilePhoto {
+    func addPhoto(userId: String, image: UIImage, at insertAt: Int? = nil) async throws -> ProfilePhoto {
         let collection = try photosCollection(userId: userId)
-        let existing = try await collection.getDocuments()
-        guard existing.documents.count < Self.maxPhotos else {
+        let snapshot = try await collection.getDocuments()
+        var existing = snapshot.documents.compactMap { mapPhoto(id: $0.documentID, data: $0.data()) }
+            .sorted { $0.sortOrder < $1.sortOrder }
+
+        guard existing.count < Self.maxPhotos else {
             throw AuthError.unknown("You can add up to \(Self.maxPhotos) photos.")
         }
 
         let photoId = UUID().uuidString.lowercased()
-        let sortOrder = existing.documents.count
-        let makePrimary = existing.documents.isEmpty
+        let sortOrder: Int
+        if let insertAt {
+            sortOrder = min(max(0, insertAt), existing.count)
+        } else {
+            sortOrder = existing.count
+        }
+        let makePrimary = sortOrder == 0
         let url = try await storageService.uploadPhoto(userId: userId, photoId: photoId, image: image)
+
+        let batch = try requireDatabase().batch()
+
+        // Shift photos at / after the insert slot to the right.
+        for photo in existing where photo.sortOrder >= sortOrder {
+            batch.updateData(
+                [
+                    "sortOrder": photo.sortOrder + 1,
+                    "isPrimary": false
+                ],
+                forDocument: collection.document(photo.id)
+            )
+        }
+
+        if makePrimary {
+            for photo in existing where photo.isPrimary {
+                batch.updateData(["isPrimary": false], forDocument: collection.document(photo.id))
+            }
+        }
 
         let payload: [String: Any] = [
             "url": url,
@@ -64,7 +92,8 @@ final class FirestorePhotoService {
             "isPrimary": makePrimary,
             "createdAt": FieldValue.serverTimestamp()
         ]
-        try await collection.document(photoId).setData(payload)
+        batch.setData(payload, forDocument: collection.document(photoId))
+        try await batch.commit()
 
         if makePrimary {
             try await syncUserPhotoURL(userId: userId, url: url)
@@ -178,6 +207,7 @@ final class FirestorePhotoService {
         return photos
     }
 
+    /// Reorders photos. Index 0 is always primary and mirrored to `users/{uid}.photoURL`.
     func reorder(userId: String, orderedIds: [String]) async throws -> [ProfilePhoto] {
         let collection = try photosCollection(userId: userId)
         let snapshot = try await collection.getDocuments()
@@ -198,11 +228,23 @@ final class FirestorePhotoService {
         for (index, id) in orderedIds.enumerated() {
             guard var photo = byId[id] else { continue }
             photo.sortOrder = index
-            batch.updateData(["sortOrder": index], forDocument: collection.document(id))
+            photo.isPrimary = index == 0
+            batch.updateData(
+                [
+                    "sortOrder": index,
+                    "isPrimary": index == 0
+                ],
+                forDocument: collection.document(id)
+            )
             updated.append(photo)
         }
         try await batch.commit()
-        return updated.sorted { $0.sortOrder < $1.sortOrder }
+
+        let sorted = updated.sorted { $0.sortOrder < $1.sortOrder }
+        if let primary = sorted.first {
+            try await syncUserPhotoURL(userId: userId, url: primary.url)
+        }
+        return sorted
     }
 
     // MARK: - Private
