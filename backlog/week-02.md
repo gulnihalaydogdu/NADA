@@ -21,7 +21,7 @@
 - [x] Signed URLs / readable paths returned
 - [x] Max 6 enforced server-side
 
-**Ship notes:** Subcollection `users/{uid}/photos/{photoId}` + Storage `{photoId}.jpg`. Denormalized `photoURL` = primary. Lazy migration from W1 single `photoURL`. Client enforces max 6 (`FirestorePhotoService`).
+**Ship notes:** Subcollection `users/{uid}/photos/{photoId}` + Storage `{photoId}.jpg`. Denormalized `photoURL` = primary. Lazy migration from W1 single `photoURL`. Client enforces max 6 (`FirestorePhotoService`). Photos sheet: multi-select up to remaining slots, sequential crop (primary 1:1, gallery 3:4).
 
 ### W2-02 — Prompt catalog (friend-coded)
 - **P0 · 1d** — 15–20 hangout/hobby/humour prompts seeded; `GET /prompts`.
