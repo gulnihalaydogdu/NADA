@@ -9,8 +9,8 @@ final class FirestorePhotoService {
 
     private let storageService: FirebaseStorageService
 
-    init(storageService: FirebaseStorageService = FirebaseStorageService()) {
-        self.storageService = storageService
+    init(storageService: FirebaseStorageService? = nil) {
+        self.storageService = storageService ?? FirebaseStorageService()
     }
 
     private var database: Firestore? {
