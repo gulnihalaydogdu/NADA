@@ -31,8 +31,11 @@ struct Prompt: Identifiable, Equatable, Sendable {
     }
 }
 
-/// Stub for Week 2 write path — collection exists in rules/docs only for now.
+/// A user's answer to one catalog Bit (`promptAnswers/{userId}_{promptId}`).
 struct PromptAnswer: Identifiable, Equatable, Sendable {
+    static let maxCount = 3
+    static let maxTextLength = 150
+
     let id: String
     var userId: String
     var promptId: String

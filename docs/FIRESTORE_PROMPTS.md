@@ -1,9 +1,9 @@
-# Firestore — Bits catalog (`prompts`) — W1-06
+# Firestore — Bits catalog (`prompts`) — W1-06 / W2-02
 
 User-facing name: **Bits**. Internal collection/API: `prompts` / `Prompt`.
 
 **Code:** `NADA/Core/Models/Prompt.swift`, `NADA/Core/Firestore/FirestorePromptService.swift`  
-**Seed:** `firebase/prompts.seed.json`  
+**Seed:** `firebase/prompts.seed.json` (28 EN prompts)  
 **Rules:** `firebase/firestore.rules`
 
 ---
@@ -21,14 +21,43 @@ User-facing name: **Bits**. Internal collection/API: `prompts` / `Prompt`.
 
 ---
 
-## Seed in Console (one-time)
+## Seed in Console (one-time / when seed grows)
+
+### Shortcut — script (recommended)
+
+From the repo root:
+
+```bash
+cd /Users/gulnihal/Documents/NADA/NADA
+npm install
+```
+
+**Auth (pick one):**
+
+1. Firebase Console → Project settings → **Service accounts** → **Generate new private key**  
+   Then:
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/nada-app-33-....json"
+   npm run seed:prompts
+   ```
+
+2. Or with gcloud ADC:
+   ```bash
+   gcloud auth application-default login
+   export GCLOUD_PROJECT=nada-app-33
+   npm run seed:prompts
+   ```
+
+This **merges** all docs from `firebase/prompts.seed.json` into `prompts/{id}` (safe to re-run).
+
+### Manual (slow)
 
 1. Firebase Console → **Firestore** → **Data**
-2. **Start collection** → Collection ID: `prompts`
+2. Collection ID: `prompts`
 3. For each object in `firebase/prompts.seed.json`:
    - Document ID = `id` field
    - Add fields `text`, `category`, `isActive`, `sortOrder`, `locale` (types: string / string / boolean / number / string)
-4. Publish updated **Rules** from `firebase/firestore.rules` (includes `prompts` + `promptAnswers`)
+4. Publish **Rules** from `firebase/firestore.rules` (includes `prompts` + `promptAnswers`)
 
 Example doc `ideal-saturday`:
 
@@ -45,21 +74,26 @@ Example doc `ideal-saturday`:
 ## Client fetch
 
 `FirestorePromptService.fetchActivePrompts(locale: "en")`  
-→ `where isActive == true` + `locale == en`, sorted by `sortOrder`.
+→ active + `locale == en`, sorted by `sortOrder`.
 
-Smoke: Profile tab → **Bits** section lists the 5 seeded questions.
+Smoke: Profile → **Bits** lists seeded questions (28 after full seed).
 
 ---
 
-## `promptAnswers` stub (Week 2)
+## `promptAnswers/{answerId}` (W2-03)
 
-Collection: `promptAnswers/{answerId}`
+Document ID: `{userId}_{promptId}` (stable upsert).
 
-| Field | Type |
-|-------|------|
-| `userId` | string |
-| `promptId` | string |
-| `answerText` | string |
-| `sortOrder` | number |
+| Field | Type | Notes |
+|-------|------|--------|
+| `userId` | string | Must match `auth.uid` |
+| `promptId` | string | Catalog prompt id |
+| `answerText` | string | Trimmed; **1…150** characters |
+| `sortOrder` | number | Display order among the user’s answers (0…2) |
 
-Rules: owner create/read/update/delete. No client write in Week 1.
+**Limits (client):** max **3** answers per user; one answer per prompt.
+
+**Code:** `FirestorePromptService` — `fetchAnswers` / `upsertAnswer` / `deleteAnswer`  
+**Auth:** `AuthManager.fetchBitAnswers` / `saveBitAnswer` / `deleteBitAnswer`
+
+Rules: owner create/read/update/delete; create/update require the fields above.

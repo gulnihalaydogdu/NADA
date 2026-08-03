@@ -41,7 +41,7 @@ struct ProfileSuggestion: Identifiable {
 /// Drives the completion meter, section rows, and "make it feel like you" nudges.
 struct ProfileCompletion {
     static let photoTarget = ProfilePhoto.maxCount
-    static let bitTarget = 3
+    static let bitTarget = PromptAnswer.maxCount
 
     let photoCount: Int
     let answeredBits: Int

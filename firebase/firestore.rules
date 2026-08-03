@@ -17,12 +17,33 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Prompt answers stub (Week 2 writes). Owner-only for now.
+    // Bit answers (W2-03). Owner-only; field shape validated on write.
     match /promptAnswers/{answerId} {
-      allow create: if request.auth != null
-                    && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if request.auth != null
-                                  && resource.data.userId == request.auth.uid;
+      function isOwner() {
+        return request.auth != null && request.auth.uid == resource.data.userId;
+      }
+
+      function isOwnerCreate() {
+        return request.auth != null
+               && request.resource.data.userId == request.auth.uid;
+      }
+
+      function validAnswerFields() {
+        return request.resource.data.keys().hasAll(['userId', 'promptId', 'answerText', 'sortOrder'])
+               && request.resource.data.userId is string
+               && request.resource.data.promptId is string
+               && request.resource.data.answerText is string
+               && request.resource.data.answerText.size() > 0
+               && request.resource.data.answerText.size() <= 150
+               && request.resource.data.sortOrder is int;
+      }
+
+      allow read: if isOwner();
+      allow create: if isOwnerCreate() && validAnswerFields();
+      allow update: if isOwner()
+                    && request.resource.data.userId == resource.data.userId
+                    && validAnswerFields();
+      allow delete: if isOwner();
     }
   }
 }

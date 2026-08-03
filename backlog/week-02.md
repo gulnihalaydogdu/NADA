@@ -25,15 +25,19 @@
 
 ### W2-02 — Prompt catalog (friend-coded)
 - **P0 · 1d** — 15–20 hangout/hobby/humour prompts seeded; `GET /prompts`.
-- [ ] Prompts stored with category (hangout, hobby, games/memes, new-in-town, energy)
-- [ ] Only active prompts returned
-- [ ] No dating-style prompts
+- [x] Prompts stored with category (hangout, hobby, games/memes, new-in-town, energy)
+- [x] Only active prompts returned
+- [x] No dating-style prompts
+
+**Ship notes:** `firebase/prompts.seed.json` has 28 EN friend-coded prompts. Re-seed Console (client cannot write `prompts`).
 
 ### W2-03 — Prompt answers API
 - **P0 · 1d** — Create/update/delete a user’s prompt answers (min 3).
-- [ ] Answer text length limit enforced
-- [ ] Ordered answers per user
-- [ ] Validation: at least 3 to complete profile
+- [x] Answer text length limit enforced
+- [x] Ordered answers per user
+- [x] Validation: at least 3 to complete profile
+
+**Ship notes:** `promptAnswers/{userId}_{promptId}`; max 3 answers; text 1…150 chars. `FirestorePromptService` + `AuthManager` helpers. Wizard Continues only at 3 answers; Profile meter uses live count.
 
 ### W2-04 — Gender + location on User
 - **P0 · 1d** — Persist gender (required), city, radiusKm, coarse coordinates.
@@ -57,14 +61,18 @@
 
 ### W2-07 — Photo gallery step
 - **P0 · 1.5d** — Add/reorder/remove up to 6 photos; pick from library/camera.
-- [ ] Uses W2-01 + upload path; primary photo selectable
-- [ ] Empty + loading + error states
+- [x] Uses W2-01 + upload path; primary photo selectable
+- [x] Empty + loading + error states
+
+**Ship notes:** Profile Photos sheet + setup wizard both use `ProfilePhotosEditor`. Wizard requires all 6 before Continue; first slot = primary (gold frame); drag reorder; ✕ replaces same slot.
 
 ### W2-08 — Prompts step
 - **P0 · 1.5d** — Browse prompt catalog, pick, and write answers (min 3).
-- [ ] Category browsing; “view all”
-- [ ] Enforces min 3 answers to continue
-- [ ] Edit an existing answer
+- [x] Category browsing; “view all”
+- [x] Enforces min 3 answers to continue
+- [x] Edit an existing answer
+
+**Ship notes:** `ProfileBitsSheet` + wizard Bits step share `BitsAnswersWorkspace`. Preview shows answered Bits.
 
 ### W2-09 — Gender + basics step
 - **P0 · 0.5d** — Gender selection (man / woman / non-binary), name, birth date (18+).
@@ -102,8 +110,8 @@
 | Fri | W2-13 | Finish W2-12 + W2-13 |
 
 ## Ship gate
-- [ ] Up to 6 photos upload, reorder, primary works
-- [ ] ≥3 prompt answers saved and shown
+- [x] Up to 6 photos upload, reorder, primary works
+- [x] ≥3 prompt answers saved and shown
 - [ ] Gender + city/radius saved
 - [ ] Profile editable after relaunch
 - [ ] `isProfileComplete` correct

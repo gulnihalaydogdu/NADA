@@ -9,11 +9,17 @@ struct ProfileTabView: View {
     @State private var bitsLoadError: String?
     @State private var showSignOutConfirm = false
     @State private var photoCount = 0
+    @State private var answeredBitsCount = 0
+    @State private var bitAnswers: [PromptAnswer] = []
 
     private let promptService = FirestorePromptService()
 
     private var completion: ProfileCompletion {
-        ProfileCompletion(user: auth.currentUser, photoCount: photoCount)
+        ProfileCompletion(
+            user: auth.currentUser,
+            photoCount: photoCount,
+            answeredBits: answeredBitsCount
+        )
     }
 
     var body: some View {
@@ -53,6 +59,7 @@ struct ProfileTabView: View {
             await auth.refreshCurrentUser()
             await loadBitsCatalog()
             await refreshPhotoCount()
+            await refreshBitAnswers()
         }
     }
 
@@ -311,12 +318,23 @@ struct ProfileTabView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .onDisappear {
-                    Task { await refreshPhotoCount() }
+                    Task {
+                        await auth.refreshCurrentUser()
+                        await refreshPhotoCount()
+                    }
                 }
         case .bits:
-            ProfileBitsSheet(initialBits: catalogBits)
+            ProfileBitsSheet(
+                initialBits: catalogBits,
+                onAnswersChanged: {
+                    Task { await refreshBitAnswers() }
+                }
+            )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+                .onDisappear {
+                    Task { await refreshBitAnswers() }
+                }
         case .hangoutEnergy:
             ProfileHangoutEnergySheet()
                 .presentationDetents([.medium])
@@ -326,7 +344,7 @@ struct ProfileTabView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         case .preview:
-            ProfilePreviewSheet(bits: catalogBits)
+            ProfilePreviewSheet(bits: catalogBits, answers: bitAnswers)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
@@ -351,6 +369,11 @@ struct ProfileTabView: View {
         if photoCount == 0, auth.currentUser?.photoURL?.isEmpty == false {
             photoCount = 1
         }
+    }
+
+    private func refreshBitAnswers() async {
+        bitAnswers = await auth.fetchBitAnswers()
+        answeredBitsCount = bitAnswers.count
     }
 }
 

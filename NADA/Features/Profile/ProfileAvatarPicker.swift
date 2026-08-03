@@ -105,6 +105,7 @@ struct ProfileAvatarPicker: View {
                 size: size,
                 localImage: currentAvatar
             )
+            .id(photoURL ?? "empty-avatar")
 
             if isUploading || isPreparing {
                 Circle()
@@ -126,6 +127,10 @@ struct ProfileAvatarPicker: View {
                 }
             }
             .frame(width: size, height: size)
+        }
+        .onChange(of: auth.currentUser?.photoURL) { _, _ in
+            // Drop optimistic local preview when the server primary URL changes (e.g. reorder).
+            localAvatar = nil
         }
     }
 

@@ -38,5 +38,189 @@
     "isActive": true,
     "sortOrder": 5,
     "locale": "en"
+  },
+  {
+    "id": "coffee-or-walk",
+    "text": "Coffee first or a walk first?",
+    "category": "hangout",
+    "isActive": true,
+    "sortOrder": 6,
+    "locale": "en"
+  },
+  {
+    "id": "group-size",
+    "text": "My ideal hangout group size is…",
+    "category": "hangout",
+    "isActive": true,
+    "sortOrder": 7,
+    "locale": "en"
+  },
+  {
+    "id": "rainy-day-plan",
+    "text": "Rainy day with friends means…",
+    "category": "hangout",
+    "isActive": true,
+    "sortOrder": 8,
+    "locale": "en"
+  },
+  {
+    "id": "currently-obsessed",
+    "text": "I'm currently obsessed with…",
+    "category": "hobby",
+    "isActive": true,
+    "sortOrder": 9,
+    "locale": "en"
+  },
+  {
+    "id": "teach-me",
+    "text": "Something I can teach you in 10 minutes…",
+    "category": "hobby",
+    "isActive": true,
+    "sortOrder": 10,
+    "locale": "en"
+  },
+  {
+    "id": "weekend-project",
+    "text": "A weekend project I keep restarting…",
+    "category": "hobby",
+    "isActive": true,
+    "sortOrder": 11,
+    "locale": "en"
+  },
+  {
+    "id": "game-night-pick",
+    "text": "Game night? I'm bringing…",
+    "category": "gamesMemes",
+    "isActive": true,
+    "sortOrder": 12,
+    "locale": "en"
+  },
+  {
+    "id": "comfort-rewatch",
+    "text": "My comfort rewatch is…",
+    "category": "gamesMemes",
+    "isActive": true,
+    "sortOrder": 13,
+    "locale": "en"
+  },
+  {
+    "id": "meme-energy",
+    "text": "My group chat meme energy is…",
+    "category": "gamesMemes",
+    "isActive": true,
+    "sortOrder": 14,
+    "locale": "en"
+  },
+  {
+    "id": "first-week-tip",
+    "text": "First week in a new city — do this…",
+    "category": "newInTown",
+    "isActive": true,
+    "sortOrder": 15,
+    "locale": "en"
+  },
+  {
+    "id": "local-gem",
+    "text": "A local spot I gatekeep (but I'll share)…",
+    "category": "newInTown",
+    "isActive": true,
+    "sortOrder": 16,
+    "locale": "en"
+  },
+  {
+    "id": "low-key-high-key",
+    "text": "Low-key night or high-key plans?",
+    "category": "energy",
+    "isActive": true,
+    "sortOrder": 17,
+    "locale": "en"
+  },
+  {
+    "id": "recharge-style",
+    "text": "I recharge by…",
+    "category": "energy",
+    "isActive": true,
+    "sortOrder": 18,
+    "locale": "en"
+  },
+  {
+    "id": "brunch-order",
+    "text": "My go-to brunch order is…",
+    "category": "hangout",
+    "isActive": true,
+    "sortOrder": 19,
+    "locale": "en"
+  },
+  {
+    "id": "spontaneous-yes",
+    "text": "I'll say yes to a spontaneous…",
+    "category": "hangout",
+    "isActive": true,
+    "sortOrder": 20,
+    "locale": "en"
+  },
+  {
+    "id": "playlist-vibe",
+    "text": "My hangout playlist vibe is…",
+    "category": "hobby",
+    "isActive": true,
+    "sortOrder": 21,
+    "locale": "en"
+  },
+  {
+    "id": "craft-corner",
+    "text": "If we had an afternoon free, I'd drag you into…",
+    "category": "hobby",
+    "isActive": true,
+    "sortOrder": 22,
+    "locale": "en"
+  },
+  {
+    "id": "board-game-chaos",
+    "text": "The board game that causes the most chaos is…",
+    "category": "gamesMemes",
+    "isActive": true,
+    "sortOrder": 23,
+    "locale": "en"
+  },
+  {
+    "id": "inside-joke-starter",
+    "text": "A joke that always lands with my friends…",
+    "category": "gamesMemes",
+    "isActive": true,
+    "sortOrder": 24,
+    "locale": "en"
+  },
+  {
+    "id": "welcome-kit",
+    "text": "New in town welcome kit must include…",
+    "category": "newInTown",
+    "isActive": true,
+    "sortOrder": 25,
+    "locale": "en"
+  },
+  {
+    "id": "hidden-park",
+    "text": "Best under-the-radar park or walk is…",
+    "category": "newInTown",
+    "isActive": true,
+    "sortOrder": 26,
+    "locale": "en"
+  },
+  {
+    "id": "social-battery",
+    "text": "My social battery lasts about…",
+    "category": "energy",
+    "isActive": true,
+    "sortOrder": 27,
+    "locale": "en"
+  },
+  {
+    "id": "peak-hours",
+    "text": "I'm at my friendliest around…",
+    "category": "energy",
+    "isActive": true,
+    "sortOrder": 28,
+    "locale": "en"
   }
 ]

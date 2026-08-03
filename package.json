@@ -1,0 +1,11 @@
+{
+  "name": "nada",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed:prompts": "node scripts/seed-prompts.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0"
+  }
+}

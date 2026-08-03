@@ -1,5 +1,10 @@
 # Firebase secrets
 NADA/GoogleService-Info.plist
+*-firebase-adminsdk-*.json
+serviceAccount*.json
+
+# Node (seed scripts)
+node_modules/
 
 # Xcode
 *.xcuserstate

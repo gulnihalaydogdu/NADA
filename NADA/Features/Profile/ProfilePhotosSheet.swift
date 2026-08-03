@@ -3,10 +3,14 @@ import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
 
-/// Up to 6 ordered profile photos: drag to reorder (first = primary), ✕ to delete (must replace).
-struct ProfilePhotosSheet: View {
+/// Shared photo grid: multi-select upload, sequential crop, drag reorder (first = primary), ✕ replace.
+struct ProfilePhotosEditor: View {
     @Environment(AuthManager.self) private var auth
-    @Environment(\.dismiss) private var dismiss
+
+    var showsHeaderCopy: Bool = true
+    var onPhotosChanged: (([ProfilePhoto]) -> Void)? = nil
+    /// When true after a delete, parent can block Continue / Done until a replacement is added.
+    var onReplacementRequiredChanged: ((Bool) -> Void)? = nil
 
     @State private var photos: [ProfilePhoto] = []
     @State private var isLoading = false
@@ -22,19 +26,13 @@ struct ProfilePhotosSheet: View {
     @State private var editorImageID = UUID()
 
     @State private var draggingPhotoId: String?
-    /// After a delete, user must add at least one photo before dismissing.
     @State private var needsReplacement = false
-    /// Slot (0-based) where the replacement photo should land.
     @State private var replacementIndex: Int?
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
 
     private var remainingSlots: Int {
         max(0, ProfilePhoto.maxCount - photos.count)
-    }
-
-    private var canDismiss: Bool {
-        !needsReplacement && !isSaving && !isEditorPresented
     }
 
     private var editorSubtitle: String? {
@@ -48,69 +46,45 @@ struct ProfilePhotosSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                NADATheme.paper.ignoresSafeArea()
+        VStack(alignment: .leading, spacing: 18) {
+            if showsHeaderCopy {
+                Text("\(photos.count) of \(ProfilePhoto.maxCount) photos")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        Text("\(photos.count) of \(ProfilePhoto.maxCount) photos")
-                            .font(NADATheme.captionFont)
-                            .foregroundStyle(NADATheme.secondaryInk)
+                Text("Drag photos to change the order — the first one is your main photo. Tap ✕ to remove one; the next photo you add fills that same spot.")
+                    .font(NADATheme.bodyFont)
+                    .foregroundStyle(NADATheme.warmSecondaryInk)
+            }
 
-                        Text("Drag photos to change the order — the first one is your main photo. Tap ✕ to remove one; the next photo you add fills that same spot.")
-                            .font(NADATheme.bodyFont)
-                            .foregroundStyle(NADATheme.warmSecondaryInk)
-
-                        if isLoading && photos.isEmpty {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 24)
-                        } else {
-                            LazyVGrid(columns: columns, spacing: 12) {
-                                ForEach(photos) { photo in
-                                    photoCell(photo)
-                                }
-
-                                if remainingSlots > 0 {
-                                    addCell
-                                }
-                            }
-                        }
-
-                        if let message = localError ?? auth.errorMessage {
-                            Text(message)
-                                .font(NADATheme.captionFont)
-                                .foregroundStyle(NADATheme.danger)
-                        }
-
-                        if isSaving {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        }
+            if isLoading && photos.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            } else {
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(photos) { photo in
+                        photoCell(photo)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(24)
+
+                    if remainingSlots > 0 {
+                        addCell
+                    }
                 }
             }
-            .navigationTitle("Photos")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        if canDismiss {
-                            dismiss()
-                        } else if needsReplacement {
-                            localError = "Add a photo to fill that spot."
-                            presentLibrary()
-                        }
-                    }
-                    .foregroundStyle(NADATheme.brandPressed)
-                    .disabled(isSaving || isEditorPresented)
-                }
+
+            if let message = localError ?? auth.errorMessage {
+                Text(message)
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.danger)
+            }
+
+            if isSaving {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
             }
         }
-        .interactiveDismissDisabled(needsReplacement || isSaving || isEditorPresented)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task { await reload() }
         .photosPicker(
             isPresented: $isLibraryPresented,
@@ -143,6 +117,8 @@ struct ProfilePhotosSheet: View {
             }
         }
     }
+
+    // MARK: - Cells
 
     private var addCell: some View {
         Button {
@@ -249,11 +225,21 @@ struct ProfilePhotosSheet: View {
         isLibraryPresented = true
     }
 
+    private func notifyPhotosChanged() {
+        onPhotosChanged?(photos)
+    }
+
+    private func setNeedsReplacement(_ value: Bool) {
+        needsReplacement = value
+        onReplacementRequiredChanged?(value)
+    }
+
     private func reload() async {
         isLoading = true
         localError = nil
         defer { isLoading = false }
         photos = await auth.fetchPhotos()
+        notifyPhotosChanged()
     }
 
     private func enqueuePickedItems(_ items: [PhotosPickerItem]) async {
@@ -308,12 +294,13 @@ struct ProfilePhotosSheet: View {
         defer { isSaving = false }
 
         let insertAt = needsReplacement ? replacementIndex : nil
-        if let added = await auth.addPhoto(image, at: insertAt) {
+        if await auth.addPhoto(image, at: insertAt) != nil {
             photos = await auth.fetchPhotos()
             if needsReplacement {
-                needsReplacement = false
+                setNeedsReplacement(false)
                 replacementIndex = nil
             }
+            notifyPhotosChanged()
             presentNextInQueue()
         } else {
             if auth.errorMessage == nil {
@@ -332,23 +319,25 @@ struct ProfilePhotosSheet: View {
 
         if let updated = await auth.deletePhoto(id: id) {
             photos = updated
-            // Keep the same grid slot: after re-pack, insert back at this index.
             replacementIndex = min(index, updated.count)
-            needsReplacement = true
+            setNeedsReplacement(true)
             localError = "Add a photo to fill that spot."
+            notifyPhotosChanged()
             presentLibrary()
         }
     }
 
     private func persistOrder(_ orderedIds: [String]) async {
-        // Optimistic primary badge while saving.
         applyLocalPrimary(from: orderedIds)
+        notifyPhotosChanged()
         isSaving = true
         defer { isSaving = false }
         if let updated = await auth.reorderPhotos(orderedIds: orderedIds) {
             photos = updated
+            notifyPhotosChanged()
         } else {
             photos = await auth.fetchPhotos()
+            notifyPhotosChanged()
         }
     }
 
@@ -363,9 +352,67 @@ struct ProfilePhotosSheet: View {
     }
 }
 
+// MARK: - Sheet chrome
+
+/// Profile → Photos sheet wrapping `ProfilePhotosEditor`.
+struct ProfilePhotosSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var needsReplacement = false
+    @State private var localError: String?
+
+    private var canDismiss: Bool {
+        !needsReplacement
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                NADATheme.paper.ignoresSafeArea()
+
+                ScrollView {
+                    ProfilePhotosEditor(
+                        showsHeaderCopy: true,
+                        onReplacementRequiredChanged: { needsReplacement = $0 }
+                    )
+                    .padding(24)
+                }
+            }
+            .navigationTitle("Photos")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        if canDismiss {
+                            dismiss()
+                        } else {
+                            localError = "Add a photo to fill that spot."
+                        }
+                    }
+                    .foregroundStyle(NADATheme.brandPressed)
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if let localError, needsReplacement {
+                    Text(localError)
+                        .font(NADATheme.captionFont)
+                        .foregroundStyle(NADATheme.danger)
+                        .frame(maxWidth: .infinity)
+                        .padding(12)
+                        .background(NADATheme.paper)
+                }
+            }
+        }
+        .interactiveDismissDisabled(needsReplacement)
+        .onChange(of: needsReplacement) { _, required in
+            if !required { localError = nil }
+        }
+    }
+}
+
 // MARK: - Drag & drop reorder
 
-private struct PhotoReorderDropDelegate: DropDelegate {
+struct PhotoReorderDropDelegate: DropDelegate {
     let targetId: String
     @Binding var photos: [ProfilePhoto]
     @Binding var draggingPhotoId: String?

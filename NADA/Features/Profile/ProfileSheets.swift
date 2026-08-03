@@ -54,144 +54,6 @@ struct ProfileSheetScaffold<Content: View>: View {
     }
 }
 
-struct ProfileBitsSheet: View {
-    /// Optional seed from the parent; sheet always refreshes on open.
-    var initialBits: [Prompt] = []
-
-    @State private var bits: [Prompt] = []
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-    @State private var selectedCategory: Prompt.Category?
-
-    private let promptService = FirestorePromptService()
-
-    /// Only categories that actually have seeded bits, in catalog order.
-    private var availableCategories: [Prompt.Category] {
-        Prompt.Category.allCases.filter { category in
-            bits.contains { $0.category == category }
-        }
-    }
-
-    private var filteredBits: [Prompt] {
-        guard let selectedCategory else { return bits }
-        return bits.filter { $0.category == selectedCategory }
-    }
-
-    var body: some View {
-        ProfileSheetScaffold(title: "Bits") {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Bits are the short answers friends read on your profile. Picking and writing answers lands in Week 2.")
-                    .font(NADATheme.bodyFont)
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
-
-                if isLoading && bits.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 20)
-                } else if let errorMessage, bits.isEmpty {
-                    Text(errorMessage)
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.danger)
-                } else if bits.isEmpty {
-                    Text("No bits in the catalog yet. Seed the `prompts` collection in Firestore.")
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.secondaryInk)
-                } else {
-                    categoryChips
-
-                    ForEach(filteredBits) { bit in
-                        bitCard(bit)
-                    }
-                }
-            }
-        }
-        .task {
-            if bits.isEmpty { bits = initialBits }
-            await reload()
-        }
-    }
-
-    private func reload() async {
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-
-        do {
-            bits = try await promptService.fetchActivePrompts(locale: "en")
-        } catch {
-            if bits.isEmpty {
-                errorMessage = "Couldn't load bits. Check Firestore rules and the `prompts` seed."
-            }
-        }
-    }
-
-    private var categoryChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chip(title: "All", isSelected: selectedCategory == nil) {
-                    selectedCategory = nil
-                }
-
-                ForEach(availableCategories) { category in
-                    chip(title: category.title, isSelected: selectedCategory == category) {
-                        selectedCategory = category
-                    }
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 2)
-        }
-        .padding(.horizontal, -24)
-    }
-
-    private func chip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
-                }
-                Text(title)
-                    .font(NADATheme.captionFont)
-            }
-            .foregroundStyle(isSelected ? NADATheme.onBrand : NADATheme.warmSecondaryInk)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(isSelected ? NADATheme.brand : NADATheme.card, in: Capsule())
-            .overlay(
-                Capsule()
-                    .strokeBorder(
-                        isSelected ? Color.clear : NADATheme.ink.opacity(0.1),
-                        lineWidth: 1
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .animation(.easeOut(duration: 0.15), value: isSelected)
-    }
-
-    private func bitCard(_ bit: Prompt) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(bit.text)
-                .font(NADATheme.bodyFont)
-                .foregroundStyle(NADATheme.ink)
-
-            HStack(spacing: 8) {
-                Text(bit.category.title)
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.brandPressed)
-
-                Text("Answering comes in Week 2")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
-}
-
 struct ProfileHangoutEnergySheet: View {
     private let interests = ["Coffee", "Walks", "Games", "Music", "Food", "Movies", "Sports", "Art"]
 
@@ -340,6 +202,11 @@ struct ProfilePreviewSheet: View {
     @Environment(AuthManager.self) private var auth
 
     let bits: [Prompt]
+    var answers: [PromptAnswer] = []
+
+    private var promptById: [String: Prompt] {
+        Dictionary(uniqueKeysWithValues: bits.map { ($0.id, $0) })
+    }
 
     var body: some View {
         ProfileSheetScaffold(title: "Preview") {
@@ -363,20 +230,27 @@ struct ProfilePreviewSheet: View {
                     .foregroundStyle(NADATheme.warmSecondaryInk)
                 }
 
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Bits")
                         .font(NADATheme.headlineFont)
                         .foregroundStyle(NADATheme.ink)
 
-                    if let firstBit = bits.first {
-                        Text(firstBit.text)
-                            .font(NADATheme.bodyFont)
-                            .foregroundStyle(NADATheme.ink)
+                    if answers.isEmpty {
+                        Text("Answer Bits on your profile — friends will see them here.")
+                            .font(NADATheme.captionFont)
+                            .foregroundStyle(NADATheme.secondaryInk)
+                    } else {
+                        ForEach(answers) { answer in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(promptById[answer.promptId]?.text ?? "Bit")
+                                    .font(NADATheme.captionFont)
+                                    .foregroundStyle(NADATheme.brandPressed)
+                                Text(answer.answerText)
+                                    .font(NADATheme.bodyFont)
+                                    .foregroundStyle(NADATheme.ink)
+                            }
+                        }
                     }
-
-                    Text("Your answers will show here once bits open up in Week 2.")
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.secondaryInk)
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity, alignment: .leading)

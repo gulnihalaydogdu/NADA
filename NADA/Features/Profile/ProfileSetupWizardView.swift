@@ -1,16 +1,21 @@
 import SwiftUI
 
-/// Soft multi-step shell after basics: Photos → Bits → Preferences (W1-12).
-/// Photo saves via Storage; Bits/Preferences are placeholders until Week 2.
+/// Soft multi-step shell after basics: Photos → Bits → Preferences.
+/// Bits require 3 answers before Continue (W2-08); Preferences preview remains soft.
 struct ProfileSetupWizardView: View {
     @Environment(AuthManager.self) private var auth
 
     @State private var step: Step = .photos
     @State private var catalogBits: [Prompt] = []
+    @State private var answers: [PromptAnswer] = []
     @State private var bitsLoadError: String?
     @State private var isLoadingBits = false
+    @State private var selectedCategory: Prompt.Category?
+    @State private var editorTarget: BitEditorTarget?
     @State private var radiusKm: Double = 25
     @State private var localError: String?
+    @State private var photoCount = 0
+    @State private var photosNeedReplacement = false
 
     private let promptService = FirestorePromptService()
 
@@ -29,8 +34,8 @@ struct ProfileSetupWizardView: View {
 
         var headline: String {
             switch self {
-            case .photos: return "Add a photo"
-            case .bits: return "Bits you'll answer"
+            case .photos: return "Add your photos"
+            case .bits: return "Answer 3 Bits"
             case .preferences: return "Hangout preferences"
             }
         }
@@ -38,13 +43,49 @@ struct ProfileSetupWizardView: View {
         var subtitle: String {
             switch self {
             case .photos:
-                return "One clear photo helps friends recognize you. You can change it anytime in Profile."
+                return "Add \(ProfilePhoto.maxCount) photos. The first one is your main profile photo — drag to reorder, or tap ✕ to swap one out."
             case .bits:
-                return "These are the questions on your profile. Answering them comes in Week 2 — peek now, skip if you want."
+                return "Pick three questions and write short answers friends will see on your profile."
             case .preferences:
-                return "City is already set. Radius and interests land in Week 2 — this step is a preview."
+                return "City is already set. Radius and interests land later — this step is a preview."
             }
         }
+    }
+
+    private var hasRequiredPhotos: Bool {
+        photoCount >= ProfilePhoto.maxCount && !photosNeedReplacement
+    }
+
+    private var answeredPromptIds: Set<String> {
+        Set(answers.map(\.promptId))
+    }
+
+    private var canAddMoreBits: Bool {
+        answers.count < PromptAnswer.maxCount
+    }
+
+    private var hasRequiredBits: Bool {
+        answers.count >= PromptAnswer.maxCount
+    }
+
+    private var availableCategories: [Prompt.Category] {
+        Prompt.Category.allCases.filter { category in
+            catalogBits.contains { $0.category == category }
+        }
+    }
+
+    private var filteredCatalog: [Prompt] {
+        let base: [Prompt]
+        if let selectedCategory {
+            base = catalogBits.filter { $0.category == selectedCategory }
+        } else {
+            base = catalogBits
+        }
+        return base.filter { !answeredPromptIds.contains($0.id) }
+    }
+
+    private var promptById: [String: Prompt] {
+        Dictionary(uniqueKeysWithValues: catalogBits.map { ($0.id, $0) })
     }
 
     var body: some View {
@@ -85,8 +126,21 @@ struct ProfileSetupWizardView: View {
         }
         .task(id: step) {
             if step == .bits {
-                await loadBitsCatalog()
+                await loadBitsStep()
             }
+        }
+        .sheet(item: $editorTarget) { target in
+            BitAnswerEditorSheet(
+                catalog: catalogBits,
+                answeredPromptIds: answeredPromptIds,
+                initialPromptId: target.promptId,
+                initialText: target.initialText,
+                isEditing: target.isEditing
+            ) { promptId, text in
+                await saveBit(target: target, promptId: promptId, text: text)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -140,42 +194,42 @@ struct ProfileSetupWizardView: View {
     }
 
     private var photosStep: some View {
-        VStack(spacing: 16) {
-            ProfileAvatarPicker(size: 170)
-                .frame(maxWidth: .infinity)
-
-            Text(auth.currentUser?.photoURL == nil ? "Tap to choose a photo" : "Looking good — continue or change it")
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.secondaryInk)
-                .frame(maxWidth: .infinity)
-        }
+        ProfilePhotosEditor(
+            showsHeaderCopy: true,
+            onPhotosChanged: { photos in
+                photoCount = photos.count
+            },
+            onReplacementRequiredChanged: { required in
+                photosNeedReplacement = required
+            }
+        )
     }
 
     private var bitsStep: some View {
-        Group {
-            if isLoadingBits {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 24)
-            } else if let bitsLoadError {
-                Text(bitsLoadError)
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(.red.opacity(0.85))
-            } else if catalogBits.isEmpty {
-                Text("No bits seeded yet. You can continue and answer them later.")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
-            } else {
-                VStack(alignment: .leading, spacing: 16) {
-                    ForEach(catalogBits) { bit in
-                        Text(bit.text)
-                            .font(NADATheme.bodyFont)
-                            .foregroundStyle(NADATheme.ink)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
+        BitsAnswersWorkspace(
+            catalog: catalogBits,
+            answers: $answers,
+            selectedCategory: $selectedCategory,
+            availableCategories: availableCategories,
+            filteredCatalog: filteredCatalog,
+            promptById: promptById,
+            isLoading: isLoadingBits,
+            errorMessage: bitsLoadError,
+            canAddMore: canAddMoreBits,
+            onSelectCatalog: { prompt in
+                guard canAddMoreBits else { return }
+                editorTarget = .compose(prompt)
+            },
+            onEditAnswer: { answer in
+                editorTarget = .edit(answer, promptById[answer.promptId])
+            },
+            onDeleteAnswer: { answer in
+                Task { await deleteBitAnswer(answer) }
+            },
+            onReorder: { orderedIds in
+                Task { await persistBitOrder(orderedIds) }
             }
-        }
+        )
     }
 
     private var preferencesStep: some View {
@@ -213,7 +267,7 @@ struct ProfileSetupWizardView: View {
                 Text("Coffee · Walks · Games · Music · Food")
                     .font(NADATheme.bodyFont)
                     .foregroundStyle(NADATheme.warmSecondaryInk)
-                Text("Interest picks come in Week 2.")
+                Text("Interest picks come later.")
                     .font(NADATheme.captionFont)
                     .foregroundStyle(NADATheme.secondaryInk)
             }
@@ -223,6 +277,22 @@ struct ProfileSetupWizardView: View {
 
     private var footer: some View {
         VStack(spacing: 12) {
+            if step == .photos, !hasRequiredPhotos {
+                Text(
+                    photosNeedReplacement
+                        ? "Add a photo to fill that spot"
+                        : "Add \(ProfilePhoto.maxCount) photos to continue"
+                )
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+            }
+
+            if step == .bits, !hasRequiredBits {
+                Text("Answer \(PromptAnswer.maxCount) Bits to continue")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+            }
+
             Button {
                 Task { await advance() }
             } label: {
@@ -234,18 +304,24 @@ struct ProfileSetupWizardView: View {
                 }
             }
             .buttonStyle(NADAPrimaryButtonStyle())
-            .disabled(auth.isBusy)
+            .disabled(
+                auth.isBusy
+                    || (step == .photos && !hasRequiredPhotos)
+                    || (step == .bits && !hasRequiredBits)
+            )
 
-            Button {
-                Task { await skipOrFinish() }
-            } label: {
-                Text(step == .preferences ? "Skip for now" : "Skip this step")
-                    .font(NADATheme.headlineFont)
-                    .foregroundStyle(NADATheme.brandPressed)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+            if step == .preferences {
+                Button {
+                    Task { await skipOrFinish() }
+                } label: {
+                    Text("Skip for now")
+                        .font(NADATheme.headlineFont)
+                        .foregroundStyle(NADATheme.brandPressed)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .disabled(auth.isBusy)
             }
-            .disabled(auth.isBusy)
         }
         .padding(.horizontal, 24)
         .padding(.top, 16)
@@ -270,6 +346,16 @@ struct ProfileSetupWizardView: View {
 
     private func advance() async {
         localError = nil
+        if step == .photos, !hasRequiredPhotos {
+            localError = photosNeedReplacement
+                ? "Add a photo to fill that spot."
+                : "Add \(ProfilePhoto.maxCount) photos to continue."
+            return
+        }
+        if step == .bits, !hasRequiredBits {
+            localError = "Answer \(PromptAnswer.maxCount) Bits to continue."
+            return
+        }
         if step == .preferences {
             await finishWizard()
             return
@@ -296,16 +382,77 @@ struct ProfileSetupWizardView: View {
         }
     }
 
-    private func loadBitsCatalog() async {
+    private func loadBitsStep() async {
         isLoadingBits = true
         bitsLoadError = nil
         defer { isLoadingBits = false }
 
         do {
-            catalogBits = try await promptService.fetchActivePrompts(locale: "en")
+            async let catalogTask = promptService.fetchActivePrompts(locale: "en")
+            answers = await auth.fetchBitAnswers()
+            catalogBits = try await catalogTask
         } catch {
-            bitsLoadError = "Couldn't load bits. You can still continue."
+            bitsLoadError = "Couldn't load bits. Check Firestore rules and seed."
             catalogBits = []
+        }
+    }
+
+    private func saveBit(target: BitEditorTarget, promptId: String, text: String) async -> Bool {
+        localError = nil
+        auth.clearError()
+
+        switch target {
+        case .compose:
+            if let saved = await auth.saveBitAnswer(
+                promptId: promptId,
+                answerText: text,
+                sortOrder: answers.count
+            ) {
+                answers.append(saved)
+                answers.sort { $0.sortOrder < $1.sortOrder }
+                return true
+            }
+        case .edit(let answer, _):
+            if promptId == answer.promptId {
+                if let saved = await auth.saveBitAnswer(
+                    promptId: promptId,
+                    answerText: text,
+                    sortOrder: answer.sortOrder
+                ) {
+                    if let index = answers.firstIndex(where: { $0.promptId == saved.promptId }) {
+                        answers[index] = saved
+                    }
+                    return true
+                }
+            } else if await auth.changeBitAnswerPrompt(
+                fromPromptId: answer.promptId,
+                toPromptId: promptId,
+                answerText: text
+            ) != nil {
+                answers = await auth.fetchBitAnswers()
+                return true
+            }
+        }
+
+        localError = auth.errorMessage ?? "Couldn't save that Bit."
+        return false
+    }
+
+    private func deleteBitAnswer(_ answer: PromptAnswer) async {
+        localError = nil
+        auth.clearError()
+        if let updated = await auth.deleteBitAnswer(promptId: answer.promptId) {
+            answers = updated
+        } else {
+            localError = auth.errorMessage ?? "Couldn't remove that Bit."
+        }
+    }
+
+    private func persistBitOrder(_ orderedPromptIds: [String]) async {
+        if let updated = await auth.reorderBitAnswers(orderedPromptIds: orderedPromptIds) {
+            answers = updated
+        } else {
+            answers = await auth.fetchBitAnswers()
         }
     }
 }

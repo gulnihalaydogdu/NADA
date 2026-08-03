@@ -89,10 +89,25 @@ service cloud.firestore {
     }
 
     match /promptAnswers/{answerId} {
+      allow read: if request.auth != null
+                  && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null
-                    && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if request.auth != null
-                                  && resource.data.userId == request.auth.uid;
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.keys().hasAll(['userId', 'promptId', 'answerText', 'sortOrder'])
+                    && request.resource.data.answerText is string
+                    && request.resource.data.answerText.size() > 0
+                    && request.resource.data.answerText.size() <= 150
+                    && request.resource.data.sortOrder is int;
+      allow update: if request.auth != null
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.keys().hasAll(['userId', 'promptId', 'answerText', 'sortOrder'])
+                    && request.resource.data.answerText is string
+                    && request.resource.data.answerText.size() > 0
+                    && request.resource.data.answerText.size() <= 150
+                    && request.resource.data.sortOrder is int;
+      allow delete: if request.auth != null
+                    && resource.data.userId == request.auth.uid;
     }
   }
 }
@@ -100,7 +115,7 @@ service cloud.firestore {
 
 4. **Publish** (Yayınla)
 
-`users` owner-only; `prompts` signed-in read; `promptAnswers` owner stub (Week 2).
+`users` owner-only; `prompts` signed-in read; `promptAnswers` owner CRUD with field checks (W2-03).
 
 ### 4c. Doğrula (Console)
 

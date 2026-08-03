@@ -19,6 +19,7 @@ final class AuthManager {
     private let userService: FirestoreUserService
     private let storageService: FirebaseStorageService
     private let photoService: FirestorePhotoService
+    private let promptService: FirestorePromptService
     private var authStateHandle: AuthStateHandle?
 
     init() {
@@ -26,6 +27,7 @@ final class AuthManager {
         self.userService = FirestoreUserService()
         self.storageService = FirebaseStorageService()
         self.photoService = FirestorePhotoService(storageService: storageService)
+        self.promptService = FirestorePromptService()
     }
 
     var hasCompletedFriendsIntent: Bool {
@@ -217,6 +219,79 @@ final class AuthManager {
         var result: [ProfilePhoto]?
         await perform {
             result = try await self.photoService.reorder(userId: userId, orderedIds: orderedIds)
+            // Reorder may change primary → refresh denormalized photoURL on the profile.
+            if let profile = try await self.userService.fetchUser(id: userId) {
+                self.currentUser = profile
+            }
+        }
+        return result
+    }
+
+    // MARK: - Bit answers
+
+    func fetchBitAnswers() async -> [PromptAnswer] {
+        guard let userId = currentUser?.id else { return [] }
+        do {
+            return try await promptService.fetchAnswers(userId: userId)
+        } catch {
+            errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
+            return []
+        }
+    }
+
+    @discardableResult
+    func saveBitAnswer(promptId: String, answerText: String, sortOrder: Int? = nil) async -> PromptAnswer? {
+        guard let userId = currentUser?.id else { return nil }
+        var result: PromptAnswer?
+        await perform {
+            result = try await self.promptService.upsertAnswer(
+                userId: userId,
+                promptId: promptId,
+                answerText: answerText,
+                sortOrder: sortOrder
+            )
+        }
+        return result
+    }
+
+    @discardableResult
+    func deleteBitAnswer(promptId: String) async -> [PromptAnswer]? {
+        guard let userId = currentUser?.id else { return nil }
+        var result: [PromptAnswer]?
+        await perform {
+            result = try await self.promptService.deleteAnswer(userId: userId, promptId: promptId)
+        }
+        return result
+    }
+
+    @discardableResult
+    func reorderBitAnswers(orderedPromptIds: [String]) async -> [PromptAnswer]? {
+        guard let userId = currentUser?.id else { return nil }
+        var result: [PromptAnswer]?
+        await perform {
+            result = try await self.promptService.reorderAnswers(
+                userId: userId,
+                orderedPromptIds: orderedPromptIds
+            )
+        }
+        return result
+    }
+
+    @discardableResult
+    func changeBitAnswerPrompt(
+        fromPromptId: String,
+        toPromptId: String,
+        answerText: String
+    ) async -> PromptAnswer? {
+        guard let userId = currentUser?.id else { return nil }
+        var result: PromptAnswer?
+        await perform {
+            result = try await self.promptService.changeAnswerPrompt(
+                userId: userId,
+                fromPromptId: fromPromptId,
+                toPromptId: toPromptId,
+                answerText: answerText
+            )
         }
         return result
     }
