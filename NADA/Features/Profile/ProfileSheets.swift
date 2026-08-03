@@ -198,72 +198,272 @@ struct ProfileLocationSheet: View {
     }
 }
 
+/// How friends will see you — Hinge-inspired stack:
+/// name → primary photo → first Bit → essentials → remaining photos interleaved with Bits.
 struct ProfilePreviewSheet: View {
     @Environment(AuthManager.self) private var auth
 
     let bits: [Prompt]
     var answers: [PromptAnswer] = []
 
+    @State private var photos: [ProfilePhoto] = []
+    @State private var isLoadingPhotos = false
+
     private var promptById: [String: Prompt] {
         Dictionary(uniqueKeysWithValues: bits.map { ($0.id, $0) })
     }
 
+    private var sortedAnswers: [PromptAnswer] {
+        answers.sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private var firstBit: (prompt: String, answer: String)? {
+        guard let answer = sortedAnswers.first else { return nil }
+        return (
+            prompt: promptById[answer.promptId]?.text ?? "Bit",
+            answer: answer.answerText
+        )
+    }
+
+    private var essentialsModel: ProfileEssentialsCard.Model {
+        ProfileEssentialsCard.Model(
+            age: nil, // birth year not collected yet
+            gender: ProfileGender.fromStored(auth.currentUser?.gender)?.title,
+            city: auth.currentUser?.city,
+            jobTitle: nil,
+            university: nil,
+            hangoutLookingFor: nil,
+            openToGroups: nil
+        )
+    }
+
+    /// After name / primary / first Bit / essentials: photo → bit → photo → bit → …
+    private var interleavedBlocks: [ProfilePreviewBlock] {
+        let remainingPhotos = Array(photos.dropFirst())
+        let remainingBits = Array(sortedAnswers.dropFirst())
+        var blocks: [ProfilePreviewBlock] = []
+        var photoIndex = 0
+        var bitIndex = 0
+
+        while photoIndex < remainingPhotos.count || bitIndex < remainingBits.count {
+            if photoIndex < remainingPhotos.count {
+                blocks.append(.photo(remainingPhotos[photoIndex]))
+                photoIndex += 1
+            }
+            if bitIndex < remainingBits.count {
+                let answer = remainingBits[bitIndex]
+                blocks.append(
+                    .bit(
+                        prompt: promptById[answer.promptId]?.text ?? "Bit",
+                        answer: answer.answerText
+                    )
+                )
+                bitIndex += 1
+            }
+        }
+        return blocks
+    }
+
     var body: some View {
         ProfileSheetScaffold(title: "Preview") {
-            VStack(spacing: 18) {
-                ProfileAvatarImage(urlString: auth.currentUser?.photoURL, size: 160)
-
-                VStack(spacing: 6) {
-                    Text(auth.currentUser?.displayName ?? "Your name")
-                        .font(NADATheme.displayFont)
-                        .foregroundStyle(NADATheme.ink)
-
-                    HStack(spacing: 14) {
-                        if let gender = ProfileGender.fromStored(auth.currentUser?.gender)?.title {
-                            Label(gender, systemImage: "person")
-                        }
-                        if let city = auth.currentUser?.city, !city.isEmpty {
-                            Label(city, systemImage: "mappin")
-                        }
-                    }
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
+            VStack(spacing: 14) {
+                if isLoadingPhotos && photos.isEmpty {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                } else {
+                    profileStack
                 }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Bits")
-                        .font(NADATheme.headlineFont)
-                        .foregroundStyle(NADATheme.ink)
-
-                    if answers.isEmpty {
-                        Text("Answer Bits on your profile — friends will see them here.")
-                            .font(NADATheme.captionFont)
-                            .foregroundStyle(NADATheme.secondaryInk)
-                    } else {
-                        ForEach(answers) { answer in
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(promptById[answer.promptId]?.text ?? "Bit")
-                                    .font(NADATheme.captionFont)
-                                    .foregroundStyle(NADATheme.brandPressed)
-                                Text(answer.answerText)
-                                    .font(NADATheme.bodyFont)
-                                    .foregroundStyle(NADATheme.ink)
-                            }
-                        }
-                    }
-                }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-                Text("This is an early look at how friends will see you.")
+                Text("This is how friends will see you.")
                     .font(NADATheme.captionFont)
                     .foregroundStyle(NADATheme.secondaryInk)
                     .multilineTextAlignment(.center)
+                    .padding(.top, 4)
             }
             .frame(maxWidth: .infinity)
         }
+        .task {
+            await loadPhotos()
+        }
     }
+
+    @ViewBuilder
+    private var profileStack: some View {
+        // 1. Name (Active / pronouns later)
+        Text(auth.currentUser?.displayName ?? "Your name")
+            .font(NADATheme.displayFont)
+            .foregroundStyle(NADATheme.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        // 2. Primary photo
+        if let primary = photos.first {
+            ProfilePreviewPhotoTile(urlString: primary.url)
+        } else if let url = auth.currentUser?.photoURL, !url.isEmpty {
+            ProfilePreviewPhotoTile(urlString: url)
+        } else {
+            ProfilePreviewPhotoTile(urlString: nil)
+        }
+
+        // 3. First Bit under the primary photo
+        if let firstBit {
+            ProfilePreviewBitCard(prompt: firstBit.prompt, answer: firstBit.answer)
+        }
+
+        // 4. Essentials (“about”) card
+        ProfileEssentialsCard(model: essentialsModel)
+
+        // 5. Remaining photos interleaved with remaining Bits
+        if interleavedBlocks.isEmpty, firstBit == nil, photos.count <= 1 {
+            Text("Add more photos and Bits — they’ll show up here like on Discover.")
+                .font(NADATheme.captionFont)
+                .foregroundStyle(NADATheme.secondaryInk)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 4)
+        } else {
+            ForEach(Array(interleavedBlocks.enumerated()), id: \.offset) { _, block in
+                switch block {
+                case .photo(let photo):
+                    ProfilePreviewPhotoTile(urlString: photo.url)
+                case .bit(let prompt, let answer):
+                    ProfilePreviewBitCard(prompt: prompt, answer: answer)
+                }
+            }
+        }
+    }
+
+    private func loadPhotos() async {
+        isLoadingPhotos = true
+        defer { isLoadingPhotos = false }
+        photos = await auth.fetchPhotos()
+    }
+}
+
+private enum ProfilePreviewBlock {
+    case photo(ProfilePhoto)
+    case bit(prompt: String, answer: String)
+}
+
+/// Full-width square photo tile (Discover / Preview).
+struct ProfilePreviewPhotoTile: View {
+    let urlString: String?
+
+    var body: some View {
+        Group {
+            if let urlString, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    case .empty:
+                        ZStack {
+                            NADATheme.brandSoft
+                            ProgressView()
+                        }
+                    default:
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            NADATheme.brandSoft
+            Image(systemName: "person.fill")
+                .font(.system(size: 48, weight: .medium))
+                .foregroundStyle(NADATheme.brand)
+        }
+    }
+}
+
+/// Hinge-style Bit card — content-height rectangle (not square); sans prompt + bold answer.
+struct ProfilePreviewBitCard: View {
+    let prompt: String
+    let answer: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(prompt)
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(NADATheme.brandPressed)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(answer)
+                .font(.system(size: 28, weight: .bold, design: .default))
+                .foregroundStyle(NADATheme.ink)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+#Preview("Bit card") {
+    ProfilePreviewBitCard(
+        prompt: "I could stay up all night talking about",
+        answer: "movies and series!!"
+    )
+    .padding(24)
+    .background(NADATheme.paper)
+}
+
+#Preview("Preview stack") {
+    ScrollView {
+        VStack(spacing: 14) {
+            Text("Defne")
+                .font(NADATheme.displayFont)
+                .foregroundStyle(NADATheme.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(NADATheme.brandSoft)
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 56))
+                        .foregroundStyle(NADATheme.brand)
+                }
+
+            ProfilePreviewBitCard(
+                prompt: "I’m always down for",
+                answer: "A spontaneous day trip with good playlists"
+            )
+
+            ProfileEssentialsCard(
+                model: .init(
+                    age: 21,
+                    gender: "Woman",
+                    city: "Istanbul",
+                    jobTitle: "Student",
+                    university: "Bilkent University",
+                    hangoutLookingFor: "Looking for a travel-buddy from Istanbul",
+                    openToGroups: nil
+                )
+            )
+
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(NADATheme.surface)
+                .aspectRatio(1, contentMode: .fit)
+
+            ProfilePreviewBitCard(
+                prompt: "The friend energy I bring",
+                answer: "Planner + hype person combo"
+            )
+        }
+        .padding(24)
+    }
+    .background(NADATheme.paper)
 }
 
 struct ProfileSettingsSheet: View {

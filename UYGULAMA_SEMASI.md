@@ -169,19 +169,37 @@ A single-purpose app shaped around one job: friendship and hangouts. Faster way 
 
 | Entity | Short description | Main fields |
 |--------|-------------------|-------------|
-| User | Account holder | id, displayName, gender, birthYear (or age range), bio, city, createdAt, locale, moderationStatus |
+| User | Account holder | id, displayName, gender, birthYear (age shown as derived), city, jobTitle, university, hangoutLookingFor, createdAt, locale, moderationStatus; optional later: openToGroups |
 
-**Firestore MVP (Week 1)** — subset persisted today in `users/{uid}`:
+**User profile essentials (Discover / profile card — planned UI, not built yet):**  
+Hinge-style compact card under photos: top row **age · gender · city**; list rows for **job**, **university** (last school), **hangout looking-for** (short free text, e.g. “Looking for a travel-buddy from Istanbul”). Photos + Bits stay separate above/beside this card.
 
-| Field | Week 1 |
+| Field | Collect? | Notes |
+|-------|----------|--------|
+| Age (from birthYear / DOB) | Yes | Show age, not exact DOB on card; 18+ |
+| Gender | Yes | Already in MVP |
+| City / location | Yes | Already in MVP; radius stays in Preferences |
+| Job / role | Yes | e.g. Student, Designer — friend-coded, not a dating “status” essay |
+| University (last / current) | Yes | School name string for MVP |
+| Hangout looking-for | Yes | Short line: what kind of hangout / buddy they’re seeking |
+| Open to groups | Optional later | User idea — not required for MVP |
+| Sexuality | **Deferred** | Dating-coded; skip unless we find a clear friends-only framing later |
+
+**Firestore MVP (shipped)** — subset persisted today in `users/{uid}`:
+
+| Field | Status |
 |-------|--------|
 | id, displayName, gender, city, createdAt, locale, intent | ✅ |
-| email, friendsIntentCompleted | ✅ (onboarding) |
-| birthYear, bio, moderationStatus | Later |
+| email, friendsIntentCompleted, profileWizardCompleted | ✅ |
+| photoURL + `photos` subcollection | ✅ |
+| Bit answers (`promptAnswers`) | ✅ |
+| birthYear / age, jobTitle, university, hangoutLookingFor | Planned (Week 2–3 profile essentials) |
+| bio, moderationStatus, openToGroups | Later / optional |
 
 Detail: [`docs/FIRESTORE_USERS.md`](docs/FIRESTORE_USERS.md)
+
 | Photo | Profile images | id, userId, url, sortOrder, isPrimary |
-| Prompt | Catalog of prompt questions | id, textKey, category, isActive |
+| Prompt | Catalog of prompt questions | id, text, category, isActive, sortOrder, locale |
 | PromptAnswer | User’s answer to a prompt | id, userId, promptId, answerText, sortOrder |
 | Interest | Hangout / hobby tags | id, labelKey |
 | UserInterest | User ↔ interest | userId, interestId |
@@ -224,13 +242,13 @@ Detail: [`docs/FIRESTORE_USERS.md`](docs/FIRESTORE_USERS.md)
 ## 8. Business rules
 
 **Validation / required fields:**  
-Minimum age (e.g. 18+). Gender required (needed for women-% audits and women safety prefs). At least 1 photo (preferably 2+). At least 3 prompt answers. Display name and city required. Intent must be friends/hangouts (no dating option in MVP).
+Minimum age (e.g. 18+). Gender required (needed for women-% audits and women safety prefs). At least 1 photo (preferably 2+). At least 3 prompt answers. Display name and city required. Intent must be friends/hangouts (no dating option in MVP). Profile essentials (job, university, hangout looking-for) should be collectible for Discover cards; exact “required to complete” gate TBD with W2-06 `isProfileComplete`.
 
 **Limits:**  
-Like comment max length (e.g. 140–200 chars). Daily like soft cap optional later. Max photos (e.g. 6). Chat only after Match. Voicemail max duration (e.g. 30–60 sec). **No video calls** in product. Location shown as city / approximate area — not precise pin in MVP.
+Like comment max length (e.g. 140–200 chars). Daily like soft cap optional later. Max photos (e.g. 6). Chat only after Match. Voicemail max duration (e.g. 30–60 sec). **No video calls** in product. Location shown as city / approximate area — not precise pin in MVP. Hangout looking-for: short string (e.g. ≤120 chars).
 
 **Anti-flirting (product + policy):**  
-In-app UX should make flirting a poor fit (friend prompts, hangout framing, report path). Taking the conversation **off-app** (WhatsApp, IG, etc.) is a **mutual decision** between users — NADA neither forbids nor promotes it; it is outside product control once they leave. Report reason **“Flirting”** covers romantic/dating pressure in likes, comments, chat, or voicemail.
+In-app UX should make flirting a poor fit (friend prompts, hangout framing, report path). Taking the conversation **off-app** (WhatsApp, IG, etc.) is a **mutual decision** between users — NADA neither forbids nor promotes it; it is outside product control once they leave. Report reason **“Flirting”** covers romantic/dating pressure in likes, comments, chat, or voicemail. Prefer **hangout looking-for** over dating-style sexuality/relationship fields.
 
 **Women-focused safety audit:**  
 For men (and similar), compute **share of women** among people they like / match / keep as connections. Extremely high women-% (threshold TBD) with enough sample size → flag for **account review** (warn, rate-limit likes, restrict Discover, or ban). Optional: women can prefer discovering users with healthier/balanced patterns (privacy-preserving signal, not raw %).

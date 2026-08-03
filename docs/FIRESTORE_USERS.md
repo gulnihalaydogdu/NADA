@@ -25,6 +25,20 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
 
 † Created empty on sign-up; **Basic Profile** gate requires them before the profile wizard / tabs.
 
+### Planned profile essentials (not in Firestore yet)
+
+Discover/profile card fields from product schema — implement later (do not treat as shipped):
+
+| Field | Type | UI |
+|-------|------|-----|
+| `birthYear` or `dateOfBirth` | number / timestamp | Age on card (18+) |
+| `jobTitle` | string | e.g. Student |
+| `university` | string | Last / current school |
+| `hangoutLookingFor` | string | Short hangout intent line |
+| `openToGroups` | boolean | Optional later |
+
+**Out of MVP for now:** sexuality / orientation (dating-coded; revisit only with clear friends framing).
+
 ---
 
 ## Lifecycle
