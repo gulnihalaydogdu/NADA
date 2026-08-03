@@ -1,9 +1,13 @@
 import SwiftUI
 import UIKit
 
-/// Pan + pinch editor so the user picks which square of a photo becomes their profile picture.
+/// Pan + pinch crop editor. Use `aspectWidthOverHeight` of `1` (square) or `0.75` (3:4 portrait).
 struct ProfilePhotoCropView: View {
     let source: UIImage
+    /// Crop frame width ÷ height. `1` = square primary, `3/4` = gallery portrait.
+    var aspectWidthOverHeight: CGFloat = 1
+    var title: String = "Edit Photo"
+    var subtitle: String?
     var onCancel: () -> Void
     var onReplace: (() -> Void)?
     var onCrop: (UIImage) -> Void
@@ -12,18 +16,26 @@ struct ProfilePhotoCropView: View {
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
-    @State private var cropSide: CGFloat = 280
+    @State private var cropSize: CGSize = CGSize(width: 280, height: 280)
 
     private var normalized: UIImage {
         source.normalizedOrientation()
     }
 
+    private var isSquare: Bool { abs(aspectWidthOverHeight - 1) < 0.01 }
+
     var body: some View {
-        // NavigationStack keeps Cancel / Done inside the system safe area —
-        // custom top bars under fullScreenCover were sliding under the status bar.
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(NADATheme.captionFont)
+                            .foregroundStyle(NADATheme.secondaryInk)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 8)
+                    }
+
                     cropArea
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
@@ -38,8 +50,6 @@ struct ProfilePhotoCropView: View {
                 }
             }
             .background {
-                // Color only — do NOT use NADAScreenBackground here.
-                // Its .ignoresSafeArea() expands the layout and pulls content under the status bar.
                 ZStack {
                     NADATheme.paper
                     Circle()
@@ -54,7 +64,7 @@ struct ProfilePhotoCropView: View {
                 }
                 .ignoresSafeArea()
             }
-            .navigationTitle("Edit Photo")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -78,23 +88,21 @@ struct ProfilePhotoCropView: View {
 
     private var cropArea: some View {
         GeometryReader { geo in
-            let side = min(geo.size.width, geo.size.height)
-            let crop = CGSize(width: side, height: side)
-
+            let fitted = fittedCropSize(in: geo.size)
             ZStack {
                 Image(uiImage: normalized)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: side, height: side)
+                    .frame(width: fitted.width, height: fitted.height)
                     .scaleEffect(scale)
                     .offset(offset)
-                    .frame(width: side, height: side)
+                    .frame(width: fitted.width, height: fitted.height)
                     .clipped()
-                    .gesture(dragGesture(cropSize: crop))
-                    .simultaneousGesture(magnifyGesture(cropSize: crop))
+                    .gesture(dragGesture(cropSize: fitted))
+                    .simultaneousGesture(magnifyGesture(cropSize: fitted))
 
                 CropGrid()
-                    .frame(width: side, height: side)
+                    .frame(width: fitted.width, height: fitted.height)
                     .allowsHitTesting(false)
 
                 if let onReplace {
@@ -105,23 +113,35 @@ struct ProfilePhotoCropView: View {
                         }
                         Spacer()
                     }
-                    .frame(width: side, height: side)
+                    .frame(width: fitted.width, height: fitted.height)
                     .padding(12)
                 }
             }
-            .frame(width: side, height: side)
+            .frame(width: fitted.width, height: fitted.height)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .onAppear {
-                cropSide = side
-                resetFraming(cropSize: crop)
+                cropSize = fitted
+                resetFraming(cropSize: fitted)
             }
-            .onChange(of: side) { _, newSide in
-                cropSide = newSide
-                clampOffset(cropSize: CGSize(width: newSide, height: newSide))
+            .onChange(of: geo.size) { _, newSize in
+                let next = fittedCropSize(in: newSize)
+                cropSize = next
+                clampOffset(cropSize: next)
             }
         }
-        .aspectRatio(1, contentMode: .fit)
+        .aspectRatio(aspectWidthOverHeight, contentMode: .fit)
+    }
+
+    private func fittedCropSize(in container: CGSize) -> CGSize {
+        let ratio = max(aspectWidthOverHeight, 0.01)
+        let width = container.width
+        let height = width / ratio
+        if height <= container.height {
+            return CGSize(width: width, height: height)
+        }
+        let fittedHeight = container.height
+        return CGSize(width: fittedHeight * ratio, height: fittedHeight)
     }
 
     private func replaceButton(action: @escaping () -> Void) -> some View {
@@ -138,7 +158,7 @@ struct ProfilePhotoCropView: View {
 
     private var resetButton: some View {
         Button("Reset framing") {
-            resetFraming(cropSize: CGSize(width: cropSide, height: cropSide))
+            resetFraming(cropSize: cropSize)
         }
         .font(NADATheme.captionFont)
         .foregroundStyle(NADATheme.brandPressed)
@@ -150,10 +170,14 @@ struct ProfilePhotoCropView: View {
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(NADATheme.brand)
 
-            Text("Drag to move and pinch to zoom. Everything inside the square is saved.")
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.warmSecondaryInk)
-                .multilineTextAlignment(.center)
+            Text(
+                isSquare
+                    ? "Drag to move and pinch to zoom. Everything inside the square is saved."
+                    : "Drag to move and pinch to zoom. Everything inside the 3:4 frame is saved."
+            )
+            .font(NADATheme.captionFont)
+            .foregroundStyle(NADATheme.warmSecondaryInk)
+            .multilineTextAlignment(.center)
         }
         .padding(18)
         .frame(maxWidth: .infinity)
@@ -189,7 +213,6 @@ struct ProfilePhotoCropView: View {
             }
     }
 
-    /// Size the aspect-fill image occupies inside the crop square before zoom.
     private func imageDisplaySize(for cropSize: CGSize) -> CGSize {
         let imageSize = normalized.size
         guard imageSize.width > 0, imageSize.height > 0 else { return cropSize }
@@ -219,41 +242,43 @@ struct ProfilePhotoCropView: View {
     }
 
     private func renderCrop() -> UIImage? {
-        let outputSide: CGFloat = 1200
         let image = normalized
         let imageSize = image.size
-        guard imageSize.width > 0, imageSize.height > 0, cropSide > 0 else { return nil }
+        guard imageSize.width > 0, imageSize.height > 0,
+              cropSize.width > 0, cropSize.height > 0 else { return nil }
 
-        // Match the on-screen layout: aspect-fill into the crop square, then scale + offset.
-        let fillScale = max(cropSide / imageSize.width, cropSide / imageSize.height)
+        let fillScale = max(cropSize.width / imageSize.width, cropSize.height / imageSize.height)
         let effectiveScale = fillScale * scale
         let drawnWidth = imageSize.width * effectiveScale
         let drawnHeight = imageSize.height * effectiveScale
         let imageOrigin = CGPoint(
-            x: (cropSide - drawnWidth) / 2 + offset.width,
-            y: (cropSide - drawnHeight) / 2 + offset.height
+            x: (cropSize.width - drawnWidth) / 2 + offset.width,
+            y: (cropSize.height - drawnHeight) / 2 + offset.height
         )
 
+        let outputHeight: CGFloat = 1200
+        let outputWidth = outputHeight * aspectWidthOverHeight
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1
         let renderer = UIGraphicsImageRenderer(
-            size: CGSize(width: outputSide, height: outputSide),
+            size: CGSize(width: outputWidth, height: outputHeight),
             format: format
         )
-        let viewToOutput = outputSide / cropSide
+        let scaleX = outputWidth / cropSize.width
+        let scaleY = outputHeight / cropSize.height
 
         return renderer.image { _ in
             image.draw(in: CGRect(
-                x: imageOrigin.x * viewToOutput,
-                y: imageOrigin.y * viewToOutput,
-                width: drawnWidth * viewToOutput,
-                height: drawnHeight * viewToOutput
+                x: imageOrigin.x * scaleX,
+                y: imageOrigin.y * scaleY,
+                width: drawnWidth * scaleX,
+                height: drawnHeight * scaleY
             ))
         }
     }
 }
 
-/// Rule-of-thirds guides drawn over the crop square.
+/// Rule-of-thirds guides drawn over the crop frame.
 private struct CropGrid: View {
     var body: some View {
         GeometryReader { geo in
@@ -282,7 +307,6 @@ private struct CropGrid: View {
 }
 
 private extension UIImage {
-    /// Fixes camera/library orientation so crop math uses upright pixels.
     func normalizedOrientation() -> UIImage {
         guard imageOrientation != .up else { return self }
         let format = UIGraphicsImageRendererFormat.default()
@@ -297,6 +321,7 @@ private extension UIImage {
 #Preview {
     ProfilePhotoCropView(
         source: UIImage(systemName: "person.crop.square.fill") ?? UIImage(),
+        aspectWidthOverHeight: 3.0 / 4.0,
         onCancel: {},
         onCrop: { _ in }
     )
