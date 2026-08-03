@@ -1,5 +1,8 @@
 # Week 1 Backlog — Foundation
 
+**Kickoff locked:** [decisions-week-01.md](decisions-week-01.md) (27 Jul 2026) — Firebase Auth + Firestore, email MVP, EN UI.  
+**Run locally:** [README.md](../README.md) at repo root.
+
 **Dates:** Jul 27 – Aug 2, 2026 · **Theme:** Auth, User, app shell, photo upload path
 
 **Sprint goal:** A new user can sign up / sign in, complete friends-only onboarding, land in the app shell; a `User` row exists on the backend; photo upload path has a smoke test.
@@ -31,9 +34,11 @@
 - Repo layout, secrets rule, shared Notion/doc for API notes
 
 **Acceptance criteria**
-- [ ] Auth + backend choice written in a short `backlog/decisions-week-01.md` note or comment at top of this file after kickoff
-- [ ] User field list agreed (matches schema §7 essentials)
-- [ ] Both devs can pull/run their side of the monorepo or linked repos
+- [x] Auth + backend choice written in a short `backlog/decisions-week-01.md` note or comment at top of this file after kickoff
+- [x] User field list agreed (matches schema §7 essentials)
+- [x] Both devs can pull/run their side of the monorepo or linked repos
+
+**Done (29 Jul 2026):** Decisions doc, [`docs/FIRESTORE_USERS.md`](../docs/FIRESTORE_USERS.md), root [`README.md`](../README.md).
 
 ---
 
@@ -47,9 +52,11 @@
 | **Estimate** | 0.5–1 day |
 
 **Acceptance criteria**
-- [ ] Dev project/app created (Firebase/Supabase/custom)
-- [ ] Env documented (how to run locally / console URL)
-- [ ] No production secrets in git
+- [x] Dev project/app created (Firebase/Supabase/custom)
+- [x] Env documented (how to run locally / console URL)
+- [x] No production secrets in git
+
+**Done (29 Jul 2026):** Firebase project `nada-app-33`, [`docs/FIREBASE_SETUP.md`](../docs/FIREBASE_SETUP.md), `./scripts/check-firebase-setup.sh`, `.gitignore` for plist.
 
 ---
 
@@ -61,9 +68,11 @@
 | **Estimate** | 1 day |
 
 **Acceptance criteria**
-- [ ] User entity stores: `id`, `displayName`, `gender`, `city`, `intent`, `createdAt`, `locale` (nullable OK where needed)
-- [ ] `intent` defaults to / constrained as friends-only
-- [ ] Can create and read a user via console or API
+- [x] User entity stores: `id`, `displayName`, `gender`, `city`, `intent`, `createdAt`, `locale` (nullable OK where needed)
+- [x] `intent` defaults to / constrained as friends-only
+- [x] Can create and read a user via console or API
+
+**Done (29 Jul 2026):** `NADAUser`, `FirestoreUserService`, `firebase/firestore.rules`, schema doc [`docs/FIRESTORE_USERS.md`](../docs/FIRESTORE_USERS.md). Extra MVP fields: `email`, `friendsIntentCompleted`.
 
 ---
 
@@ -75,11 +84,13 @@
 | **Estimate** | 1.5–2 days |
 
 **Acceptance criteria**
-- [ ] Sign up / sign in issues a valid session (BaaS session or JWT)
-- [ ] Apple Sign In verified server-side (or via BaaS provider)
-- [ ] Email auth works in dev (magic link or password — pick one and document)
-- [ ] Authenticated request can resolve current user id
-- [ ] **Fallback:** if Apple slips, email/dev auth still unblocks iOS; Apple tracked as W1-03b spillover to Week 2 Mon AM
+- [x] Sign up / sign in issues a valid session (BaaS session or JWT)
+- [ ] Apple Sign In verified server-side (or via BaaS provider) — **spillover** (paid Apple Developer required)
+- [x] Email auth works in dev (magic link or password — pick one and document) — email/password
+- [x] Authenticated request can resolve current user id
+- [x] **Fallback:** if Apple slips, email/dev auth still unblocks iOS; Apple tracked as W1-03b spillover to Week 2 Mon AM
+
+**Done:** Firebase Auth email/password + auth state listener. Apple code ready, disabled via `NADAAuthConfig`.
 
 ---
 
@@ -91,9 +102,11 @@
 | **Estimate** | 0.5 day |
 
 **Acceptance criteria**
-- [ ] Authenticated client can fetch current profile
-- [ ] Authenticated client can update `displayName`, `gender`, `city`, `intent`
-- [ ] Unauthenticated requests rejected
+- [x] Authenticated client can fetch current profile
+- [x] Authenticated client can update `displayName`, `gender`, `city`, `intent`
+- [x] Unauthenticated requests rejected
+
+**Done:** `FirestoreUserService` + owner-only Firestore rules; also `photoURL`, `friendsIntentCompleted`, `profileWizardCompleted`.
 
 ---
 
@@ -105,10 +118,12 @@
 | **Estimate** | 0.5–1 day |
 
 **Acceptance criteria**
-- [ ] Storage bucket/path convention defined (e.g. `users/{userId}/photos/{photoId}`)
-- [ ] Upload returns a URL or path stored on user/photo record
-- [ ] At least one photo uploadable via API/script/curl; readable URL works
-- [ ] Rules: only owner can write their folder (basic security rules)
+- [x] Storage bucket/path convention defined (e.g. `users/{userId}/photos/{photoId}`)
+- [x] Upload returns a URL or path stored on user/photo record
+- [x] At least one photo uploadable via API/script/curl; readable URL works
+- [x] Rules: only owner can write their folder (basic security rules)
+
+**Done:** Path `users/{uid}/photos/profile.jpg`, `FirebaseStorageService`, crop editor, `firebase/storage.rules`.
 
 ---
 
@@ -120,9 +135,11 @@
 | **Estimate** | 0.5 day |
 
 **Acceptance criteria**
-- [ ] 3–5 friend/hangout prompts seeded (English or TR — match UI language)
-- [ ] `GET /prompts` (or equivalent) returns active prompts
-- [ ] Prompt answers table/collection stub exists (write can be Week 2 if time)
+- [x] 3–5 friend/hangout prompts seeded (English or TR — match UI language)
+- [x] `GET /prompts` (or equivalent) returns active prompts
+- [x] Prompt answers table/collection stub exists (write can be Week 2 if time)
+
+**Ship notes:** Seed via Console (`firebase/prompts.seed.json`). Client: `FirestorePromptService.fetchActivePrompts`. Profile shows Bits catalog preview.
 
 ---
 
@@ -136,9 +153,11 @@
 | **Estimate** | 0.5–1 day |
 
 **Acceptance criteria**
-- [ ] Feature folders in place (`App`, `Features`, `Core` or equivalent)
-- [ ] Basic color + typography tokens (enough for welcome + auth)
-- [ ] App builds on simulator
+- [x] Feature folders in place (`App`, `Features`, `Core` or equivalent)
+- [x] Basic color + typography tokens (enough for welcome + auth)
+- [x] App builds on simulator
+
+**Done:** NADA Coral tokens in `NADATheme`; feature folders under `NADA/`.
 
 ---
 
@@ -150,9 +169,11 @@
 | **Estimate** | 0.5 day |
 
 **Acceptance criteria**
-- [ ] Tabs: Discover, Likes, Matches, Profile (placeholder screens OK)
-- [ ] Navigation works between tabs
-- [ ] Only shown after authenticated + onboarding gate (wire gate in W1-10/11)
+- [x] Tabs: Discover, Likes, Matches, Profile (placeholder screens OK)
+- [x] Navigation works between tabs
+- [x] Only shown after authenticated + onboarding gate (wire gate in W1-10/11)
+
+**Done:** `MainTabView` after friends intent + basics + profile wizard gates in `RootView`.
 
 ---
 
@@ -164,9 +185,11 @@
 | **Estimate** | 0.5 day |
 
 **Acceptance criteria**
-- [ ] Friends-only positioning is clear on first launch
-- [ ] CTAs: Sign up / Sign in
-- [ ] No dating copy
+- [x] Friends-only positioning is clear on first launch
+- [x] CTAs: Sign up / Sign in
+- [x] No dating copy
+
+**Done:** Photo hero Welcome + brand marks; English friends-only copy.
 
 ---
 
@@ -178,11 +201,13 @@
 | **Estimate** | 1.5–2 days |
 
 **Acceptance criteria**
-- [ ] Sign in / sign up screens exist
-- [ ] Wired to backend/BaaS auth from W1-03
-- [ ] Session persisted; cold start restores session or returns to welcome
-- [ ] Error states for failed auth (basic)
-- [ ] Coordinates with Backend if Apple is delayed (dev/email path)
+- [x] Sign in / sign up screens exist
+- [x] Wired to backend/BaaS auth from W1-03
+- [x] Session persisted; cold start restores session or returns to welcome
+- [x] Error states for failed auth (basic)
+- [x] Coordinates with Backend if Apple is delayed (dev/email path)
+
+**Done:** Email path only for MVP; splash waits for session resolve.
 
 ---
 
@@ -194,9 +219,11 @@
 | **Estimate** | 0.5 day |
 
 **Acceptance criteria**
-- [ ] User confirms they are here for friendship / hangouts (not dating)
-- [ ] Intent persisted via `/me` or onboarding endpoint
-- [ ] Cannot skip into Discover without completing this step
+- [x] User confirms they are here for friendship / hangouts (not dating)
+- [x] Intent persisted via `/me` or onboarding endpoint
+- [x] Cannot skip into Discover without completing this step
+
+**Done:** `FriendsIntentView` → `friendsIntentCompleted` + `intent: friendsOnly`.
 
 ---
 
@@ -208,10 +235,12 @@
 | **Estimate** | 1 day |
 
 **Acceptance criteria**
-- [ ] Multi-step shell: Photos → Prompts → Preferences
-- [ ] Steps navigable; can save partial progress where API exists
-- [ ] Photos step can call upload smoke path (W1-05) for at least one image **or** clearly stubbed with TODO if blocked
-- [ ] Prompts/Preferences can be UI-only placeholders if W1-06 is late
+- [x] Multi-step shell: Photos → Prompts → Preferences
+- [x] Steps navigable; can save partial progress where API exists
+- [x] Photos step can call upload smoke path (W1-05) for at least one image **or** clearly stubbed with TODO if blocked
+- [x] Prompts/Preferences can be UI-only placeholders if W1-06 is late
+
+**Ship notes:** `ProfileSetupWizardView` after basics gate; `profileWizardCompleted` on user doc. Bits/Preferences are preview/skip until Week 2.
 
 ---
 
@@ -223,9 +252,11 @@
 | **Estimate** | 0.5–1 day |
 
 **Acceptance criteria**
-- [ ] Shared networking/auth session helper
-- [ ] Fetch and update current user works end-to-end with Backend
-- [ ] Token/session attached to authenticated calls
+- [x] Shared networking/auth session helper
+- [x] Fetch and update current user works end-to-end with Backend
+- [x] Token/session attached to authenticated calls
+
+**Done:** `AuthManager` + Firebase Auth/Firestore/Storage services (BaaS client, not custom REST).
 
 ---
 
@@ -239,9 +270,29 @@
 | **Estimate** | 0.5 day (Fri) |
 
 **Acceptance criteria**
-- [ ] Live demo of DoD path on one simulator + backend
-- [ ] Known issues / Week 2 spillover listed below
-- [ ] Week 2 preview agreed: finish profile fields + start Discover feed (fake or real)
+- [x] Live demo of DoD path on one simulator + backend
+- [x] Known issues / Week 2 spillover listed below
+- [x] Week 2 preview agreed: finish profile fields + start Discover feed (fake or real)
+
+**Demo path (verified on device/simulator + Firebase `nada-app-33`, 2–3 Aug 2026)**
+
+1. Cold launch → Welcome (photo hero, Not a Dating App)
+2. Sign up with email/password → Auth session + `users/{uid}` created
+3. Friends Intent → Continue → `friendsIntentCompleted: true`
+4. Basics gate → name + gender + city required → saved on user doc
+5. Profile wizard shell → Photos (crop + Storage upload) → Bits peek → Preferences preview → Finish/Skip → `profileWizardCompleted: true`
+6. Main tabs → Discover / Likes / Matches (placeholders) + Profile hub
+7. Profile → avatar crop/upload → `photoURL`; Bits sheet loads seeded `prompts`; Edit / Location save work
+
+**Firebase one-time Console checks for demo**
+- Firestore Rules published (`users`, `prompts` read, `promptAnswers` stub) — `firebase/firestore.rules`
+- Storage Rules published — `firebase/storage.rules`
+- Bits seed: collection `prompts` from `firebase/prompts.seed.json` (`isActive` = boolean)
+
+**Week 2 preview (agreed)**
+- Finish profile depth: up to 6 photos, answer ≥3 Bits, hangout interests, city + radiusKm
+- Then start Discover feed (nearby profiles; ranking can stay simple / fake-first if needed)
+- See [`week-02.md`](week-02.md)
 
 ---
 
@@ -259,22 +310,24 @@
 
 ## Week 1 checklist (ship gate)
 
-- [ ] Auth works (Apple and/or email)
-- [ ] User created on backend after sign-up
-- [ ] Friends-only onboarding completed and stored
-- [ ] iOS tab shell navigable when logged in
-- [ ] Photo upload smoke test green (or explicit Week 2 carry with reason)
-- [ ] Prompt seed readable from API
-- [ ] Demo recorded or shown to product owner
+- [x] Auth works (Apple and/or email) — **email only**; Apple spillover
+- [x] User created on backend after sign-up
+- [x] Friends-only onboarding completed and stored
+- [x] iOS tab shell navigable when logged in
+- [x] Photo upload smoke test green (or explicit Week 2 carry with reason)
+- [x] Prompt seed readable from API
+- [x] Demo recorded or shown to product owner — path exercised live; formal recording optional
 
 ---
 
 ## Spillover / carry to Week 2
 
-_Fill on Friday:_
-
-- [ ] …
-- [ ] …
+- [ ] **Apple Sign In** — code ready (`NADAAuthConfig`); blocked until paid Apple Developer Program. Enable capability + Firebase Apple provider when enrolled. *(was W1-03b)*
+- [ ] **Multi-photo gallery (up to 6)** — Week 1 stores a single `profile.jpg` + `photoURL`. Original uncropped asset not kept (re-edit limited to already-cropped square).
+- [ ] **Bit answers (write path)** — catalog + `promptAnswers` rules stub only; pick/answer/save ≥3 in Week 2.
+- [ ] **Hangout interests + radiusKm persistence** — UI preview only in wizard / Profile sheets.
+- [ ] **My Profile polish** — hide completion meter at 100%; serif/sans type pairing; hangout-first **Preview** layout (photo ↔ Bits ↔ “We could…”), not dating-style beauty ranking.
+- [ ] **Discover / Likes / Matches** — still placeholder tabs (Week 3 core loop; Week 2 may start feed).
 
 ---
 

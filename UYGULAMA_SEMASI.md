@@ -15,7 +15,7 @@ Sections 4–11 are **example fill** inspired by Hinge’s model, adapted for fr
 | Short name / brand | NADA! |
 | One-line promise | Make friends nearby to hang out with — not for dating, only for hanging out. |
 | Target platform | iOS (iPhone / iPad) |
-| Language(s) | Launch in Turkish first; then English, Spanish, French, Russian, and Chinese. |
+| Language(s) | English at MVP launch; Turkish in v1.1+, then Spanish, French, Russian, and Chinese. |
 
 **Positioning shorthand:** Hinge, but for friends.
 
@@ -81,7 +81,7 @@ A single-purpose app shaped around one job: friendship and hangouts. Faster way 
 - [x] In-app features that encourage flirting (no “compliment romance” flows, no dating prompts)
 - [x] Group hangouts / event host tools / map of public events
 - [x] Paid boosts, Super Likes economy, or full subscription paywall
-- [x] Full multi-language UI (ship Turkish or EN first; others later)
+- [x] Full multi-language UI (ship English first for MVP; Turkish and others later)
 - [x] Android
 
 ### Deferred to later versions (confirmed from Hinge analysis)
@@ -170,6 +170,16 @@ A single-purpose app shaped around one job: friendship and hangouts. Faster way 
 | Entity | Short description | Main fields |
 |--------|-------------------|-------------|
 | User | Account holder | id, displayName, gender, birthYear (or age range), bio, city, createdAt, locale, moderationStatus |
+
+**Firestore MVP (Week 1)** — subset persisted today in `users/{uid}`:
+
+| Field | Week 1 |
+|-------|--------|
+| id, displayName, gender, city, createdAt, locale, intent | ✅ |
+| email, friendsIntentCompleted | ✅ (onboarding) |
+| birthYear, bio, moderationStatus | Later |
+
+Detail: [`docs/FIRESTORE_USERS.md`](docs/FIRESTORE_USERS.md)
 | Photo | Profile images | id, userId, url, sortOrder, isPrimary |
 | Prompt | Catalog of prompt questions | id, textKey, category, isActive |
 | PromptAnswer | User’s answer to a prompt | id, userId, promptId, answerText, sortOrder |
@@ -271,7 +281,8 @@ Copy and UI must reinforce “not dating.” No “looking for relationship” f
 - **Onboarding demographics:** Gender only (required, for women-% audit). No height / ethnicity / sexuality / politics / religion / kids / drugs — these stay out.
 - **Voicemail:** In MVP (async voice message; skippable). No video calls, ever, in MVP.
 - **Undo skip:** In MVP.
-- **Launch language:** Turkish-first UI; English strings prepared in parallel.
+- **Launch language:** English-first UI for MVP; Turkish in v1.1+.
+- **Profile Q&A (user-facing):** **Bits** — short personality/hangout answers on a profile. Internal models/API stay `Prompt` / `PromptAnswer`.
 - **Monetization:** Off at launch; introduced after reaching enough users.
 
 ### Still open
@@ -286,33 +297,46 @@ Copy and UI must reinforce “not dating.” No “looking for relationship” f
 
 ## 12. Design / UI direction
 
-**Principle:** Hinge-level restraint (one focus, lots of air, photos carry the screen) — with a **soft lilac brand** that feels light, calm, and inviting (not loud orange, not dating pink). SF Pro, large type, generous spacing, gentle micro-animations on like / skip / match.
+**Principle:** Hinge-level restraint (one focus, lots of air, photos carry the screen) — with a **warm dusty coral brand** that matches sketches and app icon (not lilac/Hinge purple, not dating pink). SF Pro, large type, generous spacing, gentle micro-animations on like / skip / match.
 
-**Chosen palette — “NADA Lilac”** (soft lilac paper + dark ink + light lilac brand):
+**Chosen palette — “NADA Coral”** (warm paper + dark ink + dusty coral brand):
 
 | Token | Light | Dark | Use |
 |-------|-------|------|-----|
-| Background (paper) | `#F7F5FA` | `#121014` | App base — cool soft paper (lilac-friendly) |
-| Surface / sheet | `#EFEAF6` | `#1C1922` | Sheets, secondary panels |
+| Background (paper) | `#FAF8F6` | `#121014` | App base — warm soft paper |
+| Surface / sheet | `#F5EDE8` | `#1C1922` | Sheets, secondary panels, CTA dock |
 | Ink | `#1A1625` | `#F4F1FA` | Headings, body |
 | Secondary text | `#6F687A` | `#A59CB0` | Captions, hints |
-| Brand / primary CTA | `#B8A4DC` | `#C9B8F0` | Buttons, active tab, key links — **soft lilac** |
-| Brand pressed | `#9B87C7` | `#B8A4DC` | Pressed / focused (slightly deeper lilac) |
-| Brand soft fill | `#EDE6F7` | `#2A2438` | Chip / selected / light brand wash |
-| Like / highlight | `#B8A4DC` | `#C9B8F0` | Like glow, selected prompt (same as brand) |
-| Match flash | `#1A1625` on `#B8A4DC` | Inverse | Match celebration |
+| Brand / primary CTA | `#C17B6F` | `#D49286` | Buttons, active tab, key links — **dusty coral** |
+| Brand pressed | `#A56458` | `#C17B6F` | Pressed / focused |
+| Brand soft fill | `#F5E8E3` | `#2A2438` | Chip / selected / light coral wash |
+| Like / highlight | `#C17B6F` | `#D49286` | Like glow, selected bit (same as brand) |
+| Match flash | `#1A1625` on `#C17B6F` | Inverse | Match celebration |
 | Soft / safe | `#5B7C6E` | `#7FA08F` | Safety prefs, “friends only” chips (rare, muted green) |
 | Danger | `#B42318` | `#F97066` | Report / block only |
-| Hairline | `#E0D9EB` | `#2E2938` | Dividers |
+| Hairline | `#E5D5CF` | `#2E2938` | Dividers |
 
 **How it should feel on screen**
-- Mostly quiet: soft paper + photos + dark ink (Hinge calm).
-- Brand lilac on CTAs, like, active tab, and light washes — airy and soft, never neon or heavy purple blocks.
-- Do not flood the UI with purple gradients; one soft lilac voice + restraint = gentle and premium.
+- Mostly quiet: warm paper + photos + dark ink (Hinge calm).
+- Brand coral on CTAs, like, active tab, and light blush washes — warm and friendly, never neon.
+- Do not flood the UI with heavy color blocks; one coral voice + restraint = gentle and premium.
 
-**Rationale:** Soft lilac preferred over orange/ember — friendly and light without dating pink or aggressive CTA energy. Muted green stays for safety so those moments don’t compete with brand.
+**Rationale:** Coral unifies UI chrome with sketch art and app icon — distinct from Hinge’s purple. Muted green stays for safety so those moments don’t compete with brand.
 
-**Hard rejects:** orange/coral CTAs, loud purple–indigo gradients, pastel pink romance, teal SaaS kits.
+**Hard rejects:** lilac/purple UI chrome (Hinge territory), loud purple–indigo gradients, pastel pink romance, teal SaaS kits.
+
+**Copy — “Bits” (not “prompts” in UI):** Profile question-and-answer cards are called **bits** in all user-facing copy (“Photos and bits”, “Add 3 bits”, “Like a bit”). Avoid “prompts” in the app — it reads as Hinge. Backend/code may still use `Prompt` / `PromptAnswer`.
+
+**Illustrations (sketches) — tied to app icon, not Hinge purple:**
+- **Do not use lilac/purple in sketch assets.** Hinge owns purple sketch + purple UI.
+- **App icon anchor:** warm dusty coral/salmon (logo background ~`#C96A5E`; letter cream ~`#E8E4DF`).
+- **Sketch palette (muted — softer than the icon block):**
+  - Ink lines: `#1A1625`
+  - Fill accent: **dusty coral** `#C17B6F` (crosshatch/stipple on clothing or props)
+  - Background wash: **pale blush** `#F3DFDB` or `#F0D5CE` (optional oval behind figures)
+  - Secondary shading: warm gray `#C4B8B2`
+- **UI coral** (`#C17B6F`) for CTAs/tabs — unified with sketch accent and app icon.
+- **Ink-only variant** still OK for max restraint.
 
 ---
 

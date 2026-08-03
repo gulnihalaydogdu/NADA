@@ -51,7 +51,7 @@
 
 ### W3-07 — Like interactions
 - **P0 · 1.5d** — Like whole profile; like a prompt/photo with optional comment.
-- [ ] Like glow animation (soft lilac brand `#B8A4DC`)
+- [ ] Like glow animation (coral brand `#C17B6F`)
 - [ ] Comment sheet; sends via W3-02
 
 ### W3-08 — Skip + undo

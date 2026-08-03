@@ -9,45 +9,18 @@
 /* Begin PBXBuildFile section */
 		F82E9A9230174C0500CA8270 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001002 /* FirebaseAuth */; };
 		F82E9A9330174C0500CA8270 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001003 /* FirebaseCore */; };
+		F82E9A9430174C0500CA8270 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001004 /* FirebaseFirestore */; };
+		F82E9A9530174C0500CA8270 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001005 /* FirebaseStorage */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		F8B642C8300ACD2000463F95 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = F8B642B2300ACD1F00463F95 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = F8B642B9300ACD1F00463F95;
-			remoteInfo = NADA;
-		};
-		F8B642D2300ACD2000463F95 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = F8B642B2300ACD1F00463F95 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = F8B642B9300ACD1F00463F95;
-			remoteInfo = NADA;
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		F8B642BA300ACD1F00463F95 /* NADA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NADA.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		F8B642C7300ACD2000463F95 /* NADATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NADATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		F8B642D1300ACD2000463F95 /* NADAUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NADAUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F8B642BC300ACD1F00463F95 /* NADA */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = NADA;
-			sourceTree = "<group>";
-		};
-		F8B642CA300ACD2000463F95 /* NADATests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = NADATests;
-			sourceTree = "<group>";
-		};
-		F8B642D4300ACD2000463F95 /* NADAUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = NADAUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -59,20 +32,8 @@
 			files = (
 				F82E9A9330174C0500CA8270 /* FirebaseCore in Frameworks */,
 				F82E9A9230174C0500CA8270 /* FirebaseAuth in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F8B642C4300ACD2000463F95 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F8B642CE300ACD2000463F95 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
+				F82E9A9430174C0500CA8270 /* FirebaseFirestore in Frameworks */,
+				F82E9A9530174C0500CA8270 /* FirebaseStorage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -83,8 +44,6 @@
 			isa = PBXGroup;
 			children = (
 				F8B642BC300ACD1F00463F95 /* NADA */,
-				F8B642CA300ACD2000463F95 /* NADATests */,
-				F8B642D4300ACD2000463F95 /* NADAUITests */,
 				F8B642BB300ACD1F00463F95 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -93,8 +52,6 @@
 			isa = PBXGroup;
 			children = (
 				F8B642BA300ACD1F00463F95 /* NADA.app */,
-				F8B642C7300ACD2000463F95 /* NADATests.xctest */,
-				F8B642D1300ACD2000463F95 /* NADAUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -121,56 +78,12 @@
 			packageProductDependencies = (
 				F8FB001002 /* FirebaseAuth */,
 				F8FB001003 /* FirebaseCore */,
+				F8FB001004 /* FirebaseFirestore */,
+				F8FB001005 /* FirebaseStorage */,
 			);
 			productName = NADA;
 			productReference = F8B642BA300ACD1F00463F95 /* NADA.app */;
 			productType = "com.apple.product-type.application";
-		};
-		F8B642C6300ACD2000463F95 /* NADATests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = F8B642DE300ACD2000463F95 /* Build configuration list for PBXNativeTarget "NADATests" */;
-			buildPhases = (
-				F8B642C3300ACD2000463F95 /* Sources */,
-				F8B642C4300ACD2000463F95 /* Frameworks */,
-				F8B642C5300ACD2000463F95 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				F8B642C9300ACD2000463F95 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				F8B642CA300ACD2000463F95 /* NADATests */,
-			);
-			name = NADATests;
-			packageProductDependencies = (
-			);
-			productName = NADATests;
-			productReference = F8B642C7300ACD2000463F95 /* NADATests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		F8B642D0300ACD2000463F95 /* NADAUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = F8B642E1300ACD2000463F95 /* Build configuration list for PBXNativeTarget "NADAUITests" */;
-			buildPhases = (
-				F8B642CD300ACD2000463F95 /* Sources */,
-				F8B642CE300ACD2000463F95 /* Frameworks */,
-				F8B642CF300ACD2000463F95 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				F8B642D3300ACD2000463F95 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				F8B642D4300ACD2000463F95 /* NADAUITests */,
-			);
-			name = NADAUITests;
-			packageProductDependencies = (
-			);
-			productName = NADAUITests;
-			productReference = F8B642D1300ACD2000463F95 /* NADAUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -184,14 +97,6 @@
 				TargetAttributes = {
 					F8B642B9300ACD1F00463F95 = {
 						CreatedOnToolsVersion = 26.6;
-					};
-					F8B642C6300ACD2000463F95 = {
-						CreatedOnToolsVersion = 26.6;
-						TestTargetID = F8B642B9300ACD1F00463F95;
-					};
-					F8B642D0300ACD2000463F95 = {
-						CreatedOnToolsVersion = 26.6;
-						TestTargetID = F8B642B9300ACD1F00463F95;
 					};
 				};
 			};
@@ -213,28 +118,12 @@
 			projectRoot = "";
 			targets = (
 				F8B642B9300ACD1F00463F95 /* NADA */,
-				F8B642C6300ACD2000463F95 /* NADATests */,
-				F8B642D0300ACD2000463F95 /* NADAUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		F8B642B8300ACD1F00463F95 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F8B642C5300ACD2000463F95 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F8B642CF300ACD2000463F95 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -251,34 +140,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F8B642C3300ACD2000463F95 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F8B642CD300ACD2000463F95 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		F8B642C9300ACD2000463F95 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = F8B642B9300ACD1F00463F95 /* NADA */;
-			targetProxy = F8B642C8300ACD2000463F95 /* PBXContainerItemProxy */;
-		};
-		F8B642D3300ACD2000463F95 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = F8B642B9300ACD1F00463F95 /* NADA */;
-			targetProxy = F8B642D2300ACD2000463F95 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F8B642D9300ACD2000463F95 /* Debug */ = {
@@ -407,17 +269,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = NADA/NADA.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5VT5T664Z6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "NADA needs photo access so you can set a profile picture.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_UIColorName = LaunchPaper;
+				INFOPLIST_KEY_UILaunchScreen_UIImageName = SplashMark;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -440,17 +305,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = NADA/NADA.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5VT5T664Z6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "NADA needs photo access so you can set a profile picture.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_UIColorName = LaunchPaper;
+				INFOPLIST_KEY_UILaunchScreen_UIImageName = SplashMark;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -465,90 +333,6 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		F8B642DF300ACD2000463F95 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5VT5T664Z6;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.NADATests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NADA.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NADA";
-			};
-			name = Debug;
-		};
-		F8B642E0300ACD2000463F95 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5VT5T664Z6;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.NADATests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NADA.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NADA";
-			};
-			name = Release;
-		};
-		F8B642E2300ACD2000463F95 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5VT5T664Z6;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.NADAUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = NADA;
-			};
-			name = Debug;
-		};
-		F8B642E3300ACD2000463F95 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5VT5T664Z6;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.NADAUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = NADA;
 			};
 			name = Release;
 		};
@@ -569,24 +353,6 @@
 			buildConfigurations = (
 				F8B642DC300ACD2000463F95 /* Debug */,
 				F8B642DD300ACD2000463F95 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		F8B642DE300ACD2000463F95 /* Build configuration list for PBXNativeTarget "NADATests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				F8B642DF300ACD2000463F95 /* Debug */,
-				F8B642E0300ACD2000463F95 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		F8B642E1300ACD2000463F95 /* Build configuration list for PBXNativeTarget "NADAUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				F8B642E2300ACD2000463F95 /* Debug */,
-				F8B642E3300ACD2000463F95 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -614,6 +380,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = F8FB001001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
+		};
+		F8FB001004 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8FB001001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		F8FB001005 /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8FB001001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

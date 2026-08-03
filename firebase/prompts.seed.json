@@ -1,0 +1,42 @@
+[
+  {
+    "id": "ideal-saturday",
+    "text": "Ideal Saturday hangout…",
+    "category": "hangout",
+    "isActive": true,
+    "sortOrder": 1,
+    "locale": "en"
+  },
+  {
+    "id": "always-down-for",
+    "text": "I'm always down for…",
+    "category": "energy",
+    "isActive": true,
+    "sortOrder": 2,
+    "locale": "en"
+  },
+  {
+    "id": "never-skip",
+    "text": "The friend-group activity I'd never skip…",
+    "category": "hobby",
+    "isActive": true,
+    "sortOrder": 3,
+    "locale": "en"
+  },
+  {
+    "id": "new-in-town",
+    "text": "New in town? Take me to…",
+    "category": "newInTown",
+    "isActive": true,
+    "sortOrder": 4,
+    "locale": "en"
+  },
+  {
+    "id": "makes-me-laugh",
+    "text": "A bit that always makes me laugh…",
+    "category": "gamesMemes",
+    "isActive": true,
+    "sortOrder": 5,
+    "locale": "en"
+  }
+]

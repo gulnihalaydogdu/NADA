@@ -27,11 +27,20 @@ final class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate,
 
     nonisolated func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
         MainActor.assumeIsolated {
-            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                  let window = scene.windows.first else {
-                return ASPresentationAnchor()
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
+
+            guard let scene else {
+                preconditionFailure("No UIWindowScene available for Sign in with Apple")
             }
-            return window
+
+            if let key = scene.windows.first(where: { $0.isKeyWindow }) {
+                return key
+            }
+            if let window = scene.windows.first {
+                return window
+            }
+            return UIWindow(windowScene: scene)
         }
     }
 
@@ -57,7 +66,7 @@ final class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate,
                nsError.code == ASAuthorizationError.canceled.rawValue {
                 continuation?.resume(throwing: AuthError.cancelled)
             } else {
-                continuation?.resume(throwing: AuthError.appleSignInFailed)
+                continuation?.resume(throwing: AuthError.unknown(error.localizedDescription))
             }
             continuation = nil
         }
@@ -100,7 +109,7 @@ struct AppleSignInButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: "apple.logo")
-                Text("Apple ile devam et")
+                Text("Continue with Apple")
             }
             .font(NADATheme.headlineFont)
             .foregroundStyle(NADATheme.ink)

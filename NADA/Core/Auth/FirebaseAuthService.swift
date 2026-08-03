@@ -6,11 +6,10 @@ import FirebaseCore
 final class FirebaseAuthService {
     private var isConfigured: Bool { FirebaseApp.app() != nil }
 
-    init() {
-        configureFirebaseIfNeeded()
-    }
+    init() {}
 
-    func configureFirebaseIfNeeded() {
+    /// Call once at app launch — before any Auth/Firestore access.
+    static func configureAtLaunch() {
         guard FirebaseApp.app() == nil else { return }
         guard Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil else {
             return
@@ -18,7 +17,17 @@ final class FirebaseAuthService {
         FirebaseApp.configure()
     }
 
+    func configureFirebaseIfNeeded() {
+        Self.configureAtLaunch()
+    }
+
     var isReady: Bool { isConfigured }
+
+    /// Resolves the signed-in user synchronously after configure (avoids welcome flash on cold start).
+    var cachedUser: NADAUser? {
+        guard isConfigured else { return nil }
+        return Self.mapUser(Auth.auth().currentUser)
+    }
 
     func onAuthStateChanged(_ handler: @escaping (NADAUser?) -> Void) -> AuthStateHandle {
         guard isConfigured else {
@@ -113,7 +122,8 @@ final class FirebaseAuthService {
             city: nil,
             intent: .friendsOnly,
             locale: Locale.current.identifier,
-            createdAt: firebaseUser.metadata.creationDate
+            createdAt: firebaseUser.metadata.creationDate,
+            friendsIntentCompleted: false
         )
     }
 }
