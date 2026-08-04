@@ -117,4 +117,7 @@
 - [ ] `isProfileComplete` correct
 
 ## Spillover to Week 3
+- [ ] Profile essentials card on Discover / Preview: age · gender · city + job, university, hangout looking-for (see `UYGULAMA_SEMASI.md` §7)
+- [ ] Collect `birthYear`/`dob`, `jobTitle`, `university`, `hangoutLookingFor` in setup/edit (no sexuality field for now)
+- [ ] Optional later: `openToGroups` chip
 - [ ] …
