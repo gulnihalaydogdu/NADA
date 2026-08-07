@@ -116,10 +116,19 @@ struct ProfileTabView: View {
 
     private var completionMeter: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(completion.percentComplete)% complete")
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.brandPressed)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack {
+                Text("\(completion.percentComplete)% complete")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.brandPressed)
+
+                Spacer()
+
+                Text(auth.isProfileComplete ? "Ready for Discover" : "Finish for Discover")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(
+                        auth.isProfileComplete ? NADATheme.brandPressed : NADATheme.secondaryInk
+                    )
+            }
 
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
@@ -140,6 +149,7 @@ struct ProfileTabView: View {
             .frame(height: 8)
         }
         .animation(.easeOut(duration: 0.25), value: completion.percentComplete)
+        .animation(.easeOut(duration: 0.25), value: auth.isProfileComplete)
         .padding(.top, 4)
     }
 

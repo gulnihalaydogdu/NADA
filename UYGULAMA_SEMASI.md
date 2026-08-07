@@ -193,7 +193,11 @@ Hinge-style compact card under photos: top row **age · gender · city**; list r
 | email, friendsIntentCompleted, profileWizardCompleted | ✅ |
 | photoURL + `photos` subcollection | ✅ |
 | Bit answers (`promptAnswers`) | ✅ |
-| birthYear / age, jobTitle, university, hangoutLookingFor | Planned (Week 2–3 profile essentials) |
+| `dateOfBirth` (age on card; 18+ gate) | ✅ |
+| `radiusKm` + optional coarse lat/lng | ✅ |
+| `preferences/{uid}` (city, radiusKm, intent, showMe) | ✅ W2-05 |
+| `isProfileComplete` | ✅ W2-06 |
+| jobTitle, university, hangoutLookingFor | Planned (Week 2–3 profile essentials) |
 | bio, moderationStatus, openToGroups | Later / optional |
 
 Detail: [`docs/FIRESTORE_USERS.md`](docs/FIRESTORE_USERS.md)
@@ -203,7 +207,7 @@ Detail: [`docs/FIRESTORE_USERS.md`](docs/FIRESTORE_USERS.md)
 | PromptAnswer | User’s answer to a prompt | id, userId, promptId, answerText, sortOrder |
 | Interest | Hangout / hobby tags | id, labelKey |
 | UserInterest | User ↔ interest | userId, interestId |
-| Preference | Discovery + safety prefs | userId, radiusKm, city, showMe, intent=friendsOnly, womenSafetyFilters? |
+| Preference | Discovery + safety prefs | userId, radiusKm, city, showMe, intent=friendsOnly, womenSafetyFilters? — **shipped W2-05** as `preferences/{uid}` (womenSafetyFilters later) |
 | Like | Like on profile or prompt/photo | id, fromUserId, toUserId, targetType (profile/prompt/photo), targetId, comment?, createdAt |
 | Match | Mutual like | id, userAId, userBId, createdAt, unmatchedAt? |
 | Message | Text chat message | id, matchId, senderId, body, createdAt, readAt? |

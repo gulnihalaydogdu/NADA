@@ -49,6 +49,8 @@ struct ProfileCompletion {
     let hasName: Bool
     let hasGender: Bool
     let hasCity: Bool
+    let hasBirthday: Bool
+    let userRadiusKm: Int?
 
     init(user: NADAUser?, photoCount: Int? = nil, answeredBits: Int = 0, interestCount: Int = 0) {
         if let photoCount {
@@ -61,6 +63,8 @@ struct ProfileCompletion {
         self.hasName = user?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         self.hasGender = ProfileGender.fromStored(user?.gender) != nil
         self.hasCity = user?.city?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        self.hasBirthday = user?.dateOfBirth.map { ProfileAge.isAtLeastMinimumAge($0) } == true
+        self.userRadiusKm = user?.radiusKm.map { ProfileLocation.clampRadiusKm($0) }
     }
 
     func progress(for section: ProfileSection) -> Double {
@@ -70,11 +74,12 @@ struct ProfileCompletion {
         case .bits:
             return min(Double(answeredBits) / Double(Self.bitTarget), 1)
         case .about:
-            let filled = [hasName, hasGender].filter { $0 }.count
-            return Double(filled) / 2
+            let filled = [hasName, hasGender, hasBirthday].filter { $0 }.count
+            return Double(filled) / 3
         case .hangoutEnergy:
             return interestCount > 0 ? 1 : 0
         case .location:
+            // City is required; radius defaults until first save but counts once city exists.
             return hasCity ? 1 : 0
         }
     }
@@ -92,11 +97,13 @@ struct ProfileCompletion {
         case .bits:
             return "\(answeredBits) / \(Self.bitTarget)"
         case .about:
-            return (hasName && hasGender) ? nil : "Add details"
+            return (hasName && hasGender && hasBirthday) ? nil : "Add details"
         case .hangoutEnergy:
             return interestCount > 0 ? "\(interestCount)" : "Add"
         case .location:
-            return hasCity ? nil : "Add city"
+            guard hasCity else { return "Add city" }
+            let radius = userRadiusKm ?? ProfileLocation.defaultRadiusKm
+            return "\(radius) km"
         }
     }
 
@@ -120,7 +127,7 @@ struct ProfileCompletion {
             items.append(ProfileSuggestion(section: .hangoutEnergy, title: "Add your hangout interests"))
         }
 
-        if !hasName || !hasGender {
+        if !hasName || !hasGender || !hasBirthday {
             items.append(ProfileSuggestion(section: .about, title: "Finish the about you basics"))
         }
 

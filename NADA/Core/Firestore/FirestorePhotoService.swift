@@ -50,7 +50,7 @@ final class FirestorePhotoService {
     func addPhoto(userId: String, image: UIImage, at insertAt: Int? = nil) async throws -> ProfilePhoto {
         let collection = try photosCollection(userId: userId)
         let snapshot = try await collection.getDocuments()
-        var existing = snapshot.documents.compactMap { mapPhoto(id: $0.documentID, data: $0.data()) }
+        let existing = snapshot.documents.compactMap { mapPhoto(id: $0.documentID, data: $0.data()) }
             .sorted { $0.sortOrder < $1.sortOrder }
 
         guard existing.count < Self.maxPhotos else {

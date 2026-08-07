@@ -6,6 +6,8 @@ import UIKit
 @MainActor
 final class AuthManager {
     private(set) var currentUser: NADAUser?
+    /// Discovery prefs (`preferences/{uid}`). Nil until profile hydrate finishes.
+    private(set) var currentPreferences: UserPreferences?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
 
@@ -17,6 +19,7 @@ final class AuthManager {
 
     private let authService: FirebaseAuthService
     private let userService: FirestoreUserService
+    private let preferencesService: FirestorePreferencesService
     private let storageService: FirebaseStorageService
     private let photoService: FirestorePhotoService
     private let promptService: FirestorePromptService
@@ -25,6 +28,7 @@ final class AuthManager {
     init() {
         self.authService = FirebaseAuthService()
         self.userService = FirestoreUserService()
+        self.preferencesService = FirestorePreferencesService()
         self.storageService = FirebaseStorageService()
         self.photoService = FirestorePhotoService(storageService: storageService)
         self.promptService = FirestorePromptService()
@@ -40,6 +44,11 @@ final class AuthManager {
 
     var hasCompletedProfileWizard: Bool {
         currentUser?.profileWizardCompleted == true
+    }
+
+    /// Discover-ready gate (W2-06). Week 3 filters Discover on this flag.
+    var isProfileComplete: Bool {
+        currentUser?.isProfileComplete == true
     }
 
     /// Attaches auth listener and hydrates cached session.
@@ -95,13 +104,20 @@ final class AuthManager {
         await perform {
             if let profile = try await self.userService.fetchUser(id: userId) {
                 self.currentUser = profile
+                self.currentPreferences = try await self.preferencesService.ensurePreferences(for: profile)
+                try await self.syncProfileCompleteness()
             }
         }
     }
 
-    /// Updates display name, gender, and city on Firestore. Returns `true` on success.
+    /// Updates display name, gender, city, and birthday on Firestore. Enforces 18+. Returns `true` on success.
     @discardableResult
-    func updateBasicProfile(displayName: String, gender: ProfileGender, city: String) async -> Bool {
+    func updateBasicProfile(
+        displayName: String,
+        gender: ProfileGender,
+        city: String,
+        dateOfBirth: Date
+    ) async -> Bool {
         guard let userId = currentUser?.id else { return false }
 
         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -112,6 +128,11 @@ final class AuthManager {
             return false
         }
 
+        guard ProfileAge.isAtLeastMinimumAge(dateOfBirth) else {
+            errorMessage = "You must be \(ProfileAge.minimumAge) or older to use NADA."
+            return false
+        }
+
         var didSucceed = false
         await perform {
             let updated = try await self.userService.updateProfile(
@@ -119,12 +140,104 @@ final class AuthManager {
                 displayName: trimmedName,
                 gender: gender.rawValue,
                 city: trimmedCity,
-                locale: nil
+                locale: nil,
+                dateOfBirth: dateOfBirth
             )
             self.currentUser = updated
+            self.currentPreferences = try await self.preferencesService.syncCity(
+                userId: userId,
+                city: trimmedCity,
+                seedFrom: updated
+            )
+            try await self.syncProfileCompleteness()
             didSucceed = true
         }
         return didSucceed
+    }
+
+    /// Updates city, discover radius, and optional coarse coordinates.
+    /// Mirrors discovery fields onto `preferences/{uid}` (W2-05).
+    @discardableResult
+    func updateLocation(
+        city: String,
+        radiusKm: Int,
+        approxLatitude: Double? = nil,
+        approxLongitude: Double? = nil
+    ) async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+
+        let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCity.isEmpty else {
+            errorMessage = "City is required."
+            return false
+        }
+
+        var didSucceed = false
+        await perform {
+            let updated = try await self.userService.updateLocation(
+                userId: userId,
+                city: trimmedCity,
+                radiusKm: radiusKm,
+                approxLatitude: approxLatitude,
+                approxLongitude: approxLongitude
+            )
+            let prefs = try await self.preferencesService.updatePreferences(
+                userId: userId,
+                city: trimmedCity,
+                radiusKm: radiusKm,
+                showMe: self.currentPreferences?.showMe ?? .everyone
+            )
+            self.currentUser = updated
+            self.currentPreferences = prefs
+            try await self.syncProfileCompleteness()
+            didSucceed = true
+        }
+        return didSucceed
+    }
+
+    /// Reads/writes discovery preferences entity (W2-05). Also mirrors city + radius onto the user doc.
+    @discardableResult
+    func updatePreferences(
+        city: String,
+        radiusKm: Int,
+        showMe: UserPreferences.ShowMe = .everyone
+    ) async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+
+        let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCity.isEmpty else {
+            errorMessage = "City is required."
+            return false
+        }
+
+        var didSucceed = false
+        await perform {
+            let prefs = try await self.preferencesService.updatePreferences(
+                userId: userId,
+                city: trimmedCity,
+                radiusKm: radiusKm,
+                showMe: showMe
+            )
+            let updated = try await self.userService.updateLocation(
+                userId: userId,
+                city: trimmedCity,
+                radiusKm: prefs.resolvedRadiusKm
+            )
+            self.currentPreferences = prefs
+            self.currentUser = updated
+            try await self.syncProfileCompleteness()
+            didSucceed = true
+        }
+        return didSucceed
+    }
+
+    func refreshPreferences() async {
+        guard let user = currentUser else { return }
+        do {
+            currentPreferences = try await preferencesService.ensurePreferences(for: user)
+        } catch {
+            errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
+        }
     }
 
     /// Marks the soft profile setup shell (Photos → Bits → Preferences) as done.
@@ -156,6 +269,7 @@ final class AuthManager {
             if let profile = try await self.userService.fetchUser(id: userId) {
                 self.currentUser = profile
             }
+            try await self.syncProfileCompleteness()
             didSucceed = true
         }
         return didSucceed
@@ -183,6 +297,7 @@ final class AuthManager {
             if let profile = try await self.userService.fetchUser(id: userId) {
                 self.currentUser = profile
             }
+            try await self.syncProfileCompleteness()
         }
         return result
     }
@@ -196,6 +311,7 @@ final class AuthManager {
             if let profile = try await self.userService.fetchUser(id: userId) {
                 self.currentUser = profile
             }
+            try await self.syncProfileCompleteness(photoCount: result?.count)
         }
         return result
     }
@@ -250,6 +366,7 @@ final class AuthManager {
                 answerText: answerText,
                 sortOrder: sortOrder
             )
+            try await self.syncProfileCompleteness()
         }
         return result
     }
@@ -260,6 +377,7 @@ final class AuthManager {
         var result: [PromptAnswer]?
         await perform {
             result = try await self.promptService.deleteAnswer(userId: userId, promptId: promptId)
+            try await self.syncProfileCompleteness(answeredBits: result?.count)
         }
         return result
     }
@@ -300,6 +418,7 @@ final class AuthManager {
         do {
             try authService.signOut()
             currentUser = nil
+            currentPreferences = nil
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -325,6 +444,7 @@ final class AuthManager {
     private func handleAuthUser(_ authUser: NADAUser?) async {
         guard let authUser else {
             currentUser = nil
+            currentPreferences = nil
             isResolvingProfile = false
             return
         }
@@ -335,14 +455,59 @@ final class AuthManager {
         defer { isResolvingProfile = false }
 
         do {
-            currentUser = try await userService.ensureUserDocument(for: authUser)
+            let profile = try await userService.ensureUserDocument(for: authUser)
+            currentUser = profile
+            currentPreferences = try await preferencesService.ensurePreferences(for: profile)
+            try await syncProfileCompleteness()
         } catch {
             // Keep auth session; surface Firestore issues without blocking sign-in UI.
             currentUser = authUser
+            currentPreferences = nil
             if isBusy {
                 errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
             }
         }
+    }
+
+    /// Recomputes `users/{uid}.isProfileComplete` from live photos + bits + gender/city.
+    private func syncProfileCompleteness(
+        photoCount: Int? = nil,
+        answeredBits: Int? = nil
+    ) async throws {
+        guard let user = currentUser else { return }
+
+        let photos: Int
+        if let photoCount {
+            photos = photoCount
+        } else {
+            let list = try await photoService.fetchPhotos(
+                userId: user.id,
+                legacyPhotoURL: user.photoURL
+            )
+            if list.isEmpty, let url = user.photoURL, !url.isEmpty {
+                photos = 1
+            } else {
+                photos = list.count
+            }
+        }
+
+        let bits: Int
+        if let answeredBits {
+            bits = answeredBits
+        } else {
+            bits = try await promptService.fetchAnswers(userId: user.id).count
+        }
+
+        let complete = ProfileCompleteness.evaluate(
+            user: user,
+            photoCount: photos,
+            answeredBits: bits
+        )
+        guard user.isProfileComplete != complete else { return }
+        currentUser = try await userService.setProfileComplete(
+            userId: user.id,
+            isComplete: complete
+        )
     }
 
     private func perform(_ action: () async throws -> Void) async {

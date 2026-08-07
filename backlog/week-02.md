@@ -41,19 +41,25 @@
 
 ### W2-04 — Gender + location on User
 - **P0 · 1d** — Persist gender (required), city, radiusKm, coarse coordinates.
-- [ ] Gender required to complete profile (for women-% audit later)
-- [ ] City + radius stored; no precise pin
-- [ ] `PATCH /me` extended
+- [x] Gender required to complete profile (for women-% audit later)
+- [x] City + radius stored; no precise pin
+- [x] `PATCH /me` extended
+
+**Ship notes:** Gender/city on basics gate. `radiusKm` + optional coarse `approxLatitude`/`approxLongitude` on `users/{uid}` via `updateLocation`. Separate Preferences entity still W2-05.
 
 ### W2-05 — Preferences entity
 - **P1 · 0.5d** — Discovery prefs: radiusKm, city, intent=friendsOnly.
-- [ ] 1–1 with User; sensible defaults
-- [ ] Readable/updatable
+- [x] 1–1 with User; sensible defaults
+- [x] Readable/updatable
+
+**Ship notes:** Collection `preferences/{uid}` (`UserPreferences` + `FirestorePreferencesService`). Defaults: `radiusKm=25`, `intent=friendsOnly`, `showMe=everyone`. Hydrate on sign-in; location / basics city sync mirrors onto prefs; `AuthManager.updatePreferences` for W2-11. Rules + [`docs/FIRESTORE_PREFERENCES.md`](../docs/FIRESTORE_PREFERENCES.md).
 
 ### W2-06 — Profile completeness flag
 - **P1 · 0.5d** — Compute `isProfileComplete` (photos≥1, answers≥3, gender, city).
-- [ ] Exposed on `/me`
+- [x] Exposed on `/me`
 - [ ] Used by iOS to gate Discover (Week 3)
+
+**Ship notes:** `users/{uid}.isProfileComplete` + `ProfileCompleteness` + `AuthManager.isProfileComplete`. Synced on sign-in hydrate and after basics / location / photos / bits mutations. Discover tab gate is Week 3; flag is ready to read via `auth.isProfileComplete`.
 
 ---
 
@@ -76,13 +82,17 @@
 
 ### W2-09 — Gender + basics step
 - **P0 · 0.5d** — Gender selection (man / woman / non-binary), name, birth date (18+).
-- [ ] Friendly copy, “not dating” tone
-- [ ] 18+ validation
+- [x] Friendly copy, “not dating” tone
+- [x] 18+ validation
+
+**Ship notes:** Basics gate + Edit Profile collect `dateOfBirth` (Firestore timestamp). Client enforces 18+ (`ProfileAge`); picker max = today−18y. Preview essentials shows derived age. Existing users without DOB are re-gated to basics.
 
 ### W2-10 — Location step
 - **P0 · 0.5d** — City + radius; request location permission (approximate).
-- [ ] Manual city entry + optional auto-detect
-- [ ] Radius slider (km)
+- [x] Manual city entry + optional auto-detect
+- [x] Radius slider (km)
+
+**Ship notes:** Profile Location sheet saves city + radius; “Use approximate location” (When-In-Use, reduced accuracy, reverse-geocode). Wizard Preferences Finish also persists radius. Skip does not save radius.
 
 ### W2-11 — Preferences screen
 - **P1 · 0.5d** — Review/edit discovery prefs.
@@ -112,12 +122,12 @@
 ## Ship gate
 - [x] Up to 6 photos upload, reorder, primary works
 - [x] ≥3 prompt answers saved and shown
-- [ ] Gender + city/radius saved
+- [x] Gender + city/radius saved
 - [ ] Profile editable after relaunch
 - [ ] `isProfileComplete` correct
 
 ## Spillover to Week 3
 - [ ] Profile essentials card on Discover / Preview: age · gender · city + job, university, hangout looking-for (see `UYGULAMA_SEMASI.md` §7)
-- [ ] Collect `birthYear`/`dob`, `jobTitle`, `university`, `hangoutLookingFor` in setup/edit (no sexuality field for now)
+- [ ] Collect `jobTitle`, `university`, `hangoutLookingFor` in setup/edit (no sexuality field for now)
 - [ ] Optional later: `openToGroups` chip
 - [ ] …

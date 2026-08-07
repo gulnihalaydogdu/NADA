@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Soft multi-step shell after basics: Photos → Bits → Preferences.
-/// Bits require 3 answers before Continue (W2-08); Preferences preview remains soft.
+/// Bits require 3 answers before Continue (W2-08); Preferences saves city radius (W2-10).
 struct ProfileSetupWizardView: View {
     @Environment(AuthManager.self) private var auth
 
@@ -12,7 +12,7 @@ struct ProfileSetupWizardView: View {
     @State private var isLoadingBits = false
     @State private var selectedCategory: Prompt.Category?
     @State private var editorTarget: BitEditorTarget?
-    @State private var radiusKm: Double = 25
+    @State private var radiusKm: Double = Double(ProfileLocation.defaultRadiusKm)
     @State private var localError: String?
     @State private var photoCount = 0
     @State private var photosNeedReplacement = false
@@ -47,7 +47,7 @@ struct ProfileSetupWizardView: View {
             case .bits:
                 return "Pick three questions and write short answers friends will see on your profile."
             case .preferences:
-                return "City is already set. Radius and interests land later — this step is a preview."
+                return "Confirm how far Discover should look. Interests come later — you can edit radius anytime in Profile."
             }
         }
     }
@@ -253,9 +253,13 @@ struct ProfileSetupWizardView: View {
                         .font(NADATheme.captionFont)
                         .foregroundStyle(NADATheme.warmSecondaryInk)
                 }
-                Slider(value: $radiusKm, in: 5...80, step: 5)
-                    .tint(NADATheme.brand)
-                Text("Preview only — not saved yet.")
+                Slider(
+                    value: $radiusKm,
+                    in: Double(ProfileLocation.minimumRadiusKm)...Double(ProfileLocation.maximumRadiusKm),
+                    step: Double(ProfileLocation.radiusStepKm)
+                )
+                .tint(NADATheme.brand)
+                Text("Saved when you tap Finish. Friends never see a precise pin.")
                     .font(NADATheme.captionFont)
                     .foregroundStyle(NADATheme.secondaryInk)
             }
@@ -273,6 +277,13 @@ struct ProfileSetupWizardView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear {
+            radiusKm = Double(
+                auth.currentPreferences?.resolvedRadiusKm
+                    ?? auth.currentUser?.resolvedRadiusKm
+                    ?? ProfileLocation.defaultRadiusKm
+            )
+        }
     }
 
     private var footer: some View {
@@ -368,14 +379,29 @@ struct ProfileSetupWizardView: View {
         localError = nil
         auth.clearError()
         if step == .preferences {
-            await finishWizard()
+            await finishWizard(saveRadius: false)
             return
         }
         guard let next = Step(rawValue: step.rawValue + 1) else { return }
         step = next
     }
 
-    private func finishWizard() async {
+    private func finishWizard(saveRadius: Bool = true) async {
+        if saveRadius,
+           let city = auth.currentUser?.city?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !city.isEmpty {
+            let locationOK = await auth.updateLocation(
+                city: city,
+                radiusKm: ProfileLocation.clampRadiusKm(radiusKm)
+            )
+            if !locationOK {
+                if auth.errorMessage == nil {
+                    localError = "Couldn't save your radius. Try again."
+                }
+                return
+            }
+        }
+
         let ok = await auth.completeProfileWizard()
         if !ok, auth.errorMessage == nil {
             localError = "Couldn't finish setup. Try again."

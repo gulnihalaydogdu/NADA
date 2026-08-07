@@ -58,13 +58,21 @@ final class FirestoreUserService {
         )
     }
 
+    func setProfileComplete(userId: String, isComplete: Bool) async throws -> NADAUser {
+        try await patchUser(
+            userId: userId,
+            fields: ["isProfileComplete": isComplete]
+        )
+    }
+
     func updateProfile(
         userId: String,
         displayName: String?,
         gender: String?,
         city: String?,
         locale: String?,
-        photoURL: String? = nil
+        photoURL: String? = nil,
+        dateOfBirth: Date? = nil
     ) async throws -> NADAUser {
         var fields: [String: Any] = [:]
         if let displayName { fields["displayName"] = displayName }
@@ -72,6 +80,32 @@ final class FirestoreUserService {
         if let city { fields["city"] = city }
         if let locale { fields["locale"] = locale }
         if let photoURL { fields["photoURL"] = photoURL }
+        if let dateOfBirth { fields["dateOfBirth"] = Timestamp(date: dateOfBirth) }
+        return try await patchUser(userId: userId, fields: fields)
+    }
+
+    func updateLocation(
+        userId: String,
+        city: String,
+        radiusKm: Int,
+        approxLatitude: Double? = nil,
+        approxLongitude: Double? = nil
+    ) async throws -> NADAUser {
+        let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCity.isEmpty else {
+            throw AuthError.unknown("City is required.")
+        }
+
+        var fields: [String: Any] = [
+            "city": trimmedCity,
+            "radiusKm": ProfileLocation.clampRadiusKm(radiusKm)
+        ]
+
+        if let approxLatitude, let approxLongitude {
+            fields["approxLatitude"] = ProfileLocation.coarsenCoordinate(approxLatitude)
+            fields["approxLongitude"] = ProfileLocation.coarsenCoordinate(approxLongitude)
+        }
+
         return try await patchUser(userId: userId, fields: fields)
     }
 
@@ -100,6 +134,7 @@ final class FirestoreUserService {
             "intent": NADAUser.UserIntent.friendsOnly.rawValue,
             "friendsIntentCompleted": false,
             "profileWizardCompleted": false,
+            "isProfileComplete": false,
             "locale": user.locale ?? Locale.current.identifier,
             "createdAt": FieldValue.serverTimestamp()
         ]
@@ -121,18 +156,46 @@ final class FirestoreUserService {
             createdAt = timestamp.dateValue()
         }
 
+        var dateOfBirth = fallback.dateOfBirth
+        if let timestamp = data["dateOfBirth"] as? Timestamp {
+            dateOfBirth = timestamp.dateValue()
+        }
+
         return NADAUser(
             id: id,
             displayName: data["displayName"] as? String ?? fallback.displayName,
             email: data["email"] as? String ?? fallback.email,
             gender: data["gender"] as? String,
             city: data["city"] as? String,
+            dateOfBirth: dateOfBirth,
+            radiusKm: intValue(data["radiusKm"]) ?? fallback.radiusKm,
+            approxLatitude: doubleValue(data["approxLatitude"]) ?? fallback.approxLatitude,
+            approxLongitude: doubleValue(data["approxLongitude"]) ?? fallback.approxLongitude,
             photoURL: data["photoURL"] as? String ?? fallback.photoURL,
             intent: intent,
             locale: data["locale"] as? String ?? fallback.locale,
             createdAt: createdAt,
             friendsIntentCompleted: data["friendsIntentCompleted"] as? Bool ?? false,
-            profileWizardCompleted: data["profileWizardCompleted"] as? Bool ?? false
+            profileWizardCompleted: data["profileWizardCompleted"] as? Bool ?? false,
+            isProfileComplete: data["isProfileComplete"] as? Bool ?? false
         )
+    }
+
+    private func intValue(_ value: Any?) -> Int? {
+        switch value {
+        case let int as Int: return int
+        case let number as NSNumber: return number.intValue
+        case let double as Double: return Int(double.rounded())
+        default: return nil
+        }
+    }
+
+    private func doubleValue(_ value: Any?) -> Double? {
+        switch value {
+        case let double as Double: return double
+        case let number as NSNumber: return number.doubleValue
+        case let int as Int: return Double(int)
+        default: return nil
+        }
     }
 }

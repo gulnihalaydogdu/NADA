@@ -1,18 +1,20 @@
 import SwiftUI
 
-/// Mandatory gate after friends intent — cannot dismiss until name, gender, and city are saved.
+/// Mandatory gate after friends intent — cannot dismiss until name, gender, birthday (18+), and city are saved.
 struct BasicProfileSetupView: View {
     @Environment(AuthManager.self) private var auth
 
     @State private var displayName = ""
     @State private var city = ""
     @State private var gender: ProfileGender?
+    @State private var dateOfBirth: Date?
     @State private var localError: String?
 
     private var canSave: Bool {
         !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && gender != nil
+            && dateOfBirth != nil
             && !auth.isBusy
     }
 
@@ -27,7 +29,7 @@ struct BasicProfileSetupView: View {
                             Text("A few basics")
                                 .font(NADATheme.displayFont)
                                 .foregroundStyle(NADATheme.ink)
-                            Text("We need your name, gender and city before you continue. You can edit these later in Profile.")
+                            Text("Name, gender, birthday, and city — so hangouts feel personal. NADA is 18+. Friends only see your age, not your full birthday.")
                                 .font(NADATheme.bodyFont)
                                 .foregroundStyle(NADATheme.warmSecondaryInk)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -37,6 +39,7 @@ struct BasicProfileSetupView: View {
                             displayName: $displayName,
                             city: $city,
                             gender: $gender,
+                            dateOfBirth: $dateOfBirth,
                             errorMessage: localError ?? auth.errorMessage
                         )
                     }
@@ -79,6 +82,7 @@ struct BasicProfileSetupView: View {
         displayName = auth.currentUser?.displayName ?? ""
         city = auth.currentUser?.city ?? ""
         gender = ProfileGender.fromStored(auth.currentUser?.gender)
+        dateOfBirth = auth.currentUser?.dateOfBirth ?? ProfileAge.maximumSelectableDate()
     }
 
     private func save() async {
@@ -87,11 +91,20 @@ struct BasicProfileSetupView: View {
             localError = "Please select a gender option."
             return
         }
+        guard let dateOfBirth else {
+            localError = "Please add your birthday."
+            return
+        }
+        guard ProfileAge.isAtLeastMinimumAge(dateOfBirth) else {
+            localError = "You must be \(ProfileAge.minimumAge) or older to use NADA."
+            return
+        }
 
         let ok = await auth.updateBasicProfile(
             displayName: displayName,
             gender: gender,
-            city: city
+            city: city,
+            dateOfBirth: dateOfBirth
         )
         if !ok, auth.errorMessage == nil {
             localError = "Couldn't save your profile. Try again."

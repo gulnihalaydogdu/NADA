@@ -110,11 +110,17 @@ struct ProfileLocationSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var city = ""
-    @State private var radiusKm: Double = 25
+    @State private var radiusKm: Double = Double(ProfileLocation.defaultRadiusKm)
+    @State private var approxLatitude: Double?
+    @State private var approxLongitude: Double?
     @State private var localError: String?
+    @State private var isDetectingLocation = false
+    @State private var locationService = ApproximateLocationService()
 
     private var canSave: Bool {
-        !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !auth.isBusy
+        !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !auth.isBusy
+            && !isDetectingLocation
     }
 
     var body: some View {
@@ -125,13 +131,41 @@ struct ProfileLocationSheet: View {
                         .font(NADATheme.captionFont)
                         .foregroundStyle(NADATheme.secondaryInk)
 
-                    TextField("Where are you based?", text: $city)
+                    TextField("Type your city — e.g. Istanbul", text: $city)
                         .textFieldStyle(.plain)
                         .textInputAutocapitalization(.words)
                         .autocorrectionDisabled()
                         .padding(14)
                         .background(NADATheme.surface)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .onChange(of: city) { _, _ in
+                            // Manual edit = no GPS coords kept on save.
+                            approxLatitude = nil
+                            approxLongitude = nil
+                        }
+
+                    Text("Typing is enough — location permission is optional.")
+                        .font(NADATheme.captionFont)
+                        .foregroundStyle(NADATheme.secondaryInk)
+
+                    Button {
+                        Task { await detectApproximateLocation() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isDetectingLocation {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "location.fill")
+                            }
+                            Text(isDetectingLocation ? "Finding approximate area…" : "Or use approximate location")
+                                .font(NADATheme.captionFont)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundStyle(NADATheme.brandPressed)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDetectingLocation || auth.isBusy)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -145,10 +179,14 @@ struct ProfileLocationSheet: View {
                             .foregroundStyle(NADATheme.warmSecondaryInk)
                     }
 
-                    Slider(value: $radiusKm, in: 5...80, step: 5)
-                        .tint(NADATheme.brand)
+                    Slider(
+                        value: $radiusKm,
+                        in: Double(ProfileLocation.minimumRadiusKm)...Double(ProfileLocation.maximumRadiusKm),
+                        step: Double(ProfileLocation.radiusStepKm)
+                    )
+                    .tint(NADATheme.brand)
 
-                    Text("Radius is a preview — saving it comes in Week 2.")
+                    Text("Friends nearby within this distance can discover you. We never show a precise pin.")
                         .font(NADATheme.captionFont)
                         .foregroundStyle(NADATheme.secondaryInk)
                 }
@@ -166,7 +204,7 @@ struct ProfileLocationSheet: View {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                     } else {
-                        Text("Save city")
+                        Text("Save")
                     }
                 }
                 .buttonStyle(NADAPrimaryButtonStyle())
@@ -176,24 +214,51 @@ struct ProfileLocationSheet: View {
         .onAppear {
             auth.clearError()
             city = auth.currentUser?.city ?? ""
+            radiusKm = Double(
+                auth.currentPreferences?.resolvedRadiusKm
+                    ?? auth.currentUser?.resolvedRadiusKm
+                    ?? ProfileLocation.defaultRadiusKm
+            )
+            approxLatitude = auth.currentUser?.approxLatitude
+            approxLongitude = auth.currentUser?.approxLongitude
+        }
+    }
+
+    private func detectApproximateLocation() async {
+        localError = nil
+        auth.clearError()
+        isDetectingLocation = true
+        defer { isDetectingLocation = false }
+
+        do {
+            let place = try await locationService.requestApproximatePlace()
+            if let detectedCity = place.city, !detectedCity.isEmpty {
+                city = detectedCity
+            }
+            approxLatitude = place.latitude
+            approxLongitude = place.longitude
+            if city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                localError = "Found your area, but not a city name — type it in."
+            }
+        } catch {
+            localError = (error as? LocalizedError)?.errorDescription
+                ?? "Couldn't get your approximate location. Type your city instead."
         }
     }
 
     private func save() async {
         localError = nil
 
-        guard let gender = ProfileGender.fromStored(auth.currentUser?.gender),
-              let name = auth.currentUser?.displayName,
-              !name.isEmpty else {
-            localError = "Add your name and gender in About you first."
-            return
-        }
-
-        let ok = await auth.updateBasicProfile(displayName: name, gender: gender, city: city)
+        let ok = await auth.updateLocation(
+            city: city,
+            radiusKm: ProfileLocation.clampRadiusKm(radiusKm),
+            approxLatitude: approxLatitude,
+            approxLongitude: approxLongitude
+        )
         if ok {
             dismiss()
         } else if auth.errorMessage == nil {
-            localError = "Couldn't save your city. Try again."
+            localError = "Couldn't save your location. Try again."
         }
     }
 }
@@ -227,7 +292,7 @@ struct ProfilePreviewSheet: View {
 
     private var essentialsModel: ProfileEssentialsCard.Model {
         ProfileEssentialsCard.Model(
-            age: nil, // birth year not collected yet
+            age: auth.currentUser?.age,
             gender: ProfileGender.fromStored(auth.currentUser?.gender)?.title,
             city: auth.currentUser?.city,
             jobTitle: nil,
@@ -508,19 +573,21 @@ struct ProfileEditSheet: View {
     @State private var displayName = ""
     @State private var city = ""
     @State private var gender: ProfileGender?
+    @State private var dateOfBirth: Date?
     @State private var localError: String?
 
     private var canSave: Bool {
         !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && gender != nil
+            && dateOfBirth != nil
             && !auth.isBusy
     }
 
     var body: some View {
         ProfileSheetScaffold(title: "Edit profile") {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Keep these up to date so hangouts feel personal.")
+                Text("Keep these up to date so hangouts feel personal. NADA is 18+.")
                     .font(NADATheme.bodyFont)
                     .foregroundStyle(NADATheme.warmSecondaryInk)
 
@@ -528,6 +595,7 @@ struct ProfileEditSheet: View {
                     displayName: $displayName,
                     city: $city,
                     gender: $gender,
+                    dateOfBirth: $dateOfBirth,
                     errorMessage: localError ?? auth.errorMessage
                 )
 
@@ -550,6 +618,7 @@ struct ProfileEditSheet: View {
             displayName = auth.currentUser?.displayName ?? ""
             city = auth.currentUser?.city ?? ""
             gender = ProfileGender.fromStored(auth.currentUser?.gender)
+            dateOfBirth = auth.currentUser?.dateOfBirth ?? ProfileAge.maximumSelectableDate()
         }
     }
 
@@ -559,11 +628,20 @@ struct ProfileEditSheet: View {
             localError = "Please select a gender option."
             return
         }
+        guard let dateOfBirth else {
+            localError = "Please add your birthday."
+            return
+        }
+        guard ProfileAge.isAtLeastMinimumAge(dateOfBirth) else {
+            localError = "You must be \(ProfileAge.minimumAge) or older to use NADA."
+            return
+        }
 
         let ok = await auth.updateBasicProfile(
             displayName: displayName,
             gender: gender,
-            city: city
+            city: city,
+            dateOfBirth: dateOfBirth
         )
         if ok {
             dismiss()
