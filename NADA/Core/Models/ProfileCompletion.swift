@@ -16,7 +16,7 @@ enum ProfileSection: String, CaseIterable, Identifiable {
         case .bits: return "Bits"
         case .about: return "About you"
         case .hangoutEnergy: return "Hangout energy"
-        case .location: return "Location & distance"
+        case .location: return "Discover preferences"
         }
     }
 
@@ -26,7 +26,7 @@ enum ProfileSection: String, CaseIterable, Identifiable {
         case .bits: return "bubble.left.and.text.bubble.right"
         case .about: return "person"
         case .hangoutEnergy: return "star"
-        case .location: return "mappin.and.ellipse"
+        case .location: return "slider.horizontal.3"
         }
     }
 }

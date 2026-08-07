@@ -259,7 +259,7 @@ struct ProfileSetupWizardView: View {
                     step: Double(ProfileLocation.radiusStepKm)
                 )
                 .tint(NADATheme.brand)
-                Text("Saved when you tap Finish. Friends never see a precise pin.")
+                Text("Saved when you tap Finish — writes your discovery preferences.")
                     .font(NADATheme.captionFont)
                     .foregroundStyle(NADATheme.secondaryInk)
             }
@@ -390,13 +390,13 @@ struct ProfileSetupWizardView: View {
         if saveRadius,
            let city = auth.currentUser?.city?.trimmingCharacters(in: .whitespacesAndNewlines),
            !city.isEmpty {
-            let locationOK = await auth.updateLocation(
+            let prefsOK = await auth.updatePreferences(
                 city: city,
                 radiusKm: ProfileLocation.clampRadiusKm(radiusKm)
             )
-            if !locationOK {
+            if !prefsOK {
                 if auth.errorMessage == nil {
-                    localError = "Couldn't save your radius. Try again."
+                    localError = "Couldn't save your preferences. Try again."
                 }
                 return
             }

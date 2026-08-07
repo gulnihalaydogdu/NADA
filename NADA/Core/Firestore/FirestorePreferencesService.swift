@@ -2,7 +2,7 @@ import FirebaseCore
 import FirebaseFirestore
 import Foundation
 
-/// Owns `preferences/{userId}` — discovery prefs 1–1 with User (W2-05).
+/// Owns `preferences/{userId}` — discovery prefs 1–1 with User (W2-05 / W2-11).
 @MainActor
 final class FirestorePreferencesService {
     private static let collectionName = "preferences"
@@ -32,25 +32,30 @@ final class FirestorePreferencesService {
 
     /// Upserts discovery prefs. Always forces `intent = friendsOnly` for MVP.
     @discardableResult
+    func updatePreferences(_ prefs: UserPreferences) async throws -> UserPreferences {
+        guard prefs.trimmedCity != nil else {
+            throw AuthError.unknown("City is required.")
+        }
+        return try await writePreferences(prefs, merge: true)
+    }
+
+    /// Convenience for location / city-only syncs — preserves discovery filters.
+    @discardableResult
     func updatePreferences(
         userId: String,
         city: String,
         radiusKm: Int,
-        showMe: UserPreferences.ShowMe = .everyone
+        base: UserPreferences?
     ) async throws -> UserPreferences {
         let trimmed = city.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw AuthError.unknown("City is required.")
         }
 
-        let prefs = UserPreferences(
-            userId: userId,
-            city: trimmed,
-            radiusKm: radiusKm,
-            intent: .friendsOnly,
-            showMe: showMe
-        )
-        return try await writePreferences(prefs, merge: true)
+        var next = base ?? UserPreferences(userId: userId)
+        next.city = trimmed
+        next.radiusKm = radiusKm
+        return try await updatePreferences(next)
     }
 
     /// Syncs city onto an existing prefs doc (or creates defaults) after basics save.
@@ -66,7 +71,7 @@ final class FirestorePreferencesService {
                 userId: userId,
                 city: trimmed,
                 radiusKm: existing.resolvedRadiusKm,
-                showMe: existing.showMe
+                base: existing
             )
         }
 
@@ -84,12 +89,20 @@ final class FirestorePreferencesService {
             "userId": prefs.userId,
             "radiusKm": prefs.resolvedRadiusKm,
             "intent": NADAUser.UserIntent.friendsOnly.rawValue,
-            "showMe": prefs.showMe.rawValue,
+            "lookingForGenders": prefs.lookingForGenders.rawValue,
+            "minAge": prefs.minAge,
+            "maxAge": prefs.maxAge,
+            "buddyTypes": prefs.buddyTypes.map(\.rawValue),
             "updatedAt": FieldValue.serverTimestamp()
         ]
 
         if let city = prefs.trimmedCity {
             payload["city"] = city
+        }
+
+        // Drop legacy single-value showMe when rewriting.
+        if merge {
+            payload["showMe"] = FieldValue.delete()
         }
 
         let document = database.collection(Self.collectionName).document(prefs.userId)
@@ -106,8 +119,15 @@ final class FirestorePreferencesService {
         let intentRaw = data["intent"] as? String
         let intent = NADAUser.UserIntent(rawValue: intentRaw ?? "") ?? .friendsOnly
 
-        let showMeRaw = data["showMe"] as? String
-        let showMe = UserPreferences.ShowMe(rawValue: showMeRaw ?? "") ?? .everyone
+        let lookingFor: UserPreferences.LookingForGender
+        if let raw = data["lookingForGenders"] as? String,
+           let value = UserPreferences.LookingForGender(rawValue: raw) {
+            lookingFor = value
+        } else if let legacy = data["showMe"] as? String, legacy == "everyone" {
+            lookingFor = .everyone
+        } else {
+            lookingFor = .everyone
+        }
 
         var updatedAt: Date?
         if let timestamp = data["updatedAt"] as? Timestamp {
@@ -115,13 +135,21 @@ final class FirestorePreferencesService {
         }
 
         let radius = intValue(data["radiusKm"]) ?? ProfileLocation.defaultRadiusKm
+        let minAge = intValue(data["minAge"]) ?? UserPreferences.defaultMinAge
+        let maxAge = intValue(data["maxAge"]) ?? UserPreferences.defaultMaxAge
+
+        let buddyRaw = data["buddyTypes"] as? [String] ?? []
+        let buddyTypes = buddyRaw.compactMap { UserPreferences.BuddyType(rawValue: $0) }
 
         return UserPreferences(
             userId: userId,
             city: data["city"] as? String,
             radiusKm: radius,
             intent: intent,
-            showMe: showMe,
+            lookingForGenders: lookingFor,
+            minAge: minAge,
+            maxAge: maxAge,
+            buddyTypes: buddyTypes.isEmpty ? [.openToAll] : buddyTypes,
             updatedAt: updatedAt
         )
     }

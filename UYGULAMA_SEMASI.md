@@ -195,7 +195,7 @@ Hinge-style compact card under photos: top row **age · gender · city**; list r
 | Bit answers (`promptAnswers`) | ✅ |
 | `dateOfBirth` (age on card; 18+ gate) | ✅ |
 | `radiusKm` + optional coarse lat/lng | ✅ |
-| `preferences/{uid}` (city, radiusKm, intent, showMe) | ✅ W2-05 |
+| `preferences/{uid}` (city, radiusKm, lookingForGenders, age range, buddyTypes) | ✅ W2-05/11 |
 | `isProfileComplete` | ✅ W2-06 |
 | jobTitle, university, hangoutLookingFor | Planned (Week 2–3 profile essentials) |
 | bio, moderationStatus, openToGroups | Later / optional |

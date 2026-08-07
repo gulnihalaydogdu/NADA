@@ -52,7 +52,7 @@
 - [x] 1–1 with User; sensible defaults
 - [x] Readable/updatable
 
-**Ship notes:** Collection `preferences/{uid}` (`UserPreferences` + `FirestorePreferencesService`). Defaults: `radiusKm=25`, `intent=friendsOnly`, `showMe=everyone`. Hydrate on sign-in; location / basics city sync mirrors onto prefs; `AuthManager.updatePreferences` for W2-11. Rules + [`docs/FIRESTORE_PREFERENCES.md`](../docs/FIRESTORE_PREFERENCES.md).
+**Ship notes:** Collection `preferences/{uid}` (`UserPreferences` + `FirestorePreferencesService`). Fields: city, radiusKm, lookingForGenders, minAge/maxAge, buddyTypes; `intent` always friendsOnly. Hydrate must not wipe user onboarding flags if prefs rules fail. Publish `firebase/firestore.rules` preferences block.
 
 ### W2-06 — Profile completeness flag
 - **P1 · 0.5d** — Compute `isProfileComplete` (photos≥1, answers≥3, gender, city).
@@ -96,7 +96,9 @@
 
 ### W2-11 — Preferences screen
 - **P1 · 0.5d** — Review/edit discovery prefs.
-- [ ] Reads/writes W2-05
+- [x] Reads/writes W2-05
+
+**Ship notes:** Profile → **Discover preferences** hydrates/saves `preferences/{uid}`: looking-for gender, age range, buddy types, city, radius. Intent is friends-only (not shown in UI). Optional approximate location. Wizard Finish calls `updatePreferences`.
 
 ### W2-12 — My profile + edit
 - **P1 · 1d** — View own complete profile; deep-link into edit steps.

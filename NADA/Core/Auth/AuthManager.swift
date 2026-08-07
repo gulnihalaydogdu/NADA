@@ -104,7 +104,13 @@ final class AuthManager {
         await perform {
             if let profile = try await self.userService.fetchUser(id: userId) {
                 self.currentUser = profile
-                self.currentPreferences = try await self.preferencesService.ensurePreferences(for: profile)
+                do {
+                    self.currentPreferences = try await self.preferencesService.ensurePreferences(for: profile)
+                } catch {
+                    self.currentPreferences = nil
+                    // Don't fail the whole refresh — Profile still works without prefs hydrate.
+                    self.errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
+                }
                 try await self.syncProfileCompleteness()
             }
         }
@@ -185,7 +191,7 @@ final class AuthManager {
                 userId: userId,
                 city: trimmedCity,
                 radiusKm: radiusKm,
-                showMe: self.currentPreferences?.showMe ?? .everyone
+                base: self.currentPreferences
             )
             self.currentUser = updated
             self.currentPreferences = prefs
@@ -195,40 +201,42 @@ final class AuthManager {
         return didSucceed
     }
 
-    /// Reads/writes discovery preferences entity (W2-05). Also mirrors city + radius onto the user doc.
+    /// Reads/writes discovery preferences entity (W2-05 / W2-11). Also mirrors city + radius onto the user doc.
     @discardableResult
-    func updatePreferences(
-        city: String,
-        radiusKm: Int,
-        showMe: UserPreferences.ShowMe = .everyone
-    ) async -> Bool {
-        guard let userId = currentUser?.id else { return false }
-
-        let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedCity.isEmpty else {
+    func updatePreferences(_ prefs: UserPreferences) async -> Bool {
+        guard currentUser?.id == prefs.userId else { return false }
+        guard prefs.trimmedCity != nil else {
             errorMessage = "City is required."
             return false
         }
 
         var didSucceed = false
         await perform {
-            let prefs = try await self.preferencesService.updatePreferences(
-                userId: userId,
-                city: trimmedCity,
-                radiusKm: radiusKm,
-                showMe: showMe
-            )
+            let saved = try await self.preferencesService.updatePreferences(prefs)
             let updated = try await self.userService.updateLocation(
-                userId: userId,
-                city: trimmedCity,
-                radiusKm: prefs.resolvedRadiusKm
+                userId: prefs.userId,
+                city: saved.trimmedCity ?? "",
+                radiusKm: saved.resolvedRadiusKm
             )
-            self.currentPreferences = prefs
+            self.currentPreferences = saved
             self.currentUser = updated
             try await self.syncProfileCompleteness()
             didSucceed = true
         }
         return didSucceed
+    }
+
+    /// Convenience for wizard / simple city+radius saves — preserves discovery filters.
+    @discardableResult
+    func updatePreferences(
+        city: String,
+        radiusKm: Int
+    ) async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+        var prefs = currentPreferences ?? UserPreferences.defaults(for: currentUser ?? NADAUser(id: userId))
+        prefs.city = city
+        prefs.radiusKm = radiusKm
+        return await updatePreferences(prefs)
     }
 
     func refreshPreferences() async {
@@ -449,21 +457,36 @@ final class AuthManager {
             return
         }
 
-        // Firebase Auth cannot tell us `friendsIntentCompleted`, so publishing the
-        // user before Firestore answers would briefly route to the intent screen.
+        // Firebase Auth cannot tell us onboarding flags — wait for Firestore before routing.
         isResolvingProfile = true
         defer { isResolvingProfile = false }
 
         do {
             let profile = try await userService.ensureUserDocument(for: authUser)
             currentUser = profile
-            currentPreferences = try await preferencesService.ensurePreferences(for: profile)
-            try await syncProfileCompleteness()
         } catch {
             // Keep auth session; surface Firestore issues without blocking sign-in UI.
             currentUser = authUser
             currentPreferences = nil
-            if isBusy {
+            errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
+            return
+        }
+
+        // Preferences must not wipe a valid user profile if rules aren't published yet.
+        do {
+            guard let profile = currentUser else { return }
+            currentPreferences = try await preferencesService.ensurePreferences(for: profile)
+            errorMessage = nil
+        } catch {
+            currentPreferences = nil
+            errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
+        }
+
+        do {
+            try await syncProfileCompleteness()
+        } catch {
+            // Completeness sync is best-effort; don't bounce the user to onboarding.
+            if errorMessage == nil {
                 errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
             }
         }

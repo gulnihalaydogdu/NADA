@@ -350,9 +350,12 @@ struct ProfileTabView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         case .location:
-            ProfileLocationSheet()
+            ProfilePreferencesSheet()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+                .onDisappear {
+                    Task { await auth.refreshPreferences() }
+                }
         case .preview:
             ProfilePreviewSheet(bits: catalogBits, answers: bitAnswers)
                 .presentationDetents([.large])
