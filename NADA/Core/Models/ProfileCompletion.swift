@@ -5,7 +5,6 @@ enum ProfileSection: String, CaseIterable, Identifiable {
     case photos
     case bits
     case about
-    case hangoutEnergy
     case location
 
     var id: String { rawValue }
@@ -15,7 +14,6 @@ enum ProfileSection: String, CaseIterable, Identifiable {
         case .photos: return "Photos"
         case .bits: return "Bits"
         case .about: return "About you"
-        case .hangoutEnergy: return "Hangout energy"
         case .location: return "Discover preferences"
         }
     }
@@ -25,7 +23,6 @@ enum ProfileSection: String, CaseIterable, Identifiable {
         case .photos: return "photo.on.rectangle"
         case .bits: return "bubble.left.and.text.bubble.right"
         case .about: return "person"
-        case .hangoutEnergy: return "star"
         case .location: return "slider.horizontal.3"
         }
     }
@@ -45,21 +42,19 @@ struct ProfileCompletion {
 
     let photoCount: Int
     let answeredBits: Int
-    let interestCount: Int
     let hasName: Bool
     let hasGender: Bool
     let hasCity: Bool
     let hasBirthday: Bool
     let userRadiusKm: Int?
 
-    init(user: NADAUser?, photoCount: Int? = nil, answeredBits: Int = 0, interestCount: Int = 0) {
+    init(user: NADAUser?, photoCount: Int? = nil, answeredBits: Int = 0) {
         if let photoCount {
             self.photoCount = min(max(photoCount, 0), Self.photoTarget)
         } else {
             self.photoCount = (user?.photoURL?.isEmpty == false) ? 1 : 0
         }
         self.answeredBits = answeredBits
-        self.interestCount = interestCount
         self.hasName = user?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         self.hasGender = ProfileGender.fromStored(user?.gender) != nil
         self.hasCity = user?.city?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
@@ -76,8 +71,6 @@ struct ProfileCompletion {
         case .about:
             let filled = [hasName, hasGender, hasBirthday].filter { $0 }.count
             return Double(filled) / 3
-        case .hangoutEnergy:
-            return interestCount > 0 ? 1 : 0
         case .location:
             // City is required; radius defaults until first save but counts once city exists.
             return hasCity ? 1 : 0
@@ -98,8 +91,6 @@ struct ProfileCompletion {
             return "\(answeredBits) / \(Self.bitTarget)"
         case .about:
             return (hasName && hasGender && hasBirthday) ? nil : "Add details"
-        case .hangoutEnergy:
-            return interestCount > 0 ? "\(interestCount)" : "Add"
         case .location:
             guard hasCity else { return "Add city" }
             let radius = userRadiusKm ?? ProfileLocation.defaultRadiusKm
@@ -121,10 +112,6 @@ struct ProfileCompletion {
             items.append(ProfileSuggestion(section: .bits, title: "Answer your first Bit"))
         } else if answeredBits < Self.bitTarget {
             items.append(ProfileSuggestion(section: .bits, title: "Answer one more Bit"))
-        }
-
-        if interestCount == 0 {
-            items.append(ProfileSuggestion(section: .hangoutEnergy, title: "Add your hangout interests"))
         }
 
         if !hasName || !hasGender || !hasBirthday {

@@ -8,7 +8,6 @@ enum ProfileRoute: String, Identifiable {
     case photos
     case bits
     case about
-    case hangoutEnergy
     case location
 
     var id: String { rawValue }
@@ -18,7 +17,6 @@ enum ProfileRoute: String, Identifiable {
         case .photos: self = .photos
         case .bits: self = .bits
         case .about: self = .about
-        case .hangoutEnergy: self = .hangoutEnergy
         case .location: self = .location
         }
     }
@@ -50,57 +48,6 @@ struct ProfileSheetScaffold<Content: View>: View {
                         .foregroundStyle(NADATheme.brandPressed)
                 }
             }
-        }
-    }
-}
-
-struct ProfileHangoutEnergySheet: View {
-    private let interests = ["Coffee", "Walks", "Games", "Music", "Food", "Movies", "Sports", "Art"]
-
-    var body: some View {
-        ProfileSheetScaffold(title: "Hangout energy") {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("What you're up for when you meet someone new. Picking interests becomes editable in Week 2.")
-                    .font(NADATheme.bodyFont)
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
-
-                FlowChips(items: interests)
-            }
-        }
-    }
-}
-
-/// Wrapping chip row used for preview-only interest tags.
-struct FlowChips: View {
-    let items: [String]
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            chipRow(items)
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(chunked(items, size: 3), id: \.first) { row in
-                    chipRow(row)
-                }
-            }
-        }
-    }
-
-    private func chipRow(_ row: [String]) -> some View {
-        HStack(spacing: 10) {
-            ForEach(row, id: \.self) { item in
-                Text(item)
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(NADATheme.brandSoft, in: Capsule())
-            }
-        }
-    }
-
-    private func chunked(_ items: [String], size: Int) -> [[String]] {
-        stride(from: 0, to: items.count, by: size).map {
-            Array(items[$0..<min($0 + size, items.count)])
         }
     }
 }

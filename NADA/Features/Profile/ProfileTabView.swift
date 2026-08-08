@@ -345,10 +345,6 @@ struct ProfileTabView: View {
                 .onDisappear {
                     Task { await refreshBitAnswers() }
                 }
-        case .hangoutEnergy:
-            ProfileHangoutEnergySheet()
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
         case .location:
             ProfilePreferencesSheet()
                 .presentationDetents([.large])
