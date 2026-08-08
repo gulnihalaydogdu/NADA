@@ -16,10 +16,16 @@
 
 ### W3-01 — Discovery feed API
 - **P0 · 2d** — Return candidate profiles by city/radius, excluding self, blocked, already-seen.
-- [ ] Filter by location + `isProfileComplete`
+- [x] Filter by location + `isProfileComplete`
 - [ ] Exclude already-liked/skipped and blocked users
-- [ ] Simple ranking: distance + recent activity
-- [ ] Pagination / batching
+- [x] Simple ranking: distance + recent activity
+- [x] Pagination / batching
+
+**Ship notes (in progress):** `DiscoverCandidate` + `DiscoverFeedPage`; `FirestoreDiscoverService.fetchCandidates`
+filters complete profiles by viewer prefs (gender / age / city or Haversine radius), hydrates photos +
+Bits + buddyTypes, ranks by distance. `excludedUserIds` stub for likes/skips/blocks (W3-02–04).
+Rules: signed-in read of complete `users`, photos, `promptAnswers`, `preferences` — **publish**
+`firebase/firestore.rules`. Doc: [`docs/FIRESTORE_DISCOVER.md`](../docs/FIRESTORE_DISCOVER.md).
 
 ### W3-02 — Like API (profile + prompt/photo, with comment)
 - **P0 · 1.5d** — Create like with targetType (profile/prompt/photo), targetId, optional comment.

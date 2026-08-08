@@ -2,34 +2,49 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Complete profiles are readable by any signed-in user for Discover (W3-01).
+    // Incomplete profiles stay owner-only. Email is still on the doc — strip client-side.
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId)
+                  || (isSignedIn() && resource.data.isProfileComplete == true);
+      allow write: if isOwner(userId);
 
       // Ordered profile photos (W2-01). Max 6 enforced in client service.
       match /photos/{photoId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if isSignedIn();
+        allow write: if isOwner(userId);
       }
     }
 
     // Discovery preferences 1–1 with User (W2-05). Document id == auth uid.
+    // Signed-in read lets Discover hydrate buddyTypes on cards; writes stay owner-only.
     match /preferences/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId);
     }
 
     // Bits catalog (internal: prompts). Seed via Console; clients read only.
     match /prompts/{promptId} {
-      allow read: if request.auth != null;
+      allow read: if isSignedIn();
       allow write: if false;
     }
 
-    // Bit answers (W2-03). Owner-only; field shape validated on write.
+    // Bit answers (W2-03 / W3-01). Owner writes; any signed-in user can read for Discover.
     match /promptAnswers/{answerId} {
-      function isOwner() {
-        return request.auth != null && request.auth.uid == resource.data.userId;
+      function isAnswerOwner() {
+        return isSignedIn() && request.auth.uid == resource.data.userId;
       }
 
-      function isOwnerCreate() {
-        return request.auth != null
+      function isAnswerOwnerCreate() {
+        return isSignedIn()
                && request.resource.data.userId == request.auth.uid;
       }
 
@@ -43,12 +58,12 @@ service cloud.firestore {
                && request.resource.data.sortOrder is int;
       }
 
-      allow read: if isOwner();
-      allow create: if isOwnerCreate() && validAnswerFields();
-      allow update: if isOwner()
+      allow read: if isSignedIn();
+      allow create: if isAnswerOwnerCreate() && validAnswerFields();
+      allow update: if isAnswerOwner()
                     && request.resource.data.userId == resource.data.userId
                     && validAnswerFields();
-      allow delete: if isOwner();
+      allow delete: if isAnswerOwner();
     }
   }
 }

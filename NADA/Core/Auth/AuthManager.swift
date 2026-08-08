@@ -23,6 +23,7 @@ final class AuthManager {
     private let storageService: FirebaseStorageService
     private let photoService: FirestorePhotoService
     private let promptService: FirestorePromptService
+    private let discoverService: FirestoreDiscoverService
     private var authStateHandle: AuthStateHandle?
 
     init() {
@@ -32,6 +33,7 @@ final class AuthManager {
         self.storageService = FirebaseStorageService()
         self.photoService = FirestorePhotoService(storageService: storageService)
         self.promptService = FirestorePromptService()
+        self.discoverService = FirestoreDiscoverService()
     }
 
     var hasCompletedFriendsIntent: Bool {
@@ -246,6 +248,30 @@ final class AuthManager {
         } catch {
             errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
         }
+    }
+
+    /// Nearby Discover page for the signed-in user (W3-01). Returns nil on failure.
+    func fetchDiscoverPage(
+        excludedUserIds: Set<String> = [],
+        cursor: String? = nil,
+        pageSize: Int = FirestoreDiscoverService.defaultPageSize
+    ) async -> DiscoverFeedPage? {
+        guard currentUser != nil else { return nil }
+
+        var page: DiscoverFeedPage?
+        await perform {
+            guard let user = self.currentUser else { return }
+            let prefs = try await self.preferencesService.ensurePreferences(for: user)
+            self.currentPreferences = prefs
+            page = try await self.discoverService.fetchCandidates(
+                viewer: user,
+                preferences: prefs,
+                excludedUserIds: excludedUserIds,
+                cursor: cursor,
+                pageSize: pageSize
+            )
+        }
+        return page
     }
 
     /// Marks the soft profile setup shell (Photos → Bits → Preferences) as done.

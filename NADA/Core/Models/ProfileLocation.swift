@@ -20,4 +20,22 @@ enum ProfileLocation {
     static func coarsenCoordinate(_ value: Double) -> Double {
         (value * 100).rounded() / 100
     }
+
+    /// Great-circle distance in km between two WGS84 points (Haversine).
+    static func distanceKm(
+        fromLatitude: Double,
+        fromLongitude: Double,
+        toLatitude: Double,
+        toLongitude: Double
+    ) -> Double {
+        let earthRadiusKm = 6_371.0
+        let dLat = (toLatitude - fromLatitude) * .pi / 180
+        let dLon = (toLongitude - fromLongitude) * .pi / 180
+        let lat1 = fromLatitude * .pi / 180
+        let lat2 = toLatitude * .pi / 180
+        let a = sin(dLat / 2) * sin(dLat / 2)
+            + cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2)
+        let c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return earthRadiusKm * c
+    }
 }
