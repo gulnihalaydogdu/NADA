@@ -131,5 +131,25 @@
 ## Spillover to Week 3
 - [ ] Profile essentials card on Discover / Preview: age · gender · city + job, university, hangout looking-for (see `UYGULAMA_SEMASI.md` §7)
 - [ ] Collect `jobTitle`, `university`, `hangoutLookingFor` in setup/edit (no sexuality field for now)
+- [ ] **Interest badges** — replaces the removed Hangout energy placeholder; closes the W1 spillover "hangout interests" half
 - [ ] Optional later: `openToGroups` chip
 - [ ] …
+
+### Interest badges — agreed scope (8 Aug)
+Read-only catalog `interests/{id}` (label, category, sortOrder, isActive) seeded from
+`firebase/interests.seed.json`, same pattern as `prompts`. Selections live as an id array on
+`users/{uid}` so Week 3 Discover can query overlap with `array-contains-any`.
+
+Decisions:
+- **Max 8** badges per user.
+- **No emoji** in category headers or chips — plain type in the NADA palette.
+- Categories: Lifestyle, TV & Movies, Music, Games, Food & Drink, Sports & Outdoors, Creative, Going Out.
+- Chips wrap inside each category (no horizontal scroll) so every option is visible.
+- Surfaces: wizard step between Bits and Preferences · Profile "Interests" section · Preview block
+  under essentials · Week 3 Discover "you both like…" signal.
+
+### Scope change (8 Aug)
+**Hangout energy section removed** (`22f772a`). Interests were never wired to storage, so the
+section could not be completed: it capped the completion meter at 80% and produced a nudge that
+opened a sheet with nothing to select. Profile now has four sections (Photos, Bits, About you,
+Discover preferences) and the meter can reach 100%. Interest badges above replace it.
