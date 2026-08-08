@@ -102,8 +102,11 @@
 
 ### W2-12 — My profile + edit
 - **P1 · 1d** — View own complete profile; deep-link into edit steps.
-- [ ] Reflects all data; edits persist
-- [ ] Reuses setup step screens
+- [x] Reflects all data; edits persist
+- [x] Reuses setup step screens
+
+**Verification (8 Aug):** About, Photos, Bits, and Discover preferences edits persist after
+relaunch; Preview reflects the saved profile.
 
 ---
 
@@ -125,8 +128,8 @@
 - [x] Up to 6 photos upload, reorder, primary works
 - [x] ≥3 prompt answers saved and shown
 - [x] Gender + city/radius saved
-- [ ] Profile editable after relaunch
-- [ ] `isProfileComplete` correct
+- [x] Profile editable after relaunch
+- [x] `isProfileComplete` correct
 
 ## Spillover to Week 3
 - [ ] Profile essentials card on Discover / Preview: age · gender · city + job, university, hangout looking-for (see `UYGULAMA_SEMASI.md` §7)
