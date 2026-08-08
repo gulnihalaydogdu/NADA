@@ -52,8 +52,12 @@ Rules: signed-in read of complete `users`, photos, `promptAnswers`, `preferences
 
 ### W3-06 — Discover feed UI
 - **P0 · 2d** — One profile at a time: photos + prompt answers, minimal layout (§12 design).
-- [ ] Smooth scroll through a profile
-- [ ] Loads next from W3-01; empty state (“no one nearby yet”)
+- [x] Smooth scroll through a profile
+- [x] Loads next from W3-01; empty state (“no one nearby yet”)
+
+**Ship notes (in progress):** `DiscoverFeedView` — Preview-aligned stack (name → photo → Bit →
+essentials → interleaved). Temporary “Next profile” until W3-08 skip. Empty + loading + error
+states. Incomplete profiles see a finish-profile gate (W3-10 lite).
 
 ### W3-07 — Like interactions
 - **P0 · 1.5d** — Like whole profile; like a prompt/photo with optional comment.
@@ -71,6 +75,7 @@ Rules: signed-in read of complete `users`, photos, `promptAnswers`, `preferences
 
 ### W3-10 — Discover gating
 - **P1 · 0.5d** — Only enter Discover if `isProfileComplete`; else nudge to finish profile.
+- [x] Gate + nudge in `DiscoverFeedView` (Profile tab to finish; deep-link later)
 
 ---
 

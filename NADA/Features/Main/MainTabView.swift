@@ -3,12 +3,8 @@ import SwiftUI
 struct MainTabView: View {
     var body: some View {
         TabView {
-            PlaceholderTabView(
-                title: "Discover",
-                systemImage: "sparkles",
-                message: "Nearby profiles will show up here. Coming in Week 3."
-            )
-            .tabItem { Label("Discover", systemImage: "sparkles") }
+            DiscoverFeedView()
+                .tabItem { Label("Discover", systemImage: "sparkles") }
 
             PlaceholderTabView(
                 title: "Likes",
