@@ -55,9 +55,11 @@ Rules: signed-in read of complete `users`, photos, `promptAnswers`, `preferences
 - [x] Smooth scroll through a profile
 - [x] Loads next from W3-01; empty state (“no one nearby yet”)
 
-**Ship notes (in progress):** `DiscoverFeedView` — Preview-aligned stack (name → photo → Bit →
+**Ship notes:** `DiscoverFeedView` — Preview-aligned stack (name → photo → Bit →
 essentials → interleaved). Temporary “Next profile” until W3-08 skip. Empty + loading + error
 states. Incomplete profiles see a finish-profile gate (W3-10 lite).
+
+**Verification (8 Aug):** Two complete accounts — candidates appear on Discover for each other.
 
 ### W3-07 — Like interactions
 - **P0 · 1.5d** — Like whole profile; like a prompt/photo with optional comment.
@@ -94,7 +96,7 @@ states. Incomplete profiles see a finish-profile gate (W3-10 lite).
 | Fri | W3-11 | W3-10 + W3-11 |
 
 ## Ship gate
-- [ ] Nearby profiles load without repeats
+- [x] Nearby profiles load without repeats *(initial load verified 8 Aug; dedupe vs likes/skips still W3-02–04)*
 - [ ] Like (profile + prompt/photo + comment) works
 - [ ] Skip + undo works
 - [ ] Blocked/seen users excluded
