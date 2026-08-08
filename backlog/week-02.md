@@ -114,6 +114,12 @@ relaunch; Preview reflects the saved profile.
 
 ### W2-13 — E2E profile demo + Week 3 prep
 - **P0 · 0.5d (Fri)** — Full profile round-trip; confirm `isProfileComplete`; agree Discover data shape.
+- [x] Full profile round-trip verified (basics → photos → bits → preferences → relaunch)
+- [x] `isProfileComplete` correct; Profile shows Ready for Discover
+- [x] Discover data shape for Week 3: preferences filters + interest badges spillover (see below)
+
+**Verification (8 Aug):** Edit persistence + completeness gate confirmed. Week 3 starts from
+Discover feed + gating (`isProfileComplete`); interest badges replace Hangout energy.
 
 ## Day map
 | Day | Backend | iOS |
