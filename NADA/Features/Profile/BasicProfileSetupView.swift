@@ -82,7 +82,7 @@ struct BasicProfileSetupView: View {
         displayName = auth.currentUser?.displayName ?? ""
         city = auth.currentUser?.city ?? ""
         gender = ProfileGender.fromStored(auth.currentUser?.gender)
-        dateOfBirth = auth.currentUser?.dateOfBirth ?? ProfileAge.maximumSelectableDate()
+        dateOfBirth = auth.currentUser?.dateOfBirth
     }
 
     private func save() async {

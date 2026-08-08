@@ -13,6 +13,13 @@ struct ProfileSetupWizardView: View {
     @State private var selectedCategory: Prompt.Category?
     @State private var editorTarget: BitEditorTarget?
     @State private var radiusKm: Double = Double(ProfileLocation.defaultRadiusKm)
+    @State private var city = ""
+    @State private var lookingFor: UserPreferences.LookingForGender = .everyone
+    @State private var minAge: Double = Double(UserPreferences.defaultMinAge)
+    @State private var maxAge: Double = Double(UserPreferences.defaultMaxAge)
+    @State private var selectedBuddyTypes: Set<UserPreferences.BuddyType> = [.openToAll]
+    @State private var approxLatitude: Double?
+    @State private var approxLongitude: Double?
     @State private var localError: String?
     @State private var photoCount = 0
     @State private var photosNeedReplacement = false
@@ -47,7 +54,7 @@ struct ProfileSetupWizardView: View {
             case .bits:
                 return "Pick three questions and write short answers friends will see on your profile."
             case .preferences:
-                return "Confirm how far Discover should look. Interests come later — you can edit radius anytime in Profile."
+                return "Set who you’d like to meet nearby. We’ll use your approximate location to suggest a city — you can edit it anytime."
             }
         }
     }
@@ -66,6 +73,11 @@ struct ProfileSetupWizardView: View {
 
     private var hasRequiredBits: Bool {
         answers.count >= PromptAnswer.maxCount
+    }
+
+    private var hasRequiredPreferences: Bool {
+        !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !selectedBuddyTypes.isEmpty
     }
 
     private var availableCategories: [Prompt.Category] {
@@ -127,6 +139,9 @@ struct ProfileSetupWizardView: View {
         .task(id: step) {
             if step == .bits {
                 await loadBitsStep()
+            }
+            if step == .preferences {
+                hydratePreferencesStep()
             }
         }
         .sheet(item: $editorTarget) { target in
@@ -233,57 +248,37 @@ struct ProfileSetupWizardView: View {
     }
 
     private var preferencesStep: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("City")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-                Text(auth.currentUser?.city?.isEmpty == false ? (auth.currentUser?.city ?? "") : "Not set")
-                    .font(NADATheme.headlineFont)
-                    .foregroundStyle(NADATheme.ink)
-            }
+        ProfilePreferencesForm(
+            city: $city,
+            radiusKm: $radiusKm,
+            lookingFor: $lookingFor,
+            minAge: $minAge,
+            maxAge: $maxAge,
+            selectedBuddyTypes: $selectedBuddyTypes,
+            approxLatitude: $approxLatitude,
+            approxLongitude: $approxLongitude,
+            detectionError: $localError,
+            isBusy: auth.isBusy,
+            autoDetectLocationOnAppear: true
+        )
+    }
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Discover radius")
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.secondaryInk)
-                    Spacer()
-                    Text("\(Int(radiusKm)) km")
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.warmSecondaryInk)
-                }
-                Slider(
-                    value: $radiusKm,
-                    in: Double(ProfileLocation.minimumRadiusKm)...Double(ProfileLocation.maximumRadiusKm),
-                    step: Double(ProfileLocation.radiusStepKm)
-                )
-                .tint(NADATheme.brand)
-                Text("Saved when you tap Finish — writes your discovery preferences.")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Interests")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-                Text("Coffee · Walks · Games · Music · Food")
-                    .font(NADATheme.bodyFont)
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
-                Text("Interest picks come later.")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .onAppear {
-            radiusKm = Double(
-                auth.currentPreferences?.resolvedRadiusKm
-                    ?? auth.currentUser?.resolvedRadiusKm
-                    ?? ProfileLocation.defaultRadiusKm
-            )
-        }
+    private func hydratePreferencesStep() {
+        localError = nil
+        city = auth.currentPreferences?.trimmedCity
+            ?? auth.currentUser?.city
+            ?? ""
+        radiusKm = Double(
+            auth.currentPreferences?.resolvedRadiusKm
+                ?? auth.currentUser?.resolvedRadiusKm
+                ?? ProfileLocation.defaultRadiusKm
+        )
+        lookingFor = auth.currentPreferences?.lookingForGenders ?? .everyone
+        minAge = Double(auth.currentPreferences?.minAge ?? UserPreferences.defaultMinAge)
+        maxAge = Double(auth.currentPreferences?.maxAge ?? UserPreferences.defaultMaxAge)
+        selectedBuddyTypes = Set(auth.currentPreferences?.buddyTypes ?? [.openToAll])
+        approxLatitude = auth.currentUser?.approxLatitude
+        approxLongitude = auth.currentUser?.approxLongitude
     }
 
     private var footer: some View {
@@ -304,6 +299,12 @@ struct ProfileSetupWizardView: View {
                     .foregroundStyle(NADATheme.secondaryInk)
             }
 
+            if step == .preferences, !hasRequiredPreferences {
+                Text("Add your city to finish setup")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+            }
+
             Button {
                 Task { await advance() }
             } label: {
@@ -319,6 +320,7 @@ struct ProfileSetupWizardView: View {
                 auth.isBusy
                     || (step == .photos && !hasRequiredPhotos)
                     || (step == .bits && !hasRequiredBits)
+                    || (step == .preferences && !hasRequiredPreferences)
             )
 
             if step == .preferences {
@@ -368,6 +370,10 @@ struct ProfileSetupWizardView: View {
             return
         }
         if step == .preferences {
+            if !hasRequiredPreferences {
+                localError = "City is required to finish setup."
+                return
+            }
             await finishWizard()
             return
         }
@@ -387,18 +393,44 @@ struct ProfileSetupWizardView: View {
     }
 
     private func finishWizard(saveRadius: Bool = true) async {
-        if saveRadius,
-           let city = auth.currentUser?.city?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !city.isEmpty {
-            let prefsOK = await auth.updatePreferences(
-                city: city,
-                radiusKm: ProfileLocation.clampRadiusKm(radiusKm)
+        if saveRadius {
+            guard let userId = auth.currentUser?.id else { return }
+
+            let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedCity.isEmpty else {
+                localError = "City is required."
+                return
+            }
+
+            let age = UserPreferences.clampAgeRange(min: Int(minAge), max: Int(maxAge))
+            var prefs = auth.currentPreferences ?? UserPreferences.defaults(
+                for: auth.currentUser ?? NADAUser(id: userId)
             )
+            prefs.city = trimmedCity
+            prefs.radiusKm = ProfileLocation.clampRadiusKm(radiusKm)
+            prefs.lookingForGenders = lookingFor
+            prefs.minAge = age.min
+            prefs.maxAge = age.max
+            prefs.buddyTypes = Array(selectedBuddyTypes)
+
+            let prefsOK = await auth.updatePreferences(prefs)
             if !prefsOK {
                 if auth.errorMessage == nil {
                     localError = "Couldn't save your preferences. Try again."
                 }
                 return
+            }
+
+            if let approxLatitude, let approxLongitude {
+                let locationOK = await auth.updateLocation(
+                    city: trimmedCity,
+                    radiusKm: prefs.resolvedRadiusKm,
+                    approxLatitude: approxLatitude,
+                    approxLongitude: approxLongitude
+                )
+                if !locationOK, auth.errorMessage == nil {
+                    localError = "Preferences saved, but approximate location couldn't be stored."
+                }
             }
         }
 

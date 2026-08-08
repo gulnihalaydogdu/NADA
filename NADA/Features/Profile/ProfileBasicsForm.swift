@@ -9,6 +9,7 @@ struct ProfileBasicsForm: View {
     var errorMessage: String?
 
     @State private var isBirthdayPickerPresented = false
+    @State private var pickerDraftDate: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -52,6 +53,9 @@ struct ProfileBasicsForm: View {
             birthdayPickerSheet
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
+                .onAppear {
+                    pickerDraftDate = dateOfBirth ?? ProfileAge.maximumSelectableDate()
+                }
         }
     }
 
@@ -93,7 +97,7 @@ struct ProfileBasicsForm: View {
         if let dateOfBirth {
             return "\(ProfileAge.age(from: dateOfBirth))"
         }
-        return "Select age"
+        return "dd/mm/yyyy"
     }
 
     private var birthdayPickerSheet: some View {
@@ -129,6 +133,7 @@ struct ProfileBasicsForm: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
+                        dateOfBirth = pickerDraftDate ?? ProfileAge.maximumSelectableDate()
                         isBirthdayPickerPresented = false
                     }
                     .fontWeight(.semibold)
@@ -139,14 +144,14 @@ struct ProfileBasicsForm: View {
     }
 
     private var displayedAgeText: String {
-        let date = dateOfBirth ?? ProfileAge.maximumSelectableDate()
+        let date = pickerDraftDate ?? dateOfBirth ?? ProfileAge.maximumSelectableDate()
         return "\(ProfileAge.age(from: date))"
     }
 
     private var birthDateBinding: Binding<Date> {
         Binding(
-            get: { dateOfBirth ?? ProfileAge.maximumSelectableDate() },
-            set: { dateOfBirth = $0 }
+            get: { pickerDraftDate ?? ProfileAge.maximumSelectableDate() },
+            set: { pickerDraftDate = $0 }
         )
     }
 

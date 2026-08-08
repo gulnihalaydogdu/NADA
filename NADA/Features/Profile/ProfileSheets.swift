@@ -105,10 +105,8 @@ struct FlowChips: View {
     }
 }
 
-struct ProfilePreferencesSheet: View {
-    @Environment(AuthManager.self) private var auth
-    @Environment(\.dismiss) private var dismiss
-
+/// Shared discover-preferences fields — used by Profile sheet and setup wizard.
+struct ProfilePreferencesForm: View {
     private enum PickerRoute: String, Identifiable {
         case gender
         case buddyTypes
@@ -116,25 +114,23 @@ struct ProfilePreferencesSheet: View {
         var id: String { rawValue }
     }
 
-    @State private var city = ""
-    @State private var radiusKm: Double = Double(ProfileLocation.defaultRadiusKm)
-    @State private var lookingFor: UserPreferences.LookingForGender = .everyone
-    @State private var minAge: Double = Double(UserPreferences.defaultMinAge)
-    @State private var maxAge: Double = Double(UserPreferences.defaultMaxAge)
-    @State private var selectedBuddyTypes: Set<UserPreferences.BuddyType> = [.openToAll]
-    @State private var approxLatitude: Double?
-    @State private var approxLongitude: Double?
-    @State private var localError: String?
-    @State private var isDetectingLocation = false
-    @State private var pickerRoute: PickerRoute?
-    @State private var locationService = ApproximateLocationService()
+    @Binding var city: String
+    @Binding var radiusKm: Double
+    @Binding var lookingFor: UserPreferences.LookingForGender
+    @Binding var minAge: Double
+    @Binding var maxAge: Double
+    @Binding var selectedBuddyTypes: Set<UserPreferences.BuddyType>
+    @Binding var approxLatitude: Double?
+    @Binding var approxLongitude: Double?
+    @Binding var detectionError: String?
 
-    private var canSave: Bool {
-        !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !auth.isBusy
-            && !isDetectingLocation
-            && !selectedBuddyTypes.isEmpty
-    }
+    var isBusy = false
+    var autoDetectLocationOnAppear = false
+
+    @State private var pickerRoute: PickerRoute?
+    @State private var isDetectingLocation = false
+    @State private var didAutoDetect = false
+    @State private var locationService = ApproximateLocationService()
 
     private var buddyTypesSummary: String {
         let ordered = UserPreferences.normalizedBuddyTypes(Array(selectedBuddyTypes))
@@ -146,34 +142,9 @@ struct ProfilePreferencesSheet: View {
     }
 
     var body: some View {
-        ProfileSheetScaffold(title: "Discover preferences") {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Choose who you’d like to meet for hangouts nearby.")
-                    .font(NADATheme.bodyFont)
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
-
-                peopleCard
-                placeCard
-
-                if let message = localError ?? auth.errorMessage {
-                    Text(message)
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.danger)
-                }
-
-                Button {
-                    Task { await save() }
-                } label: {
-                    if auth.isBusy {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Text("Save preferences")
-                    }
-                }
-                .buttonStyle(NADAPrimaryButtonStyle())
-                .disabled(!canSave)
-            }
+        VStack(alignment: .leading, spacing: 20) {
+            peopleCard
+            placeCard
         }
         .sheet(item: $pickerRoute) { route in
             switch route {
@@ -206,10 +177,10 @@ struct ProfilePreferencesSheet: View {
                 .presentationDragIndicator(.visible)
             }
         }
-        .task {
-            auth.clearError()
-            await auth.refreshPreferences()
-            hydrateFromPreferences()
+        .task(id: autoDetectLocationOnAppear) {
+            guard autoDetectLocationOnAppear, !didAutoDetect else { return }
+            didAutoDetect = true
+            await detectApproximateLocation()
         }
     }
 
@@ -293,9 +264,11 @@ struct ProfilePreferencesSheet: View {
                     .foregroundStyle(NADATheme.brandPressed)
                 }
                 .buttonStyle(.plain)
-                .disabled(isDetectingLocation || auth.isBusy)
+                .disabled(isDetectingLocation || isBusy)
 
-                Text("Typing is enough — location permission is optional.")
+                Text(autoDetectLocationOnAppear
+                    ? "We’ll ask for location here to suggest your city. You can always type it instead."
+                    : "Typing is enough — location permission is optional.")
                     .font(NADATheme.captionFont)
                     .foregroundStyle(NADATheme.secondaryInk)
             }
@@ -389,8 +362,7 @@ struct ProfilePreferencesSheet: View {
         .buttonStyle(.plain)
     }
 
-    /// "Open to all" is exclusive, and the list can never end up empty.
-    private static func buddySelection(
+    static func buddySelection(
         from current: Set<UserPreferences.BuddyType>,
         toggling type: UserPreferences.BuddyType
     ) -> Set<UserPreferences.BuddyType> {
@@ -404,6 +376,95 @@ struct ProfilePreferencesSheet: View {
             next.insert(type)
         }
         return next.isEmpty ? [.openToAll] : next
+    }
+
+    func detectApproximateLocation() async {
+        detectionError = nil
+        isDetectingLocation = true
+        defer { isDetectingLocation = false }
+
+        do {
+            let place = try await locationService.requestApproximatePlace()
+            if let detectedCity = place.city, !detectedCity.isEmpty {
+                city = detectedCity
+            }
+            approxLatitude = place.latitude
+            approxLongitude = place.longitude
+            if city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                detectionError = "Found your area, but not a city name — type it in."
+            }
+        } catch {
+            detectionError = (error as? LocalizedError)?.errorDescription
+                ?? "Couldn't get your approximate location. Type your city instead."
+        }
+    }
+}
+
+struct ProfilePreferencesSheet: View {
+    @Environment(AuthManager.self) private var auth
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var city = ""
+    @State private var radiusKm: Double = Double(ProfileLocation.defaultRadiusKm)
+    @State private var lookingFor: UserPreferences.LookingForGender = .everyone
+    @State private var minAge: Double = Double(UserPreferences.defaultMinAge)
+    @State private var maxAge: Double = Double(UserPreferences.defaultMaxAge)
+    @State private var selectedBuddyTypes: Set<UserPreferences.BuddyType> = [.openToAll]
+    @State private var approxLatitude: Double?
+    @State private var approxLongitude: Double?
+    @State private var localError: String?
+
+    private var canSave: Bool {
+        !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !auth.isBusy
+            && !selectedBuddyTypes.isEmpty
+    }
+
+    var body: some View {
+        ProfileSheetScaffold(title: "Discover preferences") {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Choose who you’d like to meet for hangouts nearby.")
+                    .font(NADATheme.bodyFont)
+                    .foregroundStyle(NADATheme.warmSecondaryInk)
+
+                ProfilePreferencesForm(
+                    city: $city,
+                    radiusKm: $radiusKm,
+                    lookingFor: $lookingFor,
+                    minAge: $minAge,
+                    maxAge: $maxAge,
+                    selectedBuddyTypes: $selectedBuddyTypes,
+                    approxLatitude: $approxLatitude,
+                    approxLongitude: $approxLongitude,
+                    detectionError: $localError,
+                    isBusy: auth.isBusy
+                )
+
+                if let message = localError ?? auth.errorMessage {
+                    Text(message)
+                        .font(NADATheme.captionFont)
+                        .foregroundStyle(NADATheme.danger)
+                }
+
+                Button {
+                    Task { await save() }
+                } label: {
+                    if auth.isBusy {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Text("Save preferences")
+                    }
+                }
+                .buttonStyle(NADAPrimaryButtonStyle())
+                .disabled(!canSave)
+            }
+        }
+        .task {
+            auth.clearError()
+            await auth.refreshPreferences()
+            hydrateFromPreferences()
+        }
     }
 
     private func hydrateFromPreferences() {
@@ -422,28 +483,6 @@ struct ProfilePreferencesSheet: View {
         selectedBuddyTypes = Set(prefs?.buddyTypes ?? [.openToAll])
         approxLatitude = auth.currentUser?.approxLatitude
         approxLongitude = auth.currentUser?.approxLongitude
-    }
-
-    private func detectApproximateLocation() async {
-        localError = nil
-        auth.clearError()
-        isDetectingLocation = true
-        defer { isDetectingLocation = false }
-
-        do {
-            let place = try await locationService.requestApproximatePlace()
-            if let detectedCity = place.city, !detectedCity.isEmpty {
-                city = detectedCity
-            }
-            approxLatitude = place.latitude
-            approxLongitude = place.longitude
-            if city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                localError = "Found your area, but not a city name — type it in."
-            }
-        } catch {
-            localError = (error as? LocalizedError)?.errorDescription
-                ?? "Couldn't get your approximate location. Type your city instead."
-        }
     }
 
     private func save() async {
@@ -1028,7 +1067,7 @@ struct ProfileEditSheet: View {
             displayName = auth.currentUser?.displayName ?? ""
             city = auth.currentUser?.city ?? ""
             gender = ProfileGender.fromStored(auth.currentUser?.gender)
-            dateOfBirth = auth.currentUser?.dateOfBirth ?? ProfileAge.maximumSelectableDate()
+            dateOfBirth = auth.currentUser?.dateOfBirth
         }
     }
 
