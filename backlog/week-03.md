@@ -61,6 +61,10 @@ states. Incomplete profiles see a finish-profile gate (W3-10 lite).
 
 **Verification (8 Aug):** Two complete accounts — candidates appear on Discover for each other.
 
+**Polish backlog (later):** Discover photo-load transition — short branded loading animation while
+primary photo warms (today: plain ProgressView + wait-for-primary so name/Bits don’t flash first).
+Also tighten like/skip card transitions when W3-07/08 land.
+
 ### W3-07 — Like interactions
 - **P0 · 1.5d** — Like whole profile; like a prompt/photo with optional comment.
 - [ ] Like glow animation (coral brand `#C17B6F`)

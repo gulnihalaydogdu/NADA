@@ -17,37 +17,36 @@ struct ProfilePhotoCropView: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
     @State private var cropSize: CGSize = CGSize(width: 280, height: 280)
-
-    private var normalized: UIImage {
-        source.normalizedOrientation()
-    }
+    /// Orientation-fixed bitmap — computed once so pan/zoom stays smooth.
+    @State private var displayImage: UIImage?
+    @State private var isFinishing = false
 
     private var isSquare: Bool { abs(aspectWidthOverHeight - 1) < 0.01 }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(NADATheme.captionFont)
-                            .foregroundStyle(NADATheme.secondaryInk)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 8)
-                    }
-
-                    cropArea
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
-
-                    resetButton
-                        .padding(.top, 14)
-
-                    hintCard
-                        .padding(.horizontal, 20)
-                        .padding(.top, 22)
-                        .padding(.bottom, 32)
+            VStack(spacing: 0) {
+                if let subtitle {
+                    Text(subtitle)
+                        .font(NADATheme.captionFont)
+                        .foregroundStyle(NADATheme.secondaryInk)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 8)
                 }
+
+                cropArea
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+
+                resetButton
+                    .padding(.top, 14)
+
+                hintCard
+                    .padding(.horizontal, 20)
+                    .padding(.top, 22)
+                    .padding(.bottom, 32)
+
+                Spacer(minLength: 0)
             }
             .background {
                 ZStack {
@@ -70,19 +69,25 @@ struct ProfilePhotoCropView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { onCancel() }
                         .foregroundStyle(NADATheme.brandPressed)
+                        .disabled(isFinishing)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
-                        if let cropped = renderCrop() {
-                            onCrop(cropped)
-                        }
+                        commitCrop()
                     }
                     .fontWeight(.semibold)
                     .foregroundStyle(NADATheme.brandPressed)
+                    .disabled(isFinishing || displayImage == nil)
                 }
             }
             .toolbarBackground(NADATheme.paper, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .task {
+                // Normalize once — recomputing on every pan frame was the crop lag.
+                let prepared = source.normalizedOrientation()
+                displayImage = prepared
+                resetFraming(cropSize: cropSize)
+            }
         }
     }
 
@@ -90,16 +95,21 @@ struct ProfilePhotoCropView: View {
         GeometryReader { geo in
             let fitted = fittedCropSize(in: geo.size)
             ZStack {
-                Image(uiImage: normalized)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: fitted.width, height: fitted.height)
-                    .scaleEffect(scale)
-                    .offset(offset)
-                    .frame(width: fitted.width, height: fitted.height)
-                    .clipped()
-                    .gesture(dragGesture(cropSize: fitted))
-                    .simultaneousGesture(magnifyGesture(cropSize: fitted))
+                if let displayImage {
+                    Image(uiImage: displayImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: fitted.width, height: fitted.height)
+                        .scaleEffect(scale)
+                        .offset(offset)
+                        .frame(width: fitted.width, height: fitted.height)
+                        .clipped()
+                        .gesture(dragGesture(cropSize: fitted))
+                        .simultaneousGesture(magnifyGesture(cropSize: fitted))
+                } else {
+                    ProgressView()
+                        .frame(width: fitted.width, height: fitted.height)
+                }
 
                 CropGrid()
                     .frame(width: fitted.width, height: fitted.height)
@@ -122,7 +132,9 @@ struct ProfilePhotoCropView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .onAppear {
                 cropSize = fitted
-                resetFraming(cropSize: fitted)
+                if displayImage != nil {
+                    resetFraming(cropSize: fitted)
+                }
             }
             .onChange(of: geo.size) { _, newSize in
                 let next = fittedCropSize(in: newSize)
@@ -131,6 +143,16 @@ struct ProfilePhotoCropView: View {
             }
         }
         .aspectRatio(aspectWidthOverHeight, contentMode: .fit)
+    }
+
+    private func commitCrop() {
+        guard !isFinishing else { return }
+        isFinishing = true
+        guard let cropped = renderCrop() else {
+            isFinishing = false
+            return
+        }
+        onCrop(cropped)
     }
 
     private func fittedCropSize(in container: CGSize) -> CGSize {
@@ -214,7 +236,7 @@ struct ProfilePhotoCropView: View {
     }
 
     private func imageDisplaySize(for cropSize: CGSize) -> CGSize {
-        let imageSize = normalized.size
+        let imageSize = (displayImage ?? source).size
         guard imageSize.width > 0, imageSize.height > 0 else { return cropSize }
         let cover = max(cropSize.width / imageSize.width, cropSize.height / imageSize.height)
         return CGSize(width: imageSize.width * cover, height: imageSize.height * cover)
@@ -242,7 +264,7 @@ struct ProfilePhotoCropView: View {
     }
 
     private func renderCrop() -> UIImage? {
-        let image = normalized
+        let image = displayImage ?? source.normalizedOrientation()
         let imageSize = image.size
         guard imageSize.width > 0, imageSize.height > 0,
               cropSize.width > 0, cropSize.height > 0 else { return nil }

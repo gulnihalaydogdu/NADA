@@ -24,6 +24,8 @@ struct ProfilePhotosEditor: View {
     @State private var isEditorPresented = false
     @State private var editorImage: UIImage?
     @State private var editorImageID = UUID()
+    /// Blocks double-Done while the current crop is being handed off / uploaded.
+    @State private var isCropCommitting = false
 
     @State private var draggingPhotoId: String?
     @State private var needsReplacement = false
@@ -114,6 +116,7 @@ struct ProfilePhotosEditor: View {
                     }
                 )
                 .id(editorImageID)
+                .interactiveDismissDisabled(isCropCommitting)
             }
         }
     }
@@ -279,9 +282,11 @@ struct ProfilePhotosEditor: View {
         editorImage = nil
         cropQueue = []
         libraryItems = []
+        isCropCommitting = false
     }
 
     private func cancelCropQueue() {
+        guard !isCropCommitting else { return }
         closeEditor()
         if needsReplacement {
             localError = "Add a photo to fill that spot."
@@ -289,24 +294,42 @@ struct ProfilePhotosEditor: View {
     }
 
     private func addCroppedAndContinue(_ image: UIImage) async {
-        isSaving = true
+        // Ignore double-Done — crop view also guards, this is the second line of defense.
+        guard !isCropCommitting else { return }
+        isCropCommitting = true
         localError = nil
-        defer { isSaving = false }
 
         let insertAt = needsReplacement ? replacementIndex : nil
+        let clearingReplacement = needsReplacement
+
+        // Advance the crop UI immediately so the next photo isn't blocked on upload.
+        if cropQueue.isEmpty {
+            isEditorPresented = false
+            editorImage = nil
+        } else {
+            presentNextInQueue()
+        }
+        isCropCommitting = false
+
+        // Serialize uploads so concurrent Done taps don't race sortOrder / primary.
+        while isSaving {
+            try? await Task.sleep(nanoseconds: 40_000_000)
+        }
+
+        isSaving = true
+        defer { isSaving = false }
+
         if await auth.addPhoto(image, at: insertAt) != nil {
             photos = await auth.fetchPhotos()
-            if needsReplacement {
+            if clearingReplacement {
                 setNeedsReplacement(false)
                 replacementIndex = nil
             }
             notifyPhotosChanged()
-            presentNextInQueue()
         } else {
             if auth.errorMessage == nil {
                 localError = "Couldn't add that photo."
             }
-            closeEditor()
         }
     }
 

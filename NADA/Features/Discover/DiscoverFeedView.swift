@@ -9,6 +9,7 @@ struct DiscoverFeedView: View {
     @State private var isLoading = false
     @State private var hasLoadedOnce = false
     @State private var localError: String?
+    @State private var scrollToTopToken = 0
 
     private var current: DiscoverCandidate? { queue.first }
 
@@ -77,10 +78,23 @@ struct DiscoverFeedView: View {
                 ProgressView()
                 Spacer()
             } else if let current {
-                ScrollView {
-                    DiscoverCandidateStack(candidate: current)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 24)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Color.clear
+                            .frame(height: 0)
+                            .id("discoverTop")
+
+                        DiscoverCandidateStack(candidate: current)
+                            .id(current.id)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 24)
+                    }
+                    .onChange(of: scrollToTopToken) { _, _ in
+                        proxy.scrollTo("discoverTop", anchor: .top)
+                    }
+                    .onChange(of: current.id) { _, _ in
+                        proxy.scrollTo("discoverTop", anchor: .top)
+                    }
                 }
 
                 nextBar
@@ -192,11 +206,15 @@ struct DiscoverFeedView: View {
 
         queue = page.candidates
         cursor = page.cursor
+        prefetchUpcomingPhotos()
+        scrollToTopToken += 1
     }
 
     private func advance() {
         guard !queue.isEmpty else { return }
         queue.removeFirst()
+        scrollToTopToken += 1
+        prefetchUpcomingPhotos()
         if queue.count <= 2 {
             Task { await loadMoreIfNeeded() }
         }
@@ -212,6 +230,15 @@ struct DiscoverFeedView: View {
         let fresh = page.candidates.filter { !existing.contains($0.id) }
         queue.append(contentsOf: fresh)
         self.cursor = page.cursor
+        prefetchUpcomingPhotos()
+    }
+
+    /// Warm the next profiles' photo URLs so Next feels snappier.
+    private func prefetchUpcomingPhotos() {
+        let urls = queue.prefix(3).flatMap { candidate in
+            candidate.photos.prefix(2).map(\.url)
+        }
+        ImagePrefetcher.prefetch(urlStrings: Array(urls))
     }
 
     private func distanceLabel(_ km: Double) -> String {
@@ -227,6 +254,9 @@ struct DiscoverFeedView: View {
 private struct DiscoverCandidateStack: View {
     let candidate: DiscoverCandidate
 
+    /// Hold name/bits until the primary photo is warm — avoids a confusing half-loaded card.
+    @State private var isPrimaryReady = false
+
     private var essentials: ProfileEssentialsCard.Model {
         ProfileEssentialsCard.Model(
             age: candidate.age,
@@ -237,19 +267,40 @@ private struct DiscoverCandidateStack: View {
 
     private var firstBit: DiscoverBit? { candidate.bits.first }
 
-    private var interleaved: [(photo: ProfilePhoto?, bit: DiscoverBit?)] {
-        let photos = Array(candidate.photos.dropFirst())
-        let bits = Array(candidate.bits.dropFirst())
-        let count = max(photos.count, bits.count)
-        return (0..<count).map { index in
-            (
-                photo: index < photos.count ? photos[index] : nil,
-                bit: index < bits.count ? bits[index] : nil
-            )
-        }
+    /// photo → photo → bit → photo → bit → photo → photo (after essentials).
+    private var tailBlocks: [(photo: ProfilePhoto?, bit: DiscoverBit?)] {
+        ProfileStackLayout.tailBlocks(
+            photos: Array(candidate.photos.dropFirst()),
+            bits: Array(candidate.bits.dropFirst())
+        )
     }
 
     var body: some View {
+        Group {
+            if isPrimaryReady {
+                profileContent
+            } else {
+                VStack(spacing: 16) {
+                    ProgressView()
+                    Text("Loading profile…")
+                        .font(NADATheme.captionFont)
+                        .foregroundStyle(NADATheme.secondaryInk)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 360)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .task(id: candidate.id) {
+            isPrimaryReady = false
+            await warmPrimaryPhoto()
+            // Prefetch the rest of this card in the background.
+            ImagePrefetcher.prefetch(urlStrings: candidate.photos.dropFirst().map(\.url))
+            isPrimaryReady = true
+        }
+    }
+
+    private var profileContent: some View {
         VStack(spacing: 14) {
             Text(candidate.displayName)
                 .font(NADATheme.displayFont)
@@ -268,11 +319,11 @@ private struct DiscoverCandidateStack: View {
 
             ProfileEssentialsCard(model: essentials)
 
-            if !candidate.buddyTypes.isEmpty, candidate.buddyTypes != [.openToAll] {
+            if !candidate.buddyTypes.isEmpty {
                 buddyTypesRow
             }
 
-            ForEach(Array(interleaved.enumerated()), id: \.offset) { _, pair in
+            ForEach(Array(tailBlocks.enumerated()), id: \.offset) { _, pair in
                 if let photo = pair.photo {
                     ProfilePreviewPhotoTile(urlString: photo.url)
                 }
@@ -281,7 +332,14 @@ private struct DiscoverCandidateStack: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    private func warmPrimaryPhoto() async {
+        guard let urlString = candidate.primaryPhotoURL ?? candidate.photos.first?.url,
+              let url = URL(string: urlString) else { return }
+        var request = URLRequest(url: url)
+        request.cachePolicy = .returnCacheDataElseLoad
+        _ = try? await URLSession.shared.data(for: request)
     }
 
     private var buddyTypesRow: some View {
@@ -304,7 +362,7 @@ private struct FlexibleChipWrap: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Looking for")
+            Text("Hangout type")
                 .font(NADATheme.captionFont)
                 .foregroundStyle(NADATheme.secondaryInk)
 

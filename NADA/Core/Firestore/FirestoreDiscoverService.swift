@@ -21,6 +21,9 @@ final class FirestoreDiscoverService {
         return Firestore.firestore()
     }
 
+    /// Caps how many Firestore batches one call may scan while filling a page.
+    private static let maxQueryBatches = 12
+
     /// Fetches the next Discover page for `viewer` using their discovery preferences.
     /// - Parameters:
     ///   - excludedUserIds: Already liked / skipped / blocked ids (empty until those APIs land).
@@ -38,62 +41,73 @@ final class FirestoreDiscoverService {
             return DiscoverFeedPage(candidates: [], cursor: nil)
         }
 
-        var query: Query = database.collection("users")
-            .whereField("isProfileComplete", isEqualTo: true)
-            .order(by: FieldPath.documentID())
-            .limit(to: Self.queryBatchSize)
-
-        if let cursor, !cursor.isEmpty {
-            let cursorDoc = try await database.collection("users").document(cursor).getDocument()
-            if cursorDoc.exists {
-                query = query.start(afterDocument: cursorDoc)
-            }
-        }
-
-        let snapshot = try await query.getDocuments()
-
         let promptById = Dictionary(
             uniqueKeysWithValues: (try await promptService.fetchActivePrompts()).map { ($0.id, $0) }
         )
 
         var matched: [DiscoverCandidate] = []
         matched.reserveCapacity(pageSize)
-        var lastExaminedId: String?
+        var lastExaminedId: String? = cursor
+        var exhausted = false
+        var batches = 0
 
-        for document in snapshot.documents {
-            if matched.count >= pageSize { break }
-            lastExaminedId = document.documentID
+        // Keep scanning batches until the page is full — city/gender filters are client-side,
+        // so the first 40 complete users worldwide may not include same-city matches.
+        while matched.count < pageSize, !exhausted, batches < Self.maxQueryBatches {
+            batches += 1
 
-            let userId = document.documentID
-            if userId == viewer.id { continue }
-            if excludedUserIds.contains(userId) { continue }
+            var query: Query = database.collection("users")
+                .whereField("isProfileComplete", isEqualTo: true)
+                .order(by: FieldPath.documentID())
+                .limit(to: Self.queryBatchSize)
 
-            let data = document.data()
-            guard let candidate = try await assembleCandidate(
-                userId: userId,
-                data: data,
-                viewer: viewer,
-                preferences: preferences,
-                promptById: promptById
-            ) else {
-                continue
+            if let lastExaminedId, !lastExaminedId.isEmpty {
+                let cursorDoc = try await database.collection("users").document(lastExaminedId).getDocument()
+                if cursorDoc.exists {
+                    query = query.start(afterDocument: cursorDoc)
+                }
             }
-            matched.append(candidate)
+
+            let snapshot = try await query.getDocuments()
+            if snapshot.documents.isEmpty {
+                exhausted = true
+                break
+            }
+
+            for document in snapshot.documents {
+                if matched.count >= pageSize { break }
+                lastExaminedId = document.documentID
+
+                let userId = document.documentID
+                if userId == viewer.id { continue }
+                if excludedUserIds.contains(userId) { continue }
+
+                let data = document.data()
+                guard let candidate = try await assembleCandidate(
+                    userId: userId,
+                    data: data,
+                    viewer: viewer,
+                    preferences: preferences,
+                    promptById: promptById
+                ) else {
+                    continue
+                }
+                matched.append(candidate)
+            }
+
+            if snapshot.documents.count < Self.queryBatchSize {
+                exhausted = true
+            }
         }
 
         matched.sort(by: Self.rank)
 
-        let exhausted = snapshot.documents.count < Self.queryBatchSize
         let pageCursor: String?
-        if lastExaminedId == nil {
-            pageCursor = nil
-        } else if matched.count >= pageSize {
-            // Stopped early — resume after the last examined doc.
-            pageCursor = lastExaminedId
-        } else if exhausted {
+        if lastExaminedId == nil || lastExaminedId == cursor {
+            pageCursor = exhausted ? nil : lastExaminedId
+        } else if exhausted, matched.count < pageSize {
             pageCursor = nil
         } else {
-            // Batch full but few matches — keep scanning.
             pageCursor = lastExaminedId
         }
 
@@ -160,6 +174,7 @@ final class FirestoreDiscoverService {
             )
         }.sorted { $0.sortOrder < $1.sortOrder }
 
+        // Display-only on the card — never filter the feed by hangout type.
         let prefs = try? await preferencesService.fetchPreferences(userId: userId)
         let buddyTypes = prefs?.buddyTypes ?? [.openToAll]
 
@@ -265,17 +280,37 @@ final class FirestoreDiscoverService {
         candidateCity: String?,
         distanceKm: Double?
     ) -> Bool {
+        let viewerCity = Self.normalizedCity(preferences.trimmedCity ?? viewer.city)
+        let otherCity = Self.normalizedCity(candidateCity)
+
+        // Same city always matches — don't let coarse GPS / radius hide neighbors.
+        if !viewerCity.isEmpty, !otherCity.isEmpty, viewerCity == otherCity {
+            return true
+        }
+
+        // Different (or missing) city labels: allow if within discover radius.
         if let distanceKm {
             return distanceKm <= Double(preferences.resolvedRadiusKm)
         }
 
-        // No coarse coords — fall back to case-insensitive city match.
-        let viewerCity = (preferences.trimmedCity ?? viewer.city)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased() ?? ""
-        let otherCity = candidateCity?.lowercased() ?? ""
-        guard !viewerCity.isEmpty, !otherCity.isEmpty else { return false }
-        return viewerCity == otherCity
+        return false
+    }
+
+    /// Folds Turkish İ/I/ı and trims so "Istanbul" / "İstanbul" / " istanbul " match.
+    static func normalizedCity(_ raw: String?) -> String {
+        guard let raw else { return "" }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        let turkish = Locale(identifier: "tr_TR")
+        return trimmed
+            .lowercased(with: turkish)
+            .replacingOccurrences(of: "ı", with: "i")
+            .replacingOccurrences(of: "ğ", with: "g")
+            .replacingOccurrences(of: "ü", with: "u")
+            .replacingOccurrences(of: "ş", with: "s")
+            .replacingOccurrences(of: "ö", with: "o")
+            .replacingOccurrences(of: "ç", with: "c")
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "en_US_POSIX"))
     }
 
     private static func rank(_ lhs: DiscoverCandidate, _ rhs: DiscoverCandidate) -> Bool {

@@ -91,6 +91,7 @@ struct ProfilePreferencesForm: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             peopleCard
+            hangoutTypeCard
             placeCard
         }
         .sheet(item: $pickerRoute) { route in
@@ -111,7 +112,7 @@ struct ProfilePreferencesForm: View {
             case .buddyTypes:
                 PreferenceOptionPicker(
                     title: "Hangout type",
-                    subtitle: "Pick as many as you like — “Open to all” clears the rest.",
+                    subtitle: "Shown on your Discover card so others know what you’re up for — this doesn’t filter who you see.",
                     options: UserPreferences.BuddyType.allCases,
                     label: \.title,
                     selection: $selectedBuddyTypes,
@@ -143,16 +144,6 @@ struct ProfilePreferencesForm: View {
 
             cardDivider
 
-            comboRow(
-                icon: "sparkles",
-                title: "Hangout type",
-                value: buddyTypesSummary
-            ) {
-                pickerRoute = .buddyTypes
-            }
-
-            cardDivider
-
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Label("Age range", systemImage: "calendar")
@@ -173,6 +164,27 @@ struct ProfilePreferencesForm: View {
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 16)
+        }
+    }
+
+    /// Display-only on Discover cards — not used to filter the feed.
+    private var hangoutTypeCard: some View {
+        preferenceCard(title: "On your profile") {
+            VStack(alignment: .leading, spacing: 0) {
+                comboRow(
+                    icon: "sparkles",
+                    title: "Hangout type",
+                    value: buddyTypesSummary
+                ) {
+                    pickerRoute = .buddyTypes
+                }
+
+                Text("Friends see this on your card. It doesn’t change who appears in Discover.")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 16)
+            }
         }
     }
 
@@ -659,8 +671,8 @@ private struct PreferenceOptionPicker<Option: Identifiable & Hashable>: View {
     }
 }
 
-/// How friends will see you — Hinge-inspired stack:
-/// name → primary photo → first Bit → essentials → remaining photos interleaved with Bits.
+/// How friends will see you — same stack as Discover:
+/// name → photo → bit → essentials → photo → photo → bit → photo → bit → photo → photo.
 struct ProfilePreviewSheet: View {
     @Environment(AuthManager.self) private var auth
 
@@ -698,31 +710,23 @@ struct ProfilePreviewSheet: View {
         )
     }
 
-    /// After name / primary / first Bit / essentials: photo → bit → photo → bit → …
+    /// After name / primary / first Bit / essentials:
+    /// photo → photo → bit → photo → bit → photo → photo (matches Discover).
     private var interleavedBlocks: [ProfilePreviewBlock] {
         let remainingPhotos = Array(photos.dropFirst())
         let remainingBits = Array(sortedAnswers.dropFirst())
-        var blocks: [ProfilePreviewBlock] = []
-        var photoIndex = 0
-        var bitIndex = 0
-
-        while photoIndex < remainingPhotos.count || bitIndex < remainingBits.count {
-            if photoIndex < remainingPhotos.count {
-                blocks.append(.photo(remainingPhotos[photoIndex]))
-                photoIndex += 1
+        return ProfileStackLayout.tailBlocks(photos: remainingPhotos, bits: remainingBits).compactMap { pair in
+            if let photo = pair.photo {
+                return .photo(photo)
             }
-            if bitIndex < remainingBits.count {
-                let answer = remainingBits[bitIndex]
-                blocks.append(
-                    .bit(
-                        prompt: promptById[answer.promptId]?.text ?? "Bit",
-                        answer: answer.answerText
-                    )
+            if let answer = pair.bit {
+                return .bit(
+                    prompt: promptById[answer.promptId]?.text ?? "Bit",
+                    answer: answer.answerText
                 )
-                bitIndex += 1
             }
+            return nil
         }
-        return blocks
     }
 
     var body: some View {
@@ -774,7 +778,7 @@ struct ProfilePreviewSheet: View {
         // 4. Essentials (“about”) card
         ProfileEssentialsCard(model: essentialsModel)
 
-        // 5. Remaining photos interleaved with remaining Bits
+        // 5. Tail: photo, photo, bit, photo, bit, photo, photo
         if interleavedBlocks.isEmpty, firstBit == nil, photos.count <= 1 {
             Text("Add more photos and Bits — they’ll show up here like on Discover.")
                 .font(NADATheme.captionFont)

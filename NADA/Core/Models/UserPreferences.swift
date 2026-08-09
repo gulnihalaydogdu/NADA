@@ -12,7 +12,8 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
     var lookingForGenders: LookingForGender
     var minAge: Int
     var maxAge: Int
-    /// Hangout / friendship styles (multi-select; `openToAll` is exclusive).
+    /// Hangout styles shown on your Discover card (display-only; not a feed filter).
+    /// Multi-select; `openToAll` is exclusive.
     var buddyTypes: [BuddyType]
     var updatedAt: Date?
 

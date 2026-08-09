@@ -24,15 +24,17 @@ Never included: email, full `dateOfBirth` (age only), precise GPS.
 
 ## Query + filters
 
-1. Firestore: `users` where `isProfileComplete == true`, ordered by document id, batch 40.
+1. Firestore: `users` where `isProfileComplete == true`, ordered by document id, batch 40 —
+   **keep scanning batches** (up to 12) until `pageSize` matches or the collection is exhausted.
 2. Skip self + `excludedUserIds` (likes / skips / blocks — empty until W3-02–04).
 3. Match viewer `preferences`:
    - `lookingForGenders` ↔ candidate `gender`
    - `minAge`…`maxAge` ↔ derived age
-   - Location: Haversine ≤ `radiusKm` when both have coarse coords; else same city string
-4. Hydrate photos (subcollection, else legacy `photoURL`), Bits (`promptAnswers` + catalog), buddyTypes (`preferences`).
+   - Location: **same normalized city always matches** (İstanbul/Istanbul folded); else Haversine ≤ `radiusKm`
+4. Hydrate photos (subcollection, else legacy `photoURL`), Bits (`promptAnswers` + catalog),
+   buddyTypes from `preferences` (**display only** — never used to filter the feed).
 5. Rank: nearer first, then display name.
-6. Return up to `pageSize` (default 10) + cursor = last doc id of the Firestore batch (nil if batch short).
+6. Return up to `pageSize` (default 10) + cursor = last examined doc id.
 
 ---
 
