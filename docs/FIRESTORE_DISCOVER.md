@@ -26,7 +26,7 @@ Never included: email, full `dateOfBirth` (age only), precise GPS.
 
 1. Firestore: `users` where `isProfileComplete == true`, ordered by document id, batch 40 —
    **keep scanning batches** (up to 12) until `pageSize` matches or the collection is exhausted.
-2. Skip self + `excludedUserIds` (likes / skips / blocks — empty until W3-02–04).
+2. Skip self + liked / skipped user ids (`excludedUserIds`; blocks later).
 3. Match viewer `preferences`:
    - `lookingForGenders` ↔ candidate `gender`
    - `minAge`…`maxAge` ↔ derived age
@@ -35,6 +35,8 @@ Never included: email, full `dateOfBirth` (age only), precise GPS.
    buddyTypes from `preferences` (**display only** — never used to filter the feed).
 5. Rank: nearer first, then display name.
 6. Return up to `pageSize` (default 10) + cursor = last examined doc id.
+
+See also: [`FIRESTORE_LIKES.md`](FIRESTORE_LIKES.md), [`FIRESTORE_SKIPS.md`](FIRESTORE_SKIPS.md).
 
 ---
 

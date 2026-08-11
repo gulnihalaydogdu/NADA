@@ -815,20 +815,11 @@ struct ProfilePreviewPhotoTile: View {
 
     var body: some View {
         Group {
-            if let urlString, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .empty:
-                        ZStack {
-                            NADATheme.brandSoft
-                            ProgressView()
-                        }
-                    default:
-                        placeholder
+            if let urlString, !urlString.isEmpty {
+                CachedRemoteImage(urlString: urlString) {
+                    ZStack {
+                        NADATheme.brandSoft
+                        ProgressView()
                     }
                 }
             } else {

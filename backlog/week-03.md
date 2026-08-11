@@ -15,28 +15,36 @@
 ## Backend (Dev B)
 
 ### W3-01 — Discovery feed API
-- **P0 · 2d** — Return candidate profiles by city/radius, excluding self, blocked, already-seen.
+- **P0 · 2d** — Return candidate profiles by city/radius, excluding self + already liked/skipped.
 - [x] Filter by location + `isProfileComplete`
-- [ ] Exclude already-liked/skipped and blocked users
-- [x] Simple ranking: distance + recent activity
+- [x] Exclude already-liked / skipped users *(blocked → Week 5; already-seen → W3-04)*
+- [x] Simple ranking: nearer first (name tie-break)
 - [x] Pagination / batching
 
-**Ship notes (in progress):** `DiscoverCandidate` + `DiscoverFeedPage`; `FirestoreDiscoverService.fetchCandidates`
+**Ship notes:** **Done.** `DiscoverCandidate` + `DiscoverFeedPage`; `FirestoreDiscoverService.fetchCandidates`
 filters complete profiles by viewer prefs (gender / age / city or Haversine radius), hydrates photos +
-Bits + buddyTypes, ranks by distance. `excludedUserIds` stub for likes/skips/blocks (W3-02–04).
-Rules: signed-in read of complete `users`, photos, `promptAnswers`, `preferences` — **publish**
-`firebase/firestore.rules`. Doc: [`docs/FIRESTORE_DISCOVER.md`](../docs/FIRESTORE_DISCOVER.md).
+Bits + buddyTypes, ranks by distance. `fetchDiscoverPage` unions liked + skipped ids into
+`excludedUserIds` (`extraExcludedUserIds` ready for blocks later). Rules: signed-in read of complete
+`users`, photos, `promptAnswers`, `preferences` — **publish** `firebase/firestore.rules`. Doc:
+[`docs/FIRESTORE_DISCOVER.md`](../docs/FIRESTORE_DISCOVER.md).
 
 ### W3-02 — Like API (profile + prompt/photo, with comment)
 - **P0 · 1.5d** — Create like with targetType (profile/prompt/photo), targetId, optional comment.
-- [ ] Comment length validated
-- [ ] Prevent duplicate likes
-- [ ] Records for match check (Week 4)
+- [x] Comment length validated
+- [x] Prevent duplicate likes
+- [x] Records for match check (Week 4)
+
+**Ship notes:** Collection `likes/{from_to_type_target}`; max comment 200; duplicate doc id = no-op.
+`FirestoreLikeService` + `AuthManager.likeDiscoverTarget`. Doc: [`docs/FIRESTORE_LIKES.md`](../docs/FIRESTORE_LIKES.md).
 
 ### W3-03 — Skip + Undo API
 - **P0 · 1d** — Record skip; undo removes last skip so profile can resurface.
-- [ ] Skips excluded from feed
-- [ ] Undo restores previous candidate
+- [x] Skips excluded from feed
+- [x] Undo restores previous candidate
+
+**Ship notes:** Collection `skips/{from_to}`; `FirestoreSkipService` + undo by `toUserId`.
+Doc: [`docs/FIRESTORE_SKIPS.md`](../docs/FIRESTORE_SKIPS.md). May need composite index
+`fromUserId` + `createdAt` for “undo latest” helper.
 
 ### W3-04 — Seen/interaction tracking
 - **P1 · 0.5d** — Track shown profiles to avoid repeats; feed dedupe.
@@ -67,13 +75,19 @@ Also tighten like/skip card transitions when W3-07/08 land.
 
 ### W3-07 — Like interactions
 - **P0 · 1.5d** — Like whole profile; like a prompt/photo with optional comment.
-- [ ] Like glow animation (coral brand `#C17B6F`)
-- [ ] Comment sheet; sends via W3-02
+- [x] Like glow animation (coral brand `#C17B6F`)
+- [x] Comment sheet; sends via W3-02
+
+**Ship notes:** Discover action bar heart + Bit heart overlay → comment sheet → advances feed.
+Photo-target like UI can land with richer photo chrome later (API already supports `.photo`).
 
 ### W3-08 — Skip + undo
 - **P0 · 1d** — Skip (X) with animation; undo returns to previous profile.
-- [ ] Undo button; unlimited/generous cap
-- [ ] Matches W3-03
+- [x] Undo button; unlimited/generous cap
+- [x] Matches W3-03
+
+**Ship notes:** Skip / Undo buttons on Discover; last skipped card restored from memory after
+Firestore delete.
 
 ### W3-09 — Device token registration
 - **P1 · 0.5d** — Register APNs token after permission (already asked in onboarding).
@@ -100,9 +114,9 @@ Also tighten like/skip card transitions when W3-07/08 land.
 | Fri | W3-11 | W3-10 + W3-11 |
 
 ## Ship gate
-- [x] Nearby profiles load without repeats *(initial load verified 8 Aug; dedupe vs likes/skips still W3-02–04)*
-- [ ] Like (profile + prompt/photo + comment) works
-- [ ] Skip + undo works
+- [x] Nearby profiles load without repeats *(liked + skipped excluded; block later)*
+- [x] Like (profile + prompt/photo + comment) works *(photo UI optional; API ready)*
+- [x] Skip + undo works
 - [ ] Blocked/seen users excluded
 - [ ] APNs test push received
 

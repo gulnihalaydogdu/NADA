@@ -4,9 +4,9 @@ import Foundation
 
 /// Builds Discover feed pages from complete nearby profiles (W3-01).
 ///
-/// First pass: query `isProfileComplete`, filter by viewer prefs (gender / age / city+radius),
-/// exclude self + interaction ids, rank by distance then recency. Photos + Bits are hydrated
-/// per candidate. Like / skip / block exclusion is injected via `excludedUserIds` until W3-02–04.
+/// Queries `isProfileComplete`, filters by viewer prefs (gender / age / city+radius),
+/// excludes self + `excludedUserIds` (liked / skipped; blocks later), ranks by distance.
+/// Photos + Bits are hydrated per candidate.
 @MainActor
 final class FirestoreDiscoverService {
     static let defaultPageSize = 10
@@ -15,6 +15,9 @@ final class FirestoreDiscoverService {
 
     private let promptService = FirestorePromptService()
     private let preferencesService = FirestorePreferencesService()
+
+    /// Bits catalog rarely changes — fetch once per app session instead of per page.
+    private var promptCacheById: [String: Prompt]?
 
     private var database: Firestore? {
         guard FirebaseApp.app() != nil else { return nil }
@@ -26,7 +29,7 @@ final class FirestoreDiscoverService {
 
     /// Fetches the next Discover page for `viewer` using their discovery preferences.
     /// - Parameters:
-    ///   - excludedUserIds: Already liked / skipped / blocked ids (empty until those APIs land).
+    ///   - excludedUserIds: Already liked / skipped ids (blocks via same hook later).
     ///   - cursor: Opaque token from a previous `DiscoverFeedPage.cursor`.
     ///   - pageSize: Max candidates to return after filtering.
     func fetchCandidates(
@@ -41,9 +44,7 @@ final class FirestoreDiscoverService {
             return DiscoverFeedPage(candidates: [], cursor: nil)
         }
 
-        let promptById = Dictionary(
-            uniqueKeysWithValues: (try await promptService.fetchActivePrompts()).map { ($0.id, $0) }
-        )
+        let promptById = try await activePromptsById()
 
         var matched: [DiscoverCandidate] = []
         matched.reserveCapacity(pageSize)
@@ -74,26 +75,39 @@ final class FirestoreDiscoverService {
                 break
             }
 
+            var pending: [(userId: String, data: [String: Any])] = []
             for document in snapshot.documents {
-                if matched.count >= pageSize { break }
                 lastExaminedId = document.documentID
 
                 let userId = document.documentID
                 if userId == viewer.id { continue }
                 if excludedUserIds.contains(userId) { continue }
-
-                let data = document.data()
-                guard let candidate = try await assembleCandidate(
-                    userId: userId,
-                    data: data,
-                    viewer: viewer,
-                    preferences: preferences,
-                    promptById: promptById
-                ) else {
-                    continue
-                }
-                matched.append(candidate)
+                pending.append((userId, document.data()))
             }
+
+            // Hydrate the whole batch concurrently — per-candidate photos/Bits/prefs reads
+            // dominate page latency when done one at a time.
+            let assembled = try await withThrowingTaskGroup(
+                of: DiscoverCandidate?.self
+            ) { group in
+                for (userId, data) in pending {
+                    group.addTask { @MainActor in
+                        try await self.assembleCandidate(
+                            userId: userId,
+                            data: data,
+                            viewer: viewer,
+                            preferences: preferences,
+                            promptById: promptById
+                        )
+                    }
+                }
+                var results: [DiscoverCandidate] = []
+                for try await candidate in group {
+                    if let candidate { results.append(candidate) }
+                }
+                return results
+            }
+            matched.append(contentsOf: assembled)
 
             if snapshot.documents.count < Self.queryBatchSize {
                 exhausted = true
@@ -115,6 +129,14 @@ final class FirestoreDiscoverService {
     }
 
     // MARK: - Assemble + filter
+
+    private func activePromptsById() async throws -> [String: Prompt] {
+        if let promptCacheById { return promptCacheById }
+        let prompts = try await promptService.fetchActivePrompts()
+        let byId = Dictionary(uniqueKeysWithValues: prompts.map { ($0.id, $0) })
+        promptCacheById = byId
+        return byId
+    }
 
     private func assembleCandidate(
         userId: String,
@@ -157,13 +179,18 @@ final class FirestoreDiscoverService {
             return nil
         }
 
-        let photos = try await loadPhotos(
+        // The three per-candidate reads are independent — run them concurrently.
+        async let photosTask = loadPhotos(
             userId: userId,
             legacyPhotoURL: data["photoURL"] as? String
         )
+        async let answersTask = promptService.fetchAnswers(userId: userId)
+        async let prefsTask = preferencesService.fetchPreferences(userId: userId)
+
+        let photos = try await photosTask
         guard !photos.isEmpty else { return nil }
 
-        let answers = try await promptService.fetchAnswers(userId: userId)
+        let answers = try await answersTask
         let bits: [DiscoverBit] = answers.compactMap { answer in
             guard let prompt = promptById[answer.promptId] else { return nil }
             return DiscoverBit(
@@ -175,7 +202,7 @@ final class FirestoreDiscoverService {
         }.sorted { $0.sortOrder < $1.sortOrder }
 
         // Display-only on the card — never filter the feed by hangout type.
-        let prefs = try? await preferencesService.fetchPreferences(userId: userId)
+        let prefs = try? await prefsTask
         let buddyTypes = prefs?.buddyTypes ?? [.openToAll]
 
         return DiscoverCandidate(

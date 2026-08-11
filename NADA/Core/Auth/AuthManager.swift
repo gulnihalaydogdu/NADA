@@ -24,6 +24,8 @@ final class AuthManager {
     private let photoService: FirestorePhotoService
     private let promptService: FirestorePromptService
     private let discoverService: FirestoreDiscoverService
+    private let likeService: FirestoreLikeService
+    private let skipService: FirestoreSkipService
     private var authStateHandle: AuthStateHandle?
 
     init() {
@@ -34,6 +36,8 @@ final class AuthManager {
         self.photoService = FirestorePhotoService(storageService: storageService)
         self.promptService = FirestorePromptService()
         self.discoverService = FirestoreDiscoverService()
+        self.likeService = FirestoreLikeService()
+        self.skipService = FirestoreSkipService()
     }
 
     var hasCompletedFriendsIntent: Bool {
@@ -250,9 +254,9 @@ final class AuthManager {
         }
     }
 
-    /// Nearby Discover page for the signed-in user (W3-01). Returns nil on failure.
+    /// Nearby Discover page for the signed-in user (W3-01). Auto-excludes liked + skipped.
     func fetchDiscoverPage(
-        excludedUserIds: Set<String> = [],
+        extraExcludedUserIds: Set<String> = [],
         cursor: String? = nil,
         pageSize: Int = FirestoreDiscoverService.defaultPageSize
     ) async -> DiscoverFeedPage? {
@@ -263,15 +267,80 @@ final class AuthManager {
             guard let user = self.currentUser else { return }
             let prefs = try await self.preferencesService.ensurePreferences(for: user)
             self.currentPreferences = prefs
+
+            async let liked = self.likeService.fetchLikedUserIds(fromUserId: user.id)
+            async let skipped = self.skipService.fetchSkippedUserIds(fromUserId: user.id)
+            let excluded = (try await liked)
+                .union(try await skipped)
+                .union(extraExcludedUserIds)
+
             page = try await self.discoverService.fetchCandidates(
                 viewer: user,
                 preferences: prefs,
-                excludedUserIds: excludedUserIds,
+                excludedUserIds: excluded,
                 cursor: cursor,
                 pageSize: pageSize
             )
         }
         return page
+    }
+
+    /// Like a profile, Bit, or photo (W3-02). Returns the like, or nil on failure.
+    @discardableResult
+    func likeDiscoverTarget(
+        toUserId: String,
+        targetType: DiscoverLike.TargetType,
+        targetId: String,
+        comment: String? = nil
+    ) async -> DiscoverLike? {
+        guard let fromUserId = currentUser?.id else { return nil }
+        var result: DiscoverLike?
+        await perform {
+            result = try await self.likeService.createLike(
+                fromUserId: fromUserId,
+                toUserId: toUserId,
+                targetType: targetType,
+                targetId: targetId,
+                comment: comment
+            )
+        }
+        return result
+    }
+
+    /// Skip a profile in Discover (W3-03).
+    @discardableResult
+    func skipDiscoverUser(_ toUserId: String) async -> DiscoverSkip? {
+        guard let fromUserId = currentUser?.id else { return nil }
+        var result: DiscoverSkip?
+        await perform {
+            result = try await self.skipService.createSkip(
+                fromUserId: fromUserId,
+                toUserId: toUserId
+            )
+        }
+        return result
+    }
+
+    /// Undo a specific skip so that profile can resurface (W3-03).
+    @discardableResult
+    func undoDiscoverSkip(toUserId: String) async -> Bool {
+        guard let fromUserId = currentUser?.id else { return false }
+        var ok = false
+        await perform {
+            try await self.skipService.deleteSkip(fromUserId: fromUserId, toUserId: toUserId)
+            ok = true
+        }
+        return ok
+    }
+
+    /// Undo the most recent skip by `createdAt` (fallback when no local card is held).
+    func undoLastDiscoverSkip() async -> String? {
+        guard let fromUserId = currentUser?.id else { return nil }
+        var restored: String?
+        await perform {
+            restored = try await self.skipService.undoLastSkip(fromUserId: fromUserId)
+        }
+        return restored
     }
 
     /// Marks the soft profile setup shell (Photos → Bits → Preferences) as done.

@@ -65,5 +65,72 @@ service cloud.firestore {
                     && validAnswerFields();
       allow delete: if isAnswerOwner();
     }
+
+    // Discover likes (W3-02). Sender writes; sender + recipient can read.
+    // `get` on a missing doc needs `resource == null` so createLike's existence check works.
+    match /likes/{likeId} {
+      function isLikeSender() {
+        return isSignedIn() && request.auth.uid == resource.data.fromUserId;
+      }
+
+      function isLikeSenderCreate() {
+        return isSignedIn()
+               && request.resource.data.fromUserId == request.auth.uid;
+      }
+
+      function isLikeRecipient() {
+        return isSignedIn() && request.auth.uid == resource.data.toUserId;
+      }
+
+      function validLikeFields() {
+        return request.resource.data.keys().hasAll([
+                 'fromUserId', 'toUserId', 'targetType', 'targetId', 'createdAt'
+               ])
+               && request.resource.data.fromUserId is string
+               && request.resource.data.toUserId is string
+               && request.resource.data.fromUserId != request.resource.data.toUserId
+               && request.resource.data.targetType in ['profile', 'prompt', 'photo']
+               && request.resource.data.targetId is string
+               && request.resource.data.targetId.size() > 0
+               && (!('comment' in request.resource.data)
+                   || (request.resource.data.comment is string
+                       && request.resource.data.comment.size() <= 200));
+      }
+
+      allow get: if isSignedIn()
+                 && (resource == null || isLikeSender() || isLikeRecipient());
+      allow list: if isLikeSender() || isLikeRecipient();
+      allow create: if isLikeSenderCreate() && validLikeFields();
+      allow update: if false;
+      allow delete: if isLikeSender();
+    }
+
+    // Discover skips (W3-03). Owner-only.
+    // Same missing-doc `get` allowance as likes (undo / duplicate check).
+    match /skips/{skipId} {
+      function isSkipOwner() {
+        return isSignedIn() && request.auth.uid == resource.data.fromUserId;
+      }
+
+      function isSkipOwnerCreate() {
+        return isSignedIn()
+               && request.resource.data.fromUserId == request.auth.uid;
+      }
+
+      function validSkipFields() {
+        return request.resource.data.keys().hasAll(['fromUserId', 'toUserId', 'createdAt'])
+               && request.resource.data.fromUserId is string
+               && request.resource.data.toUserId is string
+               && request.resource.data.fromUserId != request.resource.data.toUserId;
+      }
+
+      allow get: if isSignedIn() && (resource == null || isSkipOwner());
+      allow list: if isSkipOwner();
+      allow create: if isSkipOwnerCreate() && validSkipFields();
+      allow update: if isSkipOwner() && validSkipFields()
+                    && request.resource.data.fromUserId == resource.data.fromUserId
+                    && request.resource.data.toUserId == resource.data.toUserId;
+      allow delete: if isSkipOwner();
+    }
   }
 }

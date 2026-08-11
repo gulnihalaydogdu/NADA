@@ -7,11 +7,23 @@ struct DiscoverFeedView: View {
     @State private var queue: [DiscoverCandidate] = []
     @State private var cursor: String?
     @State private var isLoading = false
+    @State private var isActing = false
     @State private var hasLoadedOnce = false
     @State private var localError: String?
     @State private var scrollToTopToken = 0
+    /// Last skipped card kept in memory so Undo can restore without a full refetch.
+    @State private var lastSkipped: DiscoverCandidate?
+    @State private var likeDraft: LikeDraft?
 
     private var current: DiscoverCandidate? { queue.first }
+
+    private struct LikeDraft: Identifiable {
+        let id = UUID()
+        let toUserId: String
+        let targetType: DiscoverLike.TargetType
+        let targetId: String
+        let title: String
+    }
 
     var body: some View {
         ZStack {
@@ -84,7 +96,17 @@ struct DiscoverFeedView: View {
                             .frame(height: 0)
                             .id("discoverTop")
 
-                        DiscoverCandidateStack(candidate: current)
+                        DiscoverCandidateStack(
+                            candidate: current,
+                            onLikeBit: { bit in
+                                likeDraft = LikeDraft(
+                                    toUserId: current.id,
+                                    targetType: .prompt,
+                                    targetId: bit.id,
+                                    title: bit.promptText
+                                )
+                            }
+                        )
                             .id(current.id)
                             .padding(.horizontal, 20)
                             .padding(.bottom, 24)
@@ -97,12 +119,29 @@ struct DiscoverFeedView: View {
                     }
                 }
 
-                nextBar
+                actionBar
             } else if hasLoadedOnce {
                 emptyState
             } else {
                 Spacer()
             }
+        }
+        .sheet(item: $likeDraft) { draft in
+            DiscoverLikeCommentSheet(
+                title: draft.title,
+                isBusy: isActing
+            ) { comment in
+                Task {
+                    await sendLike(
+                        toUserId: draft.toUserId,
+                        targetType: draft.targetType,
+                        targetId: draft.targetId,
+                        comment: comment
+                    )
+                }
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -151,22 +190,55 @@ struct DiscoverFeedView: View {
         }
     }
 
-    private var nextBar: some View {
-        VStack(spacing: 10) {
-            Button {
-                advance()
-            } label: {
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                } else {
-                    Text("Next profile")
+    private var actionBar: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 16) {
+                Button {
+                    Task { await undoSkip() }
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(lastSkipped == nil || isActing ? NADATheme.secondaryInk : NADATheme.ink)
+                        .frame(width: 56, height: 56)
+                        .background(NADATheme.card, in: Circle())
+                        .overlay(Circle().strokeBorder(NADATheme.ink.opacity(0.08), lineWidth: 1))
                 }
-            }
-            .buttonStyle(NADAPrimaryButtonStyle())
-            .disabled(isLoading)
+                .disabled(lastSkipped == nil || isActing || isLoading)
+                .accessibilityLabel("Undo skip")
 
-            Text("Like & skip come next — for now, browse who’s nearby.")
+                Button {
+                    Task { await skipCurrent() }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(NADATheme.ink)
+                        .frame(width: 64, height: 64)
+                        .background(NADATheme.card, in: Circle())
+                        .overlay(Circle().strokeBorder(NADATheme.ink.opacity(0.08), lineWidth: 1))
+                }
+                .disabled(current == nil || isActing || isLoading)
+                .accessibilityLabel("Skip")
+
+                Button {
+                    guard let current else { return }
+                    likeDraft = LikeDraft(
+                        toUserId: current.id,
+                        targetType: .profile,
+                        targetId: current.id,
+                        title: current.displayName
+                    )
+                } label: {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(NADATheme.onBrand)
+                        .frame(width: 64, height: 64)
+                        .background(NADATheme.brand, in: Circle())
+                }
+                .disabled(current == nil || isActing || isLoading)
+                .accessibilityLabel("Like profile")
+            }
+
+            Text("Like a Bit on the card, or the whole profile. Skip to pass — Undo brings them back.")
                 .font(NADATheme.captionFont)
                 .foregroundStyle(NADATheme.secondaryInk)
                 .multilineTextAlignment(.center)
@@ -210,13 +282,70 @@ struct DiscoverFeedView: View {
         scrollToTopToken += 1
     }
 
-    private func advance() {
+    private func removeCurrentFromQueue() {
         guard !queue.isEmpty else { return }
         queue.removeFirst()
         scrollToTopToken += 1
         prefetchUpcomingPhotos()
         if queue.count <= 2 {
             Task { await loadMoreIfNeeded() }
+        }
+    }
+
+    private func skipCurrent() async {
+        guard let current, !isActing else { return }
+        isActing = true
+        localError = nil
+        defer { isActing = false }
+
+        if await auth.skipDiscoverUser(current.id) != nil {
+            lastSkipped = current
+            removeCurrentFromQueue()
+        } else if auth.errorMessage == nil {
+            localError = "Couldn't skip. Try again."
+        }
+    }
+
+    private func sendLike(
+        toUserId: String,
+        targetType: DiscoverLike.TargetType,
+        targetId: String,
+        comment: String?
+    ) async {
+        guard !isActing else { return }
+        isActing = true
+        localError = nil
+        defer { isActing = false }
+
+        if await auth.likeDiscoverTarget(
+            toUserId: toUserId,
+            targetType: targetType,
+            targetId: targetId,
+            comment: comment
+        ) != nil {
+            likeDraft = nil
+            if queue.first?.id == toUserId {
+                if lastSkipped?.id == toUserId { lastSkipped = nil }
+                removeCurrentFromQueue()
+            }
+        } else if auth.errorMessage == nil {
+            localError = "Couldn't send that like."
+        }
+    }
+
+    private func undoSkip() async {
+        guard let restored = lastSkipped, !isActing else { return }
+        isActing = true
+        localError = nil
+        defer { isActing = false }
+
+        if await auth.undoDiscoverSkip(toUserId: restored.id) {
+            queue.removeAll { $0.id == restored.id }
+            queue.insert(restored, at: 0)
+            lastSkipped = nil
+            scrollToTopToken += 1
+        } else if auth.errorMessage == nil {
+            localError = "Nothing to undo."
         }
     }
 
@@ -233,12 +362,18 @@ struct DiscoverFeedView: View {
         prefetchUpcomingPhotos()
     }
 
-    /// Warm the next profiles' photo URLs so Next feels snappier.
+    /// Warm upcoming cards so Skip/Like advances with zero loading.
+    /// Full photo sets for the next two cards + primaries a few cards ahead.
     private func prefetchUpcomingPhotos() {
-        let urls = queue.prefix(3).flatMap { candidate in
-            candidate.photos.prefix(2).map(\.url)
+        var urls: [String] = []
+        for candidate in queue.prefix(3) {
+            urls.append(contentsOf: candidate.photos.map(\.url))
         }
-        ImagePrefetcher.prefetch(urlStrings: Array(urls))
+        urls.append(contentsOf: queue.prefix(6).compactMap { candidate in
+            candidate.primaryPhotoURL ?? candidate.photos.first?.url
+        })
+        // ImageStore de-dupes repeats and in-flight downloads.
+        ImagePrefetcher.prefetch(urlStrings: urls)
     }
 
     private func distanceLabel(_ km: Double) -> String {
@@ -253,6 +388,7 @@ struct DiscoverFeedView: View {
 
 private struct DiscoverCandidateStack: View {
     let candidate: DiscoverCandidate
+    var onLikeBit: ((DiscoverBit) -> Void)?
 
     /// Hold name/bits until the primary photo is warm — avoids a confusing half-loaded card.
     @State private var isPrimaryReady = false
@@ -275,9 +411,19 @@ private struct DiscoverCandidateStack: View {
         )
     }
 
+    private var primaryPhotoURL: String? {
+        candidate.primaryPhotoURL ?? candidate.photos.first?.url
+    }
+
+    /// Cache hit → render the card synchronously, no gate.
+    private var primaryIsWarm: Bool {
+        guard let primaryPhotoURL else { return true }
+        return ImageStore.shared.cached(primaryPhotoURL) != nil
+    }
+
     var body: some View {
         Group {
-            if isPrimaryReady {
+            if isPrimaryReady || primaryIsWarm {
                 profileContent
             } else {
                 VStack(spacing: 16) {
@@ -292,11 +438,15 @@ private struct DiscoverCandidateStack: View {
         }
         .frame(maxWidth: .infinity)
         .task(id: candidate.id) {
-            isPrimaryReady = false
-            await warmPrimaryPhoto()
+            if !primaryIsWarm {
+                isPrimaryReady = false
+                if let primaryPhotoURL {
+                    await ImageStore.shared.load(primaryPhotoURL)
+                }
+            }
+            isPrimaryReady = true
             // Prefetch the rest of this card in the background.
             ImagePrefetcher.prefetch(urlStrings: candidate.photos.dropFirst().map(\.url))
-            isPrimaryReady = true
         }
     }
 
@@ -314,7 +464,7 @@ private struct DiscoverCandidateStack: View {
             }
 
             if let firstBit {
-                ProfilePreviewBitCard(prompt: firstBit.promptText, answer: firstBit.answerText)
+                bitCard(firstBit)
             }
 
             ProfileEssentialsCard(model: essentials)
@@ -328,18 +478,31 @@ private struct DiscoverCandidateStack: View {
                     ProfilePreviewPhotoTile(urlString: photo.url)
                 }
                 if let bit = pair.bit {
-                    ProfilePreviewBitCard(prompt: bit.promptText, answer: bit.answerText)
+                    bitCard(bit)
                 }
             }
         }
     }
 
-    private func warmPrimaryPhoto() async {
-        guard let urlString = candidate.primaryPhotoURL ?? candidate.photos.first?.url,
-              let url = URL(string: urlString) else { return }
-        var request = URLRequest(url: url)
-        request.cachePolicy = .returnCacheDataElseLoad
-        _ = try? await URLSession.shared.data(for: request)
+    private func bitCard(_ bit: DiscoverBit) -> some View {
+        ProfilePreviewBitCard(prompt: bit.promptText, answer: bit.answerText)
+            .overlay(alignment: .bottomTrailing) {
+                if onLikeBit != nil {
+                    Button {
+                        onLikeBit?(bit)
+                    } label: {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(NADATheme.brand)
+                            .padding(12)
+                            .background(NADATheme.card, in: Circle())
+                            .shadow(color: NADATheme.ink.opacity(0.08), radius: 4, y: 2)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(12)
+                    .accessibilityLabel("Like this Bit")
+                }
+            }
     }
 
     private var buddyTypesRow: some View {
@@ -425,6 +588,78 @@ private struct WrapHStack: Layout {
             subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
+/// Optional comment when liking a profile or Bit.
+private struct DiscoverLikeCommentSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let title: String
+    var isBusy = false
+    let onSend: (String?) -> Void
+
+    @State private var comment = ""
+
+    private var trimmed: String {
+        comment.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSend: Bool {
+        trimmed.count <= DiscoverLike.maxCommentLength && !isBusy
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(title)
+                    .font(NADATheme.headlineFont)
+                    .foregroundStyle(NADATheme.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text("Add a short note (optional) — hangout vibes only.")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+
+                TextField("Say why you’re down to hang…", text: $comment, axis: .vertical)
+                    .lineLimit(3...5)
+                    .padding(14)
+                    .background(NADATheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                Text("\(trimmed.count)/\(DiscoverLike.maxCommentLength)")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(
+                        trimmed.count > DiscoverLike.maxCommentLength
+                            ? NADATheme.danger
+                            : NADATheme.secondaryInk
+                    )
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+
+                Button {
+                    onSend(trimmed.isEmpty ? nil : trimmed)
+                } label: {
+                    if isBusy {
+                        ProgressView().frame(maxWidth: .infinity)
+                    } else {
+                        Text("Send like")
+                    }
+                }
+                .buttonStyle(NADAPrimaryButtonStyle())
+                .disabled(!canSend)
+
+                Button("Cancel") { dismiss() }
+                    .font(NADATheme.headlineFont)
+                    .foregroundStyle(NADATheme.brandPressed)
+                    .frame(maxWidth: .infinity)
+                    .disabled(isBusy)
+
+                Spacer(minLength: 0)
+            }
+            .padding(24)
+            .background(NADATheme.paper.ignoresSafeArea())
+            .navigationTitle("Like")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
