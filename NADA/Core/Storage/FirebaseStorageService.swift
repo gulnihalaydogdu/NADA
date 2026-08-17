@@ -30,22 +30,15 @@ final class FirebaseStorageService {
     }
 
     /// Encodes a display + thumbnail pair (WebP when possible) and uploads both.
+    /// Encoding runs off the main thread so the crop sheet stays responsive.
     func uploadPhoto(userId: String, photoId: String, image: UIImage) async throws -> StoredPhotoURLs {
         guard let storage else { throw AuthError.notConfigured }
 
-        guard let display = ImageIOCodec.encode(
-            image,
-            maxPixelSize: ImageIOCodec.displayMaxPixelSize,
-            quality: ImageIOCodec.displayQuality
-        ) else {
+        guard let variants = await ImageProcessing.encodeVariants(image: image) else {
             throw AuthError.unknown("Couldn't prepare the photo for upload.")
         }
-
-        let thumbnail = ImageIOCodec.encode(
-            image,
-            maxPixelSize: ImageIOCodec.thumbnailMaxPixelSize,
-            quality: ImageIOCodec.thumbnailQuality
-        ) ?? display
+        let display = variants.display
+        let thumbnail = variants.thumbnail
 
         let displayURL = try await put(
             data: display.data,

@@ -37,9 +37,12 @@ final class RemoteImageCache: @unchecked Sendable {
         memory.setObject(image, forKey: key as NSString, cost: max(cost, 1))
     }
 
-    func diskData(urlString: String) -> Data? {
+    /// Path of the cached bytes, or nil when they are not on disk yet.
+    /// Reading / decoding happens off the main thread in `ImageProcessing`.
+    func diskFileURL(for urlString: String) -> URL? {
         let url = diskURL(for: urlString)
-        return try? Data(contentsOf: url)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
     }
 
     func storeDisk(_ data: Data, urlString: String) {

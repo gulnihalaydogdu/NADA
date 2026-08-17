@@ -17,6 +17,7 @@ struct ProfilePhotoCropView: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
     @State private var cropSize: CGSize = CGSize(width: 280, height: 280)
+    @State private var isRendering = false
 
     private let normalized: UIImage
 
@@ -90,12 +91,19 @@ struct ProfilePhotoCropView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
-                        if let cropped = renderCrop() {
-                            onCrop(cropped)
+                        guard !isRendering else { return }
+                        isRendering = true
+                        Task {
+                            let cropped = await renderCropOffMain()
+                            isRendering = false
+                            if let cropped {
+                                onCrop(cropped)
+                            }
                         }
                     }
                     .fontWeight(.semibold)
                     .foregroundStyle(NADATheme.brandPressed)
+                    .disabled(isRendering)
                 }
             }
             .toolbarBackground(NADATheme.paper, for: .navigationBar)
@@ -258,39 +266,47 @@ struct ProfilePhotoCropView: View {
         clampOffset(cropSize: cropSize)
     }
 
-    private func renderCrop() -> UIImage? {
-        let image = normalized
-        let imageSize = image.size
+    /// Exports the framed crop without blocking the main thread on the 1200px draw.
+    private func renderCropOffMain() async -> UIImage? {
+        let imageSize = normalized.size
         guard imageSize.width > 0, imageSize.height > 0,
               cropSize.width > 0, cropSize.height > 0 else { return nil }
 
-        let fillScale = max(cropSize.width / imageSize.width, cropSize.height / imageSize.height)
-        let effectiveScale = fillScale * scale
-        let drawnWidth = imageSize.width * effectiveScale
-        let drawnHeight = imageSize.height * effectiveScale
-        let imageOrigin = CGPoint(
-            x: (cropSize.width - drawnWidth) / 2 + offset.width,
-            y: (cropSize.height - drawnHeight) / 2 + offset.height
-        )
+        let box = UncheckedBox(normalized)
+        let cropSize = cropSize
+        let offset = offset
+        let scale = scale
+        let aspect = aspectWidthOverHeight
 
-        let outputHeight: CGFloat = 1200
-        let outputWidth = outputHeight * aspectWidthOverHeight
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        let renderer = UIGraphicsImageRenderer(
-            size: CGSize(width: outputWidth, height: outputHeight),
-            format: format
-        )
-        let scaleX = outputWidth / cropSize.width
-        let scaleY = outputHeight / cropSize.height
+        return await ImageProcessing.render {
+            let fillScale = max(cropSize.width / imageSize.width, cropSize.height / imageSize.height)
+            let effectiveScale = fillScale * scale
+            let drawnWidth = imageSize.width * effectiveScale
+            let drawnHeight = imageSize.height * effectiveScale
+            let imageOrigin = CGPoint(
+                x: (cropSize.width - drawnWidth) / 2 + offset.width,
+                y: (cropSize.height - drawnHeight) / 2 + offset.height
+            )
 
-        return renderer.image { _ in
-            image.draw(in: CGRect(
-                x: imageOrigin.x * scaleX,
-                y: imageOrigin.y * scaleY,
-                width: drawnWidth * scaleX,
-                height: drawnHeight * scaleY
-            ))
+            let outputHeight: CGFloat = 1200
+            let outputWidth = outputHeight * aspect
+            let format = UIGraphicsImageRendererFormat.default()
+            format.scale = 1
+            let renderer = UIGraphicsImageRenderer(
+                size: CGSize(width: outputWidth, height: outputHeight),
+                format: format
+            )
+            let scaleX = outputWidth / cropSize.width
+            let scaleY = outputHeight / cropSize.height
+
+            return renderer.image { _ in
+                box.value.draw(in: CGRect(
+                    x: imageOrigin.x * scaleX,
+                    y: imageOrigin.y * scaleY,
+                    width: drawnWidth * scaleX,
+                    height: drawnHeight * scaleY
+                ))
+            }
         }
     }
 }

@@ -88,7 +88,8 @@ Discover/profile card fields — implement later (do not treat as shipped):
 | `createdAt` | timestamp | Server timestamp on create |
 
 Storage objects: `users/{uid}/photos/{photoId}.{jpg\|webp}` and `{photoId}_thumb.{jpg\|webp}` with `Cache-Control: public, max-age=31536000, immutable`.  
-Client decodes at display size (ImageIO thumbnail) and keeps a bounded memory + disk cache.
+Client decodes at display size (ImageIO thumbnail) off the main thread, max 3 decodes at once, and keeps a bounded memory + disk cache (`NADA/Core/Images`).  
+Full-size tiles paint the thumbnail first, then swap in the display file — no spinner, no blank space.
 
 **Max 6** enforced in `FirestorePhotoService` before upload.  
 **Lazy migration:** if the subcollection is empty but `users/{uid}.photoURL` is set, the first `fetchPhotos` creates `legacy-primary` without re-uploading.

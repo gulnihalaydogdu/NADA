@@ -193,7 +193,7 @@ struct BitsAnswersWorkspace: View {
     @State private var draggingAnswerId: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        LazyVStack(alignment: .leading, spacing: 16) {
             Text("\(answers.count) of \(PromptAnswer.maxCount) answered")
                 .font(NADATheme.captionFont)
                 .foregroundStyle(NADATheme.secondaryInk)
@@ -629,7 +629,7 @@ struct BitCatalogPickerSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 16) {
                     Text("Pick a Bit question")
                         .font(NADATheme.bodyFont)
                         .foregroundStyle(NADATheme.warmSecondaryInk)

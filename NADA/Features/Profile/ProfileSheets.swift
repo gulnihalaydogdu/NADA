@@ -760,9 +760,15 @@ struct ProfilePreviewSheet: View {
 
         // 2. Primary photo
         if let primary = photos.first {
-            ProfilePreviewPhotoTile(urlString: primary.url)
+            ProfilePreviewPhotoTile(
+                urlString: primary.url,
+                thumbnailURLString: primary.thumbnailURL
+            )
         } else if let url = auth.currentUser?.photoURL, !url.isEmpty {
-            ProfilePreviewPhotoTile(urlString: url)
+            ProfilePreviewPhotoTile(
+                urlString: url,
+                thumbnailURLString: auth.currentUser?.photoThumbnailURL
+            )
         } else {
             ProfilePreviewPhotoTile(urlString: nil)
         }
@@ -786,7 +792,10 @@ struct ProfilePreviewSheet: View {
             ForEach(Array(interleavedBlocks.enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .photo(let photo):
-                    ProfilePreviewPhotoTile(urlString: photo.url)
+                    ProfilePreviewPhotoTile(
+                        urlString: photo.url,
+                        thumbnailURLString: photo.thumbnailURL
+                    )
                 case .bit(let prompt, let answer):
                     ProfilePreviewBitCard(prompt: prompt, answer: answer)
                 }
@@ -798,10 +807,11 @@ struct ProfilePreviewSheet: View {
         isLoadingPhotos = true
         defer { isLoadingPhotos = false }
         photos = await auth.fetchPhotos()
-        let displaySize = min(UIScreen.main.bounds.width - 48, 430)
+        // Only the next couple of photos — the rest load as they scroll into view.
         RemoteImageLoader.shared.prefetch(
-            urlStrings: Array(photos.prefix(2).map(\.url)),
-            targetPointSize: displaySize
+            urlStrings: photos.dropFirst().prefix(2).map(\.url),
+            targetPointSize: 430,
+            limit: 2
         )
     }
 }
@@ -814,16 +824,18 @@ private enum ProfilePreviewBlock {
 /// Full-width square photo tile (Discover / Preview).
 struct ProfilePreviewPhotoTile: View {
     let urlString: String?
+    /// Small file shown while the full-size decode finishes.
+    var thumbnailURLString: String? = nil
 
-    private var targetPointSize: CGFloat {
-        min(UIScreen.main.bounds.width - 48, 430)
-    }
+    /// Full-bleed inside the sheet — one iPad-safe cap keeps this off `UIScreen`.
+    private let targetPointSize: CGFloat = 430
 
     var body: some View {
         Group {
             if urlString?.isEmpty == false {
                 RemoteImageView(
                     urlString: urlString,
+                    thumbnailURLString: thumbnailURLString,
                     targetPointSize: targetPointSize
                 )
             } else {
