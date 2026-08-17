@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "seed:prompts": "node scripts/seed-prompts.mjs"
+    "seed:prompts": "node scripts/seed-prompts.mjs",
+    "seed:interests": "node scripts/seed-interests.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.4.0"

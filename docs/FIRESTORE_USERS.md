@@ -28,6 +28,7 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
 | `photoThumbnailURL` | string | no | Denormalized primary thumbnail for avatars (Week 3 image pipeline) |
 | `profileWizardCompleted` | boolean | yes | `false` until Photos → Bits → Preferences shell finishes or is skipped (W1-12) |
 | `isProfileComplete` | boolean | yes | Discover gate (W2-06): photos≥1, bits≥3, gender, city. Recomputed client-side on hydrate / profile edits |
+| `interestIds` | array&lt;string&gt; | no | Catalog ids from `interests/{id}`; max **8**. Optional; does not affect `isProfileComplete`. See [`FIRESTORE_INTERESTS.md`](FIRESTORE_INTERESTS.md) |
 
 † Created empty on sign-up; **Basic Profile** gate requires them before the profile wizard / tabs.
 
@@ -53,7 +54,7 @@ Discover/profile card fields — implement later (do not treat as shipped):
 1. **Sign up / sign in** → `FirestoreUserService.ensureUserDocument` creates doc if missing.
 2. **Friends intent** → `setFriendsIntentCompleted` sets `friendsIntentCompleted: true`, reaffirms `intent`.
 3. **Profile basics (required)** → `updateProfile` sets `displayName`, `gender`, `city`, `dateOfBirth` (18+).
-4. **Profile wizard shell (skippable)** → Photos → Bits → Preferences (`radiusKm` saved on Finish) → `profileWizardCompleted: true`.
+4. **Profile wizard shell (skippable)** → Photos → Bits → Interests → Preferences (`radiusKm` saved on Finish) → `profileWizardCompleted: true`.
 5. **Location sheet** → `updateLocation` sets `city`, `radiusKm`, optional coarse lat/lng; mirrors discovery fields onto [`preferences/{uid}`](FIRESTORE_PREFERENCES.md) (W2-05).
 6. **Profile photos (W2-01)** → up to 6 ordered docs under `photos`; primary mirrored on `photoURL`.
 7. **Profile edit** → basics updated later from Profile → Edit profile.

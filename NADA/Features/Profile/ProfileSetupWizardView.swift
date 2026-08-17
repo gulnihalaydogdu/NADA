@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Soft multi-step shell after basics: Photos → Bits → Preferences.
+/// Soft multi-step shell after basics: Photos → Bits → Interests → Preferences.
 /// Bits require 3 answers before Continue (W2-08); Preferences saves city radius (W2-10).
 struct ProfileSetupWizardView: View {
     @Environment(AuthManager.self) private var auth
@@ -17,24 +17,30 @@ struct ProfileSetupWizardView: View {
     @State private var lookingFor: UserPreferences.LookingForGender = .everyone
     @State private var minAge: Double = Double(UserPreferences.defaultMinAge)
     @State private var maxAge: Double = Double(UserPreferences.defaultMaxAge)
-    @State private var selectedBuddyTypes: Set<UserPreferences.BuddyType> = [.openToAll]
     @State private var approxLatitude: Double?
     @State private var approxLongitude: Double?
     @State private var localError: String?
     @State private var photoCount = 0
     @State private var photosNeedReplacement = false
+    @State private var catalogInterests: [Interest] = []
+    @State private var selectedInterestIds: [String] = []
+    @State private var isLoadingInterests = false
+    @State private var interestsLoadError: String?
 
     private let promptService = FirestorePromptService()
+    private let interestService = FirestoreInterestService()
 
     private enum Step: Int, CaseIterable {
         case photos = 0
         case bits = 1
-        case preferences = 2
+        case interests = 2
+        case preferences = 3
 
         var title: String {
             switch self {
             case .photos: return "Photos"
             case .bits: return "Bits"
+            case .interests: return "Interests"
             case .preferences: return "Preferences"
             }
         }
@@ -43,6 +49,7 @@ struct ProfileSetupWizardView: View {
             switch self {
             case .photos: return "Add your photos"
             case .bits: return "Answer 3 Bits"
+            case .interests: return "Add interest badges"
             case .preferences: return "Hangout preferences"
             }
         }
@@ -53,6 +60,8 @@ struct ProfileSetupWizardView: View {
                 return "Add \(ProfilePhoto.maxCount) photos. The first one is your main profile photo — drag to reorder, or tap ✕ to swap one out."
             case .bits:
                 return "Pick three questions and write short answers friends will see on your profile."
+            case .interests:
+                return "Pick up to \(InterestSelection.maxCount) badges. They show on your Discover card — skip if you’d rather add them later."
             case .preferences:
                 return "Set who you’d like to meet nearby. We’ll use your approximate location to suggest a city — you can edit it anytime."
             }
@@ -77,7 +86,6 @@ struct ProfileSetupWizardView: View {
 
     private var hasRequiredPreferences: Bool {
         !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !selectedBuddyTypes.isEmpty
     }
 
     private var availableCategories: [Prompt.Category] {
@@ -139,6 +147,9 @@ struct ProfileSetupWizardView: View {
         .task(id: step) {
             if step == .bits {
                 await loadBitsStep()
+            }
+            if step == .interests {
+                await loadInterestsStep()
             }
             if step == .preferences {
                 hydratePreferencesStep()
@@ -203,6 +214,8 @@ struct ProfileSetupWizardView: View {
             photosStep
         case .bits:
             bitsStep
+        case .interests:
+            interestsStep
         case .preferences:
             preferencesStep
         }
@@ -247,6 +260,16 @@ struct ProfileSetupWizardView: View {
         )
     }
 
+    private var interestsStep: some View {
+        ProfileInterestsEditor(
+            catalog: catalogInterests,
+            selectedIds: $selectedInterestIds,
+            isLoading: isLoadingInterests,
+            errorMessage: interestsLoadError,
+            atLimitMessage: "That’s 8 — tap one to swap it out."
+        )
+    }
+
     private var preferencesStep: some View {
         ProfilePreferencesForm(
             city: $city,
@@ -254,7 +277,6 @@ struct ProfileSetupWizardView: View {
             lookingFor: $lookingFor,
             minAge: $minAge,
             maxAge: $maxAge,
-            selectedBuddyTypes: $selectedBuddyTypes,
             approxLatitude: $approxLatitude,
             approxLongitude: $approxLongitude,
             detectionError: $localError,
@@ -276,9 +298,34 @@ struct ProfileSetupWizardView: View {
         lookingFor = auth.currentPreferences?.lookingForGenders ?? .everyone
         minAge = Double(auth.currentPreferences?.minAge ?? UserPreferences.defaultMinAge)
         maxAge = Double(auth.currentPreferences?.maxAge ?? UserPreferences.defaultMaxAge)
-        selectedBuddyTypes = Set(auth.currentPreferences?.buddyTypes ?? [.openToAll])
         approxLatitude = auth.currentUser?.approxLatitude
         approxLongitude = auth.currentUser?.approxLongitude
+    }
+
+    private func loadInterestsStep() async {
+        localError = nil
+        interestsLoadError = nil
+        if catalogInterests.isEmpty {
+            selectedInterestIds = auth.currentUser?.interestIds ?? []
+        }
+        isLoadingInterests = true
+        defer { isLoadingInterests = false }
+
+        do {
+            catalogInterests = try await interestService.fetchActiveInterests(locale: "en")
+        } catch {
+            interestsLoadError = "Couldn't load interests. Check Firestore rules and the `interests` seed."
+        }
+    }
+
+    private func saveInterestIds() async -> Bool {
+        localError = nil
+        auth.clearError()
+        let ok = await auth.updateInterestIds(selectedInterestIds)
+        if !ok, auth.errorMessage == nil {
+            localError = "Couldn't save your interests. Try again."
+        }
+        return ok
     }
 
     private var footer: some View {
@@ -295,6 +342,12 @@ struct ProfileSetupWizardView: View {
 
             if step == .bits, !hasRequiredBits {
                 Text("Answer \(PromptAnswer.maxCount) Bits to continue")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+            }
+
+            if step == .interests {
+                Text("\(selectedInterestIds.count) / \(InterestSelection.maxCount) selected")
                     .font(NADATheme.captionFont)
                     .foregroundStyle(NADATheme.secondaryInk)
             }
@@ -323,7 +376,7 @@ struct ProfileSetupWizardView: View {
                     || (step == .preferences && !hasRequiredPreferences)
             )
 
-            if step == .preferences {
+            if step == .preferences || step == .interests {
                 Button {
                     Task { await skipOrFinish() }
                 } label: {
@@ -369,6 +422,10 @@ struct ProfileSetupWizardView: View {
             localError = "Answer \(PromptAnswer.maxCount) Bits to continue."
             return
         }
+        if step == .interests {
+            let saved = await saveInterestIds()
+            if !saved { return }
+        }
         if step == .preferences {
             if !hasRequiredPreferences {
                 localError = "City is required to finish setup."
@@ -384,6 +441,13 @@ struct ProfileSetupWizardView: View {
     private func skipOrFinish() async {
         localError = nil
         auth.clearError()
+        if step == .interests {
+            let saved = await saveInterestIds()
+            if !saved { return }
+            guard let next = Step(rawValue: step.rawValue + 1) else { return }
+            step = next
+            return
+        }
         if step == .preferences {
             await finishWizard(saveRadius: false)
             return
@@ -411,7 +475,7 @@ struct ProfileSetupWizardView: View {
             prefs.lookingForGenders = lookingFor
             prefs.minAge = age.min
             prefs.maxAge = age.max
-            prefs.buddyTypes = Array(selectedBuddyTypes)
+            prefs.buddyTypes = [.openToAll]
 
             let prefsOK = await auth.updatePreferences(prefs)
             if !prefsOK {

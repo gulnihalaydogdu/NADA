@@ -345,6 +345,10 @@ struct ProfileTabView: View {
                 .onDisappear {
                     Task { await refreshBitAnswers() }
                 }
+        case .interests:
+            ProfileInterestsSheet()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         case .location:
             ProfilePreferencesSheet()
                 .presentationDetents([.large])

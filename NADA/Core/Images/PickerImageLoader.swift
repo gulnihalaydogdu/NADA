@@ -1,4 +1,5 @@
 import PhotosUI
+import SwiftUI
 import UIKit
 
 enum PickerImageLoader {

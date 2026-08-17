@@ -16,10 +16,10 @@
 
 ### W3-01 — Discovery feed API
 - **P0 · 2d** — Return candidate profiles by city/radius, excluding self, blocked, already-seen.
-- [ ] Filter by location + `isProfileComplete`
-- [ ] Exclude already-liked/skipped and blocked users
-- [ ] Simple ranking: distance + recent activity
-- [ ] Pagination / batching
+- [x] Filter by location + `isProfileComplete`
+- [x] Exclude already-liked/skipped and blocked users
+- [x] Simple ranking: distance + recent activity
+- [x] Pagination / batching
 
 ### W3-02 — Like API (profile + prompt/photo, with comment)
 - **P0 · 1.5d** — Create like with targetType (profile/prompt/photo), targetId, optional comment.
@@ -46,8 +46,8 @@
 
 ### W3-06 — Discover feed UI
 - **P0 · 2d** — One profile at a time: photos + prompt answers, minimal layout (§12 design).
-- [ ] Smooth scroll through a profile
-- [ ] Loads next from W3-01; empty state (“no one nearby yet”)
+- [x] Smooth scroll through a profile
+- [x] Loads next from W3-01; empty state (“no one nearby yet”)
 
 ### W3-07 — Like interactions
 - **P0 · 1.5d** — Like whole profile; like a prompt/photo with optional comment.
@@ -65,6 +65,7 @@
 
 ### W3-10 — Discover gating
 - **P1 · 0.5d** — Only enter Discover if `isProfileComplete`; else nudge to finish profile.
+- [x] Incomplete profiles see a finish-profile gate instead of the feed
 
 ---
 

@@ -197,6 +197,7 @@ Hinge-style compact card under photos: top row **age · gender · city**; list r
 | `radiusKm` + optional coarse lat/lng | ✅ |
 | `preferences/{uid}` (city, radiusKm, lookingForGenders, age range, buddyTypes) | ✅ W2-05/11 |
 | `isProfileComplete` | ✅ W2-06 |
+| `interestIds` (max 8 catalog badges) | ✅ Week 2 spillover |
 | jobTitle, university, hangoutLookingFor | Planned (Week 2–3 profile essentials) |
 | bio, moderationStatus, openToGroups | Later / optional |
 
@@ -205,8 +206,8 @@ Detail: [`docs/FIRESTORE_USERS.md`](docs/FIRESTORE_USERS.md)
 | Photo | Profile images | id, userId, url, sortOrder, isPrimary |
 | Prompt | Catalog of prompt questions | id, text, category, isActive, sortOrder, locale |
 | PromptAnswer | User’s answer to a prompt | id, userId, promptId, answerText, sortOrder |
-| Interest | Hangout / hobby tags | id, labelKey |
-| UserInterest | User ↔ interest | userId, interestId |
+| Interest | Hangout / hobby tags | id, label, category, isActive, sortOrder, locale — catalog `interests/{id}` |
+| User.interestIds | Selected badges (max 8) | array on `users/{uid}` (no UserInterest join in MVP) |
 | Preference | Discovery + safety prefs | userId, radiusKm, city, showMe, intent=friendsOnly, womenSafetyFilters? — **shipped W2-05** as `preferences/{uid}` (womenSafetyFilters later) |
 | Like | Like on profile or prompt/photo | id, fromUserId, toUserId, targetType (profile/prompt/photo), targetId, comment?, createdAt |
 | Match | Mutual like | id, userAId, userBId, createdAt, unmatchedAt? |
@@ -223,7 +224,7 @@ Detail: [`docs/FIRESTORE_USERS.md`](docs/FIRESTORE_USERS.md)
 | User | 1–n | Photo | Ordered gallery |
 | User | 1–n | PromptAnswer | Typically 3+ answers |
 | Prompt | 1–n | PromptAnswer | Shared prompt catalog |
-| User | n–n | Interest | Via UserInterest |
+| User | n–n | Interest | `users/{uid}.interestIds` (max 8); catalog `interests/{id}` |
 | User | 1–1 | Preference | Discovery prefs |
 | User | 1–n | Like (sent) | Outgoing likes |
 | User | 1–n | Like (received) | Incoming likes |

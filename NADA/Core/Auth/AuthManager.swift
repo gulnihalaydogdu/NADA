@@ -23,6 +23,9 @@ final class AuthManager {
     private let storageService: FirebaseStorageService
     private let photoService: FirestorePhotoService
     private let promptService: FirestorePromptService
+    private let discoverService: FirestoreDiscoverService
+    private let likeService: FirestoreLikeService
+    private let skipService: FirestoreSkipService
     private var authStateHandle: AuthStateHandle?
 
     private var cachedPhotos: [ProfilePhoto] = []
@@ -39,6 +42,9 @@ final class AuthManager {
         self.storageService = FirebaseStorageService()
         self.photoService = FirestorePhotoService(storageService: storageService)
         self.promptService = FirestorePromptService()
+        self.discoverService = FirestoreDiscoverService()
+        self.likeService = FirestoreLikeService()
+        self.skipService = FirestoreSkipService()
     }
 
     var hasCompletedFriendsIntent: Bool {
@@ -123,13 +129,19 @@ final class AuthManager {
         }
     }
 
-    /// Updates display name, gender, city, and birthday on Firestore. Enforces 18+. Returns `true` on success.
+    /// Updates display name, gender, city, and birthday on Firestore. Enforces 18+.
+    /// Pass `updateHangoutEssentials` from About you / Edit so job, university, and
+    /// hangout looking-for persist (empty values clear the fields). Returns `true` on success.
     @discardableResult
     func updateBasicProfile(
         displayName: String,
         gender: ProfileGender,
         city: String,
-        dateOfBirth: Date
+        dateOfBirth: Date,
+        jobTitle: String? = nil,
+        university: String? = nil,
+        hangoutLookingFor: String? = nil,
+        updateHangoutEssentials: Bool = false
     ) async -> Bool {
         guard let userId = currentUser?.id else { return false }
 
@@ -154,7 +166,11 @@ final class AuthManager {
                 gender: gender.rawValue,
                 city: trimmedCity,
                 locale: nil,
-                dateOfBirth: dateOfBirth
+                dateOfBirth: dateOfBirth,
+                jobTitle: jobTitle,
+                university: university,
+                hangoutLookingFor: hangoutLookingFor,
+                updateHangoutEssentials: updateHangoutEssentials
             )
             self.currentUser = updated
             self.currentPreferences = try await self.preferencesService.syncCity(
@@ -246,6 +262,91 @@ final class AuthManager {
         return await updatePreferences(prefs)
     }
 
+    /// Replaces the user's interest badge ids (max 8). Empty is allowed.
+    @discardableResult
+    func updateInterestIds(_ interestIds: [String]) async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+
+        var didSucceed = false
+        await perform {
+            let updated = try await self.userService.updateInterestIds(
+                userId: userId,
+                interestIds: interestIds
+            )
+            self.currentUser = updated
+            didSucceed = true
+        }
+        return didSucceed
+    }
+
+    /// Next Discover page for the signed-in viewer (W3-01). Empty if the profile is incomplete.
+    func fetchDiscoverFeed(
+        extraExcludedUserIds: Set<String> = [],
+        cursor: String? = nil
+    ) async -> DiscoverFeedPage {
+        guard let user = currentUser else {
+            return DiscoverFeedPage(candidates: [], cursor: nil)
+        }
+        let prefs = currentPreferences ?? UserPreferences.defaults(for: user)
+        do {
+            return try await discoverService.fetchCandidates(
+                viewer: user,
+                preferences: prefs,
+                extraExcludedUserIds: extraExcludedUserIds,
+                cursor: cursor
+            )
+        } catch {
+            errorMessage = Self.discoverFeedErrorMessage(error)
+            return DiscoverFeedPage(candidates: [], cursor: nil)
+        }
+    }
+
+    func recordDiscoverSeen(userId: String) async {
+        guard let viewerId = currentUser?.id else { return }
+        try? await discoverService.recordSeen(fromUserId: viewerId, toUserId: userId)
+    }
+
+    @discardableResult
+    func likeDiscoverTarget(
+        toUserId: String,
+        targetType: DiscoverLike.TargetType,
+        targetId: String,
+        comment: String? = nil
+    ) async -> DiscoverLike? {
+        guard let fromUserId = currentUser?.id else { return nil }
+        var result: DiscoverLike?
+        await perform {
+            result = try await self.likeService.createLike(
+                fromUserId: fromUserId,
+                toUserId: toUserId,
+                targetType: targetType,
+                targetId: targetId,
+                comment: comment
+            )
+        }
+        return result
+    }
+
+    @discardableResult
+    func skipDiscoverUser(_ toUserId: String) async -> DiscoverSkip? {
+        guard let fromUserId = currentUser?.id else { return nil }
+        var result: DiscoverSkip?
+        await perform {
+            result = try await self.skipService.createSkip(fromUserId: fromUserId, toUserId: toUserId)
+        }
+        return result
+    }
+
+    func undoDiscoverSkip(toUserId: String) async -> Bool {
+        guard let fromUserId = currentUser?.id else { return false }
+        var didSucceed = false
+        await perform {
+            try await self.skipService.deleteSkip(fromUserId: fromUserId, toUserId: toUserId)
+            didSucceed = true
+        }
+        return didSucceed
+    }
+
     func refreshPreferences() async {
         guard let user = currentUser else { return }
         do {
@@ -255,7 +356,7 @@ final class AuthManager {
         }
     }
 
-    /// Marks the soft profile setup shell (Photos → Bits → Preferences) as done.
+    /// Marks the soft profile setup shell (Photos → Bits → Interests → Preferences) as done.
     @discardableResult
     func completeProfileWizard() async -> Bool {
         guard let userId = currentUser?.id else { return false }
@@ -615,6 +716,17 @@ final class AuthManager {
     private func resolvedPhotoCount(_ list: [ProfilePhoto], user: NADAUser) -> Int {
         if list.isEmpty, let url = user.photoURL, !url.isEmpty { return 1 }
         return list.count
+    }
+
+    private static func discoverFeedErrorMessage(_ error: Error) -> String {
+        if let authError = error as? AuthError, let text = authError.errorDescription {
+            return text
+        }
+        let text = error.localizedDescription.lowercased()
+        if text.contains("permission") || text.contains("missing or insufficient") {
+            return "Can't read nearby profiles yet. Publish firebase/firestore.rules in Firebase Console so complete profiles are readable."
+        }
+        return error.localizedDescription
     }
 
     private func rememberPhotos(_ list: [ProfilePhoto], userId: String) {

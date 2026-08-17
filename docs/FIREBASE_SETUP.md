@@ -234,6 +234,27 @@ Detay: [`docs/FIRESTORE_PROMPTS.md`](FIRESTORE_PROMPTS.md) · seed: `firebase/pr
 
 ---
 
+## 8b. Interest badges — `interests`
+
+Detay: [`docs/FIRESTORE_INTERESTS.md`](FIRESTORE_INTERESTS.md) · seed: `firebase/interests.seed.json`
+
+1. Firestore → **Rules** → `firebase/firestore.rules` Publish (`interests` authenticated read)
+2. `npm run seed:interests`
+3. Wizard / Profile → **Interests** lists category chips; save writes `users/{uid}.interestIds`
+
+---
+
+## 8c. Discover feed (W3-01)
+
+Detay: [`docs/FIRESTORE_DISCOVER.md`](FIRESTORE_DISCOVER.md)
+
+1. Firestore → **Rules** → `firebase/firestore.rules` yapıştır → **Publish**  
+   (complete `users` readable; photos / promptAnswers / preferences signed-in read)
+2. İki complete test hesabı, aynı şehir
+3. `AuthManager.fetchDiscoverFeed()` A olarak B’yi dönmeli (kendisi ve incomplete yok)
+
+---
+
 ## 9. Notlar
 
 - Project ID: `nada-app-33`

@@ -4,6 +4,7 @@ import Foundation
 enum ProfileSection: String, CaseIterable, Identifiable {
     case photos
     case bits
+    case interests
     case about
     case location
 
@@ -13,6 +14,7 @@ enum ProfileSection: String, CaseIterable, Identifiable {
         switch self {
         case .photos: return "Photos"
         case .bits: return "Bits"
+        case .interests: return "Interests"
         case .about: return "About you"
         case .location: return "Discover preferences"
         }
@@ -22,6 +24,7 @@ enum ProfileSection: String, CaseIterable, Identifiable {
         switch self {
         case .photos: return "photo.on.rectangle"
         case .bits: return "bubble.left.and.text.bubble.right"
+        case .interests: return "sparkles"
         case .about: return "person"
         case .location: return "slider.horizontal.3"
         }
@@ -42,11 +45,16 @@ struct ProfileCompletion {
 
     let photoCount: Int
     let answeredBits: Int
+    let interestCount: Int
     let hasName: Bool
     let hasGender: Bool
     let hasCity: Bool
     let hasBirthday: Bool
+    let hasHangoutEssentials: Bool
     let userRadiusKm: Int?
+
+    /// Completeness still uses the four required sections so the meter can hit 100% without badges.
+    private static let meterSections: [ProfileSection] = [.photos, .bits, .about, .location]
 
     init(user: NADAUser?, photoCount: Int? = nil, answeredBits: Int = 0) {
         if let photoCount {
@@ -55,10 +63,12 @@ struct ProfileCompletion {
             self.photoCount = (user?.photoURL?.isEmpty == false) ? 1 : 0
         }
         self.answeredBits = answeredBits
+        self.interestCount = min(user?.interestIds.count ?? 0, InterestSelection.maxCount)
         self.hasName = user?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         self.hasGender = ProfileGender.fromStored(user?.gender) != nil
         self.hasCity = user?.city?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         self.hasBirthday = user?.dateOfBirth.map { ProfileAge.isAtLeastMinimumAge($0) } == true
+        self.hasHangoutEssentials = user?.hasHangoutEssentials == true
         self.userRadiusKm = user?.radiusKm.map { ProfileLocation.clampRadiusKm($0) }
     }
 
@@ -68,6 +78,8 @@ struct ProfileCompletion {
             return min(Double(photoCount) / Double(Self.photoTarget), 1)
         case .bits:
             return min(Double(answeredBits) / Double(Self.bitTarget), 1)
+        case .interests:
+            return min(Double(interestCount) / Double(InterestSelection.maxCount), 1)
         case .about:
             let filled = [hasName, hasGender, hasBirthday].filter { $0 }.count
             return Double(filled) / 3
@@ -77,10 +89,10 @@ struct ProfileCompletion {
         }
     }
 
-    /// Average of all section progress, so a section landing in Week 2 keeps the bar honest.
+    /// Average of the required sections. Interests are optional and do not cap the meter.
     var percentComplete: Int {
-        let total = ProfileSection.allCases.reduce(0.0) { $0 + progress(for: $1) }
-        return Int((total / Double(ProfileSection.allCases.count) * 100).rounded())
+        let total = Self.meterSections.reduce(0.0) { $0 + progress(for: $1) }
+        return Int((total / Double(Self.meterSections.count) * 100).rounded())
     }
 
     func detail(for section: ProfileSection) -> String? {
@@ -89,6 +101,8 @@ struct ProfileCompletion {
             return "\(photoCount) / \(Self.photoTarget)"
         case .bits:
             return "\(answeredBits) / \(Self.bitTarget)"
+        case .interests:
+            return "\(interestCount) / \(InterestSelection.maxCount)"
         case .about:
             return (hasName && hasGender && hasBirthday) ? nil : "Add details"
         case .location:
@@ -114,8 +128,19 @@ struct ProfileCompletion {
             items.append(ProfileSuggestion(section: .bits, title: "Answer one more Bit"))
         }
 
+        if interestCount == 0 {
+            items.append(ProfileSuggestion(section: .interests, title: "Add interest badges"))
+        }
+
         if !hasName || !hasGender || !hasBirthday {
             items.append(ProfileSuggestion(section: .about, title: "Finish the about you basics"))
+        } else if !hasHangoutEssentials {
+            items.append(
+                ProfileSuggestion(
+                    section: .about,
+                    title: "Add job, school, or hangout looking-for"
+                )
+            )
         }
 
         if !hasCity {

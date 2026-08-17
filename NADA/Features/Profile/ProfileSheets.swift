@@ -8,6 +8,7 @@ enum ProfileRoute: String, Identifiable {
     case preview
     case photos
     case bits
+    case interests
     case about
     case location
 
@@ -17,6 +18,7 @@ enum ProfileRoute: String, Identifiable {
         switch section {
         case .photos: self = .photos
         case .bits: self = .bits
+        case .interests: self = .interests
         case .about: self = .about
         case .location: self = .location
         }
@@ -57,7 +59,6 @@ struct ProfileSheetScaffold<Content: View>: View {
 struct ProfilePreferencesForm: View {
     private enum PickerRoute: String, Identifiable {
         case gender
-        case buddyTypes
 
         var id: String { rawValue }
     }
@@ -67,7 +68,6 @@ struct ProfilePreferencesForm: View {
     @Binding var lookingFor: UserPreferences.LookingForGender
     @Binding var minAge: Double
     @Binding var maxAge: Double
-    @Binding var selectedBuddyTypes: Set<UserPreferences.BuddyType>
     @Binding var approxLatitude: Double?
     @Binding var approxLongitude: Double?
     @Binding var detectionError: String?
@@ -79,15 +79,6 @@ struct ProfilePreferencesForm: View {
     @State private var isDetectingLocation = false
     @State private var didAutoDetect = false
     @State private var locationService = ApproximateLocationService()
-
-    private var buddyTypesSummary: String {
-        let ordered = UserPreferences.normalizedBuddyTypes(Array(selectedBuddyTypes))
-        guard !ordered.isEmpty else { return "Open to all" }
-        if ordered.count <= 2 {
-            return ordered.map(\.title).joined(separator: ", ")
-        }
-        return "\(ordered[0].title) +\(ordered.count - 1)"
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -109,20 +100,6 @@ struct ProfilePreferencesForm: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-            case .buddyTypes:
-                PreferenceOptionPicker(
-                    title: "Hangout type",
-                    subtitle: "Pick as many as you like — “Open to all” clears the rest.",
-                    options: UserPreferences.BuddyType.allCases,
-                    label: \.title,
-                    selection: $selectedBuddyTypes,
-                    allowsMultipleSelection: true,
-                    selectionRule: { current, option in
-                        Self.buddySelection(from: current, toggling: option)
-                    }
-                )
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
             }
         }
         .task(id: autoDetectLocationOnAppear) {
@@ -140,16 +117,6 @@ struct ProfilePreferencesForm: View {
                 value: lookingFor.title
             ) {
                 pickerRoute = .gender
-            }
-
-            cardDivider
-
-            comboRow(
-                icon: "sparkles",
-                title: "Hangout type",
-                value: buddyTypesSummary
-            ) {
-                pickerRoute = .buddyTypes
             }
 
             cardDivider
@@ -310,22 +277,6 @@ struct ProfilePreferencesForm: View {
         .buttonStyle(.plain)
     }
 
-    static func buddySelection(
-        from current: Set<UserPreferences.BuddyType>,
-        toggling type: UserPreferences.BuddyType
-    ) -> Set<UserPreferences.BuddyType> {
-        if type == .openToAll { return [.openToAll] }
-
-        var next = current
-        next.remove(.openToAll)
-        if next.contains(type) {
-            next.remove(type)
-        } else {
-            next.insert(type)
-        }
-        return next.isEmpty ? [.openToAll] : next
-    }
-
     func detectApproximateLocation() async {
         detectionError = nil
         isDetectingLocation = true
@@ -357,7 +308,6 @@ struct ProfilePreferencesSheet: View {
     @State private var lookingFor: UserPreferences.LookingForGender = .everyone
     @State private var minAge: Double = Double(UserPreferences.defaultMinAge)
     @State private var maxAge: Double = Double(UserPreferences.defaultMaxAge)
-    @State private var selectedBuddyTypes: Set<UserPreferences.BuddyType> = [.openToAll]
     @State private var approxLatitude: Double?
     @State private var approxLongitude: Double?
     @State private var localError: String?
@@ -365,7 +315,6 @@ struct ProfilePreferencesSheet: View {
     private var canSave: Bool {
         !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !auth.isBusy
-            && !selectedBuddyTypes.isEmpty
     }
 
     var body: some View {
@@ -381,7 +330,6 @@ struct ProfilePreferencesSheet: View {
                     lookingFor: $lookingFor,
                     minAge: $minAge,
                     maxAge: $maxAge,
-                    selectedBuddyTypes: $selectedBuddyTypes,
                     approxLatitude: $approxLatitude,
                     approxLongitude: $approxLongitude,
                     detectionError: $localError,
@@ -428,7 +376,6 @@ struct ProfilePreferencesSheet: View {
         lookingFor = prefs?.lookingForGenders ?? .everyone
         minAge = Double(prefs?.minAge ?? UserPreferences.defaultMinAge)
         maxAge = Double(prefs?.maxAge ?? UserPreferences.defaultMaxAge)
-        selectedBuddyTypes = Set(prefs?.buddyTypes ?? [.openToAll])
         approxLatitude = auth.currentUser?.approxLatitude
         approxLongitude = auth.currentUser?.approxLongitude
     }
@@ -446,7 +393,7 @@ struct ProfilePreferencesSheet: View {
         prefs.lookingForGenders = lookingFor
         prefs.minAge = age.min
         prefs.maxAge = age.max
-        prefs.buddyTypes = Array(selectedBuddyTypes)
+        prefs.buddyTypes = [.openToAll]
 
         let ok = await auth.updatePreferences(prefs)
         if ok, let approxLatitude, let approxLongitude {
@@ -670,9 +617,17 @@ struct ProfilePreviewSheet: View {
 
     @State private var photos: [ProfilePhoto] = []
     @State private var isLoadingPhotos = false
+    @State private var catalogInterests: [Interest] = []
+    @State private var catalogBits: [Prompt]
+
+    init(bits: [Prompt], answers: [PromptAnswer] = []) {
+        self.bits = bits
+        self.answers = answers
+        _catalogBits = State(initialValue: bits)
+    }
 
     private var promptById: [String: Prompt] {
-        Dictionary(uniqueKeysWithValues: bits.map { ($0.id, $0) })
+        Dictionary(uniqueKeysWithValues: catalogBits.map { ($0.id, $0) })
     }
 
     private var sortedAnswers: [PromptAnswer] {
@@ -682,7 +637,7 @@ struct ProfilePreviewSheet: View {
     private var firstBit: (prompt: String, answer: String)? {
         guard let answer = sortedAnswers.first else { return nil }
         return (
-            prompt: promptById[answer.promptId]?.text ?? "Bit",
+            prompt: promptText(for: answer.promptId),
             answer: answer.answerText
         )
     }
@@ -692,11 +647,16 @@ struct ProfilePreviewSheet: View {
             age: auth.currentUser?.age,
             gender: ProfileGender.fromStored(auth.currentUser?.gender)?.title,
             city: auth.currentUser?.city,
-            jobTitle: nil,
-            university: nil,
-            hangoutLookingFor: nil,
+            jobTitle: auth.currentUser?.trimmedJobTitle,
+            university: auth.currentUser?.trimmedUniversity,
+            hangoutLookingFor: auth.currentUser?.trimmedHangoutLookingFor,
             openToGroups: nil
         )
+    }
+
+    private var previewInterests: [Interest] {
+        let byId = Dictionary(uniqueKeysWithValues: catalogInterests.map { ($0.id, $0) })
+        return (auth.currentUser?.interestIds ?? []).compactMap { byId[$0] }
     }
 
     /// After name / primary / first Bit / essentials: photo → bit → photo → bit → …
@@ -716,7 +676,7 @@ struct ProfilePreviewSheet: View {
                 let answer = remainingBits[bitIndex]
                 blocks.append(
                     .bit(
-                        prompt: promptById[answer.promptId]?.text ?? "Bit",
+                        prompt: promptText(for: answer.promptId),
                         answer: answer.answerText
                     )
                 )
@@ -747,6 +707,8 @@ struct ProfilePreviewSheet: View {
         }
         .task {
             await loadPhotos()
+            await loadCatalog()
+            await loadInterests()
         }
     }
 
@@ -781,7 +743,10 @@ struct ProfilePreviewSheet: View {
         // 4. Essentials (“about”) card
         ProfileEssentialsCard(model: essentialsModel)
 
-        // 5. Remaining photos interleaved with remaining Bits
+        // 5. Interest badges under essentials
+        ProfileInterestBadgesView(interests: previewInterests)
+
+        // 6. Remaining photos interleaved with remaining Bits
         if interleavedBlocks.isEmpty, firstBit == nil, photos.count <= 1 {
             Text("Add more photos and Bits — they’ll show up here like on Discover.")
                 .font(NADATheme.captionFont)
@@ -803,6 +768,10 @@ struct ProfilePreviewSheet: View {
         }
     }
 
+    private func promptText(for promptId: String) -> String {
+        promptById[promptId]?.text ?? ""
+    }
+
     private func loadPhotos() async {
         isLoadingPhotos = true
         defer { isLoadingPhotos = false }
@@ -813,6 +782,14 @@ struct ProfilePreviewSheet: View {
             targetPointSize: 430,
             limit: 2
         )
+    }
+
+    private func loadCatalog() async {
+        catalogBits = (try? await FirestorePromptService().fetchActivePrompts(locale: "en")) ?? catalogBits
+    }
+
+    private func loadInterests() async {
+        catalogInterests = (try? await FirestoreInterestService().fetchActiveInterests(locale: "en")) ?? []
     }
 }
 
@@ -864,10 +841,12 @@ struct ProfilePreviewBitCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(prompt)
-                .font(.system(size: 17, weight: .regular))
-                .foregroundStyle(NADATheme.brandPressed)
-                .fixedSize(horizontal: false, vertical: true)
+            if !prompt.isEmpty {
+                Text(prompt)
+                    .font(.system(size: 17, weight: .regular))
+                    .foregroundStyle(NADATheme.brandPressed)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Text(answer)
                 .font(.system(size: 28, weight: .bold, design: .default))
@@ -981,6 +960,9 @@ struct ProfileEditSheet: View {
     @State private var city = ""
     @State private var gender: ProfileGender?
     @State private var dateOfBirth: Date?
+    @State private var jobTitle = ""
+    @State private var university = ""
+    @State private var hangoutLookingFor = ""
     @State private var localError: String?
 
     private var canSave: Bool {
@@ -1003,6 +985,9 @@ struct ProfileEditSheet: View {
                     city: $city,
                     gender: $gender,
                     dateOfBirth: $dateOfBirth,
+                    jobTitle: $jobTitle,
+                    university: $university,
+                    hangoutLookingFor: $hangoutLookingFor,
                     errorMessage: localError ?? auth.errorMessage
                 )
 
@@ -1026,6 +1011,9 @@ struct ProfileEditSheet: View {
             city = auth.currentUser?.city ?? ""
             gender = ProfileGender.fromStored(auth.currentUser?.gender)
             dateOfBirth = auth.currentUser?.dateOfBirth
+            jobTitle = auth.currentUser?.trimmedJobTitle ?? ""
+            university = auth.currentUser?.trimmedUniversity ?? ""
+            hangoutLookingFor = auth.currentUser?.trimmedHangoutLookingFor ?? ""
         }
     }
 
@@ -1048,7 +1036,11 @@ struct ProfileEditSheet: View {
             displayName: displayName,
             gender: gender,
             city: city,
-            dateOfBirth: dateOfBirth
+            dateOfBirth: dateOfBirth,
+            jobTitle: jobTitle,
+            university: university,
+            hangoutLookingFor: hangoutLookingFor,
+            updateHangoutEssentials: true
         )
         if ok {
             dismiss()

@@ -140,7 +140,7 @@ Discover feed + gating (`isProfileComplete`); interest badges replace Hangout en
 ## Spillover to Week 3
 - [ ] Profile essentials card on Discover / Preview: age · gender · city + job, university, hangout looking-for (see `UYGULAMA_SEMASI.md` §7)
 - [ ] Collect `jobTitle`, `university`, `hangoutLookingFor` in setup/edit (no sexuality field for now)
-- [ ] **Interest badges** — replaces the removed Hangout energy placeholder; closes the W1 spillover "hangout interests" half
+- [x] **Interest badges** — replaces the removed Hangout energy placeholder; closes the W1 spillover "hangout interests" half
 - [ ] Optional later: `openToGroups` chip
 - [ ] …
 
@@ -155,10 +155,11 @@ Decisions:
 - Categories: Lifestyle, TV & Movies, Music, Games, Food & Drink, Sports & Outdoors, Creative, Going Out.
 - Chips wrap inside each category (no horizontal scroll) so every option is visible.
 - Surfaces: wizard step between Bits and Preferences · Profile "Interests" section · Preview block
-  under essentials · Week 3 Discover "you both like…" signal.
+  under essentials · Week 3 Discover "you both like…" signal (not in this drop).
 
 ### Scope change (8 Aug)
 **Hangout energy section removed** (`22f772a`). Interests were never wired to storage, so the
 section could not be completed: it capped the completion meter at 80% and produced a nudge that
-opened a sheet with nothing to select. Profile now has four sections (Photos, Bits, About you,
-Discover preferences) and the meter can reach 100%. Interest badges above replace it.
+opened a sheet with nothing to select. Profile now has five sections (Photos, Bits, Interests,
+About you, Discover preferences). The completion meter still uses the original four required
+sections so it can reach 100% without badges; empty interests only show a soft nudge.
