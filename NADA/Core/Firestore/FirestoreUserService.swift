@@ -72,7 +72,11 @@ final class FirestoreUserService {
         city: String?,
         locale: String?,
         photoURL: String? = nil,
-        dateOfBirth: Date? = nil
+        dateOfBirth: Date? = nil,
+        jobTitle: String? = nil,
+        university: String? = nil,
+        hangoutLookingFor: String? = nil,
+        updateHangoutEssentials: Bool = false
     ) async throws -> NADAUser {
         var fields: [String: Any] = [:]
         if let displayName { fields["displayName"] = displayName }
@@ -81,6 +85,14 @@ final class FirestoreUserService {
         if let locale { fields["locale"] = locale }
         if let photoURL { fields["photoURL"] = photoURL }
         if let dateOfBirth { fields["dateOfBirth"] = Timestamp(date: dateOfBirth) }
+        if updateHangoutEssentials {
+            fields["jobTitle"] = stringOrDelete(jobTitle, max: NADAUser.maxJobTitleLength)
+            fields["university"] = stringOrDelete(university, max: NADAUser.maxUniversityLength)
+            fields["hangoutLookingFor"] = stringOrDelete(
+                hangoutLookingFor,
+                max: NADAUser.maxHangoutLookingForLength
+            )
+        }
         return try await patchUser(userId: userId, fields: fields)
     }
 
@@ -172,6 +184,14 @@ final class FirestoreUserService {
             approxLatitude: doubleValue(data["approxLatitude"]) ?? fallback.approxLatitude,
             approxLongitude: doubleValue(data["approxLongitude"]) ?? fallback.approxLongitude,
             photoURL: data["photoURL"] as? String ?? fallback.photoURL,
+            jobTitle: optionalString(data, "jobTitle", fallback: fallback.jobTitle, max: NADAUser.maxJobTitleLength),
+            university: optionalString(data, "university", fallback: fallback.university, max: NADAUser.maxUniversityLength),
+            hangoutLookingFor: optionalString(
+                data,
+                "hangoutLookingFor",
+                fallback: fallback.hangoutLookingFor,
+                max: NADAUser.maxHangoutLookingForLength
+            ),
             intent: intent,
             locale: data["locale"] as? String ?? fallback.locale,
             createdAt: createdAt,
@@ -179,6 +199,20 @@ final class FirestoreUserService {
             profileWizardCompleted: data["profileWizardCompleted"] as? Bool ?? false,
             isProfileComplete: data["isProfileComplete"] as? Bool ?? false
         )
+    }
+
+    private func stringOrDelete(_ value: String?, max: Int) -> Any {
+        NADAUser.trimmed(value, max: max) ?? FieldValue.delete()
+    }
+
+    private func optionalString(
+        _ data: [String: Any],
+        _ key: String,
+        fallback: String?,
+        max: Int
+    ) -> String? {
+        guard data[key] != nil else { return fallback }
+        return NADAUser.trimmed(data[key] as? String, max: max)
     }
 
     private func intValue(_ value: Any?) -> Int? {

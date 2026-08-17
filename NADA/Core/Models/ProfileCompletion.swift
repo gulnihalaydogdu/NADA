@@ -32,7 +32,7 @@ struct ProfileSuggestion: Identifiable {
     let section: ProfileSection
     let title: String
 
-    var id: String { section.id }
+    var id: String { title }
 }
 
 /// Drives the completion meter, section rows, and "make it feel like you" nudges.
@@ -46,6 +46,7 @@ struct ProfileCompletion {
     let hasGender: Bool
     let hasCity: Bool
     let hasBirthday: Bool
+    let hasHangoutEssentials: Bool
     let userRadiusKm: Int?
 
     init(user: NADAUser?, photoCount: Int? = nil, answeredBits: Int = 0) {
@@ -59,6 +60,7 @@ struct ProfileCompletion {
         self.hasGender = ProfileGender.fromStored(user?.gender) != nil
         self.hasCity = user?.city?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         self.hasBirthday = user?.dateOfBirth.map { ProfileAge.isAtLeastMinimumAge($0) } == true
+        self.hasHangoutEssentials = user?.hasHangoutEssentials == true
         self.userRadiusKm = user?.radiusKm.map { ProfileLocation.clampRadiusKm($0) }
     }
 
@@ -116,6 +118,13 @@ struct ProfileCompletion {
 
         if !hasName || !hasGender || !hasBirthday {
             items.append(ProfileSuggestion(section: .about, title: "Finish the about you basics"))
+        } else if !hasHangoutEssentials {
+            items.append(
+                ProfileSuggestion(
+                    section: .about,
+                    title: "Add job, school, or hangout looking-for"
+                )
+            )
         }
 
         if !hasCity {

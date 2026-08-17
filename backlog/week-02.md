@@ -138,11 +138,13 @@ Discover feed + gating (`isProfileComplete`); interest badges replace Hangout en
 - [x] `isProfileComplete` correct
 
 ## Spillover to Week 3
-- [ ] Profile essentials card on Discover / Preview: age · gender · city + job, university, hangout looking-for (see `UYGULAMA_SEMASI.md` §7)
-- [ ] Collect `jobTitle`, `university`, `hangoutLookingFor` in setup/edit (no sexuality field for now)
+- [x] Profile essentials card on Preview: age · gender · city + job, university, hangout looking-for (see `UYGULAMA_SEMASI.md` §7). Discover reuses the same card in W3-06.
+- [x] Collect `jobTitle`, `university`, `hangoutLookingFor` in About you / Edit (optional; not part of the basics gate or `isProfileComplete`). No sexuality field.
 - [ ] **Interest badges** — replaces the removed Hangout energy placeholder; closes the W1 spillover "hangout interests" half
 - [ ] Optional later: `openToGroups` chip
 - [ ] …
+
+**Ship notes (essentials):** `users/{uid}` fields `jobTitle` (≤60), `university` (≤80), `hangoutLookingFor` (≤120). Empty save deletes the field. Preview `ProfileEssentialsCard` reads them; completion meter stays based on name / gender / birthday so the bar can still hit 100%.
 
 ### Interest badges — agreed scope (8 Aug)
 Read-only catalog `interests/{id}` (label, category, sortOrder, isActive) seeded from

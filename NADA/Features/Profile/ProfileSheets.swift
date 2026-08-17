@@ -691,9 +691,9 @@ struct ProfilePreviewSheet: View {
             age: auth.currentUser?.age,
             gender: ProfileGender.fromStored(auth.currentUser?.gender)?.title,
             city: auth.currentUser?.city,
-            jobTitle: nil,
-            university: nil,
-            hangoutLookingFor: nil,
+            jobTitle: auth.currentUser?.trimmedJobTitle,
+            university: auth.currentUser?.trimmedUniversity,
+            hangoutLookingFor: auth.currentUser?.trimmedHangoutLookingFor,
             openToGroups: nil
         )
     }
@@ -970,6 +970,9 @@ struct ProfileEditSheet: View {
     @State private var city = ""
     @State private var gender: ProfileGender?
     @State private var dateOfBirth: Date?
+    @State private var jobTitle = ""
+    @State private var university = ""
+    @State private var hangoutLookingFor = ""
     @State private var localError: String?
 
     private var canSave: Bool {
@@ -983,7 +986,7 @@ struct ProfileEditSheet: View {
     var body: some View {
         ProfileSheetScaffold(title: "Edit profile") {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Keep these up to date so hangouts feel personal. NADA is 18+.")
+                Text("Keep these up to date so hangouts feel personal. NADA is 18+. Job, school, and hangout looking-for are optional — they show on your Discover card.")
                     .font(NADATheme.bodyFont)
                     .foregroundStyle(NADATheme.warmSecondaryInk)
 
@@ -992,6 +995,9 @@ struct ProfileEditSheet: View {
                     city: $city,
                     gender: $gender,
                     dateOfBirth: $dateOfBirth,
+                    jobTitle: $jobTitle,
+                    university: $university,
+                    hangoutLookingFor: $hangoutLookingFor,
                     errorMessage: localError ?? auth.errorMessage
                 )
 
@@ -1015,6 +1021,9 @@ struct ProfileEditSheet: View {
             city = auth.currentUser?.city ?? ""
             gender = ProfileGender.fromStored(auth.currentUser?.gender)
             dateOfBirth = auth.currentUser?.dateOfBirth
+            jobTitle = auth.currentUser?.trimmedJobTitle ?? ""
+            university = auth.currentUser?.trimmedUniversity ?? ""
+            hangoutLookingFor = auth.currentUser?.trimmedHangoutLookingFor ?? ""
         }
     }
 
@@ -1037,7 +1046,11 @@ struct ProfileEditSheet: View {
             displayName: displayName,
             gender: gender,
             city: city,
-            dateOfBirth: dateOfBirth
+            dateOfBirth: dateOfBirth,
+            jobTitle: jobTitle,
+            university: university,
+            hangoutLookingFor: hangoutLookingFor,
+            updateHangoutEssentials: true
         )
         if ok {
             dismiss()

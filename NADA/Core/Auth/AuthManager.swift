@@ -116,13 +116,19 @@ final class AuthManager {
         }
     }
 
-    /// Updates display name, gender, city, and birthday on Firestore. Enforces 18+. Returns `true` on success.
+    /// Updates display name, gender, city, and birthday on Firestore. Enforces 18+.
+    /// Pass `updateHangoutEssentials` from About you / Edit so job, university, and
+    /// hangout looking-for persist (empty values clear the fields). Returns `true` on success.
     @discardableResult
     func updateBasicProfile(
         displayName: String,
         gender: ProfileGender,
         city: String,
-        dateOfBirth: Date
+        dateOfBirth: Date,
+        jobTitle: String? = nil,
+        university: String? = nil,
+        hangoutLookingFor: String? = nil,
+        updateHangoutEssentials: Bool = false
     ) async -> Bool {
         guard let userId = currentUser?.id else { return false }
 
@@ -147,7 +153,11 @@ final class AuthManager {
                 gender: gender.rawValue,
                 city: trimmedCity,
                 locale: nil,
-                dateOfBirth: dateOfBirth
+                dateOfBirth: dateOfBirth,
+                jobTitle: jobTitle,
+                university: university,
+                hangoutLookingFor: hangoutLookingFor,
+                updateHangoutEssentials: updateHangoutEssentials
             )
             self.currentUser = updated
             self.currentPreferences = try await self.preferencesService.syncCity(

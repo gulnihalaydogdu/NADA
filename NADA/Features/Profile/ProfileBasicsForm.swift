@@ -1,11 +1,15 @@
 import SwiftUI
 
 /// Shared name / gender / birthday / city form used by the onboarding gate and Edit Profile sheet.
+/// Hangout essentials (job, university, looking-for) are edit-only so the basics gate stays short.
 struct ProfileBasicsForm: View {
     @Binding var displayName: String
     @Binding var city: String
     @Binding var gender: ProfileGender?
     @Binding var dateOfBirth: Date?
+    var jobTitle: Binding<String>? = nil
+    var university: Binding<String>? = nil
+    var hangoutLookingFor: Binding<String>? = nil
     var errorMessage: String?
 
     @State private var isBirthdayPickerPresented = false
@@ -42,6 +46,14 @@ struct ProfileBasicsForm: View {
                 text: $city,
                 placeholder: "Where are you based?"
             )
+
+            if let jobTitle, let university, let hangoutLookingFor {
+                hangoutEssentialsFields(
+                    jobTitle: jobTitle,
+                    university: university,
+                    hangoutLookingFor: hangoutLookingFor
+                )
+            }
 
             if let errorMessage, !errorMessage.isEmpty {
                 Text(errorMessage)
@@ -155,20 +167,94 @@ struct ProfileBasicsForm: View {
         )
     }
 
-    private func profileTextField(title: String, text: Binding<String>, placeholder: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
+    private func hangoutEssentialsFields(
+        jobTitle: Binding<String>,
+        university: Binding<String>,
+        hangoutLookingFor: Binding<String>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("On your Discover card")
+                .font(NADATheme.headlineFont)
+                .foregroundStyle(NADATheme.ink)
+                .padding(.top, 4)
+
+            Text("Optional — friends see these under your photos. Skip anything that doesn’t fit.")
                 .font(NADATheme.captionFont)
                 .foregroundStyle(NADATheme.secondaryInk)
+                .fixedSize(horizontal: false, vertical: true)
 
-            TextField(placeholder, text: text)
-                .textFieldStyle(.plain)
-                .textInputAutocapitalization(.words)
-                .autocorrectionDisabled()
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(NADATheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            profileTextField(
+                title: "Job / role",
+                text: jobTitle,
+                placeholder: "Student, designer, barista…",
+                maxLength: NADAUser.maxJobTitleLength
+            )
+
+            profileTextField(
+                title: "University",
+                text: university,
+                placeholder: "Last or current school",
+                maxLength: NADAUser.maxUniversityLength
+            )
+
+            profileTextField(
+                title: "Hangout looking-for",
+                text: hangoutLookingFor,
+                placeholder: "Looking for a travel-buddy from Istanbul",
+                maxLength: NADAUser.maxHangoutLookingForLength,
+                axis: .vertical,
+                hint: "A short line about the kind of hangout or buddy you want."
+            )
+        }
+    }
+
+    private func profileTextField(
+        title: String,
+        text: Binding<String>,
+        placeholder: String,
+        maxLength: Int? = nil,
+        axis: Axis = .horizontal,
+        hint: String? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+                if let maxLength {
+                    Spacer()
+                    Text("\(min(text.wrappedValue.count, maxLength))/\(maxLength)")
+                        .font(NADATheme.captionFont)
+                        .foregroundStyle(NADATheme.secondaryInk)
+                }
+            }
+
+            Group {
+                if axis == .vertical {
+                    TextField(placeholder, text: text, axis: .vertical)
+                        .lineLimit(2...4)
+                } else {
+                    TextField(placeholder, text: text)
+                }
+            }
+            .textFieldStyle(.plain)
+            .textInputAutocapitalization(axis == .vertical ? .sentences : .words)
+            .autocorrectionDisabled()
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NADATheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .onChange(of: text.wrappedValue) { _, newValue in
+                guard let maxLength, newValue.count > maxLength else { return }
+                text.wrappedValue = String(newValue.prefix(maxLength))
+            }
+
+            if let hint {
+                Text(hint)
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

@@ -171,8 +171,8 @@ A single-purpose app shaped around one job: friendship and hangouts. Faster way 
 |--------|-------------------|-------------|
 | User | Account holder | id, displayName, gender, birthYear (age shown as derived), city, jobTitle, university, hangoutLookingFor, createdAt, locale, moderationStatus; optional later: openToGroups |
 
-**User profile essentials (Discover / profile card — planned UI, not built yet):**  
-Hinge-style compact card under photos: top row **age · gender · city**; list rows for **job**, **university** (last school), **hangout looking-for** (short free text, e.g. “Looking for a travel-buddy from Istanbul”). Photos + Bits stay separate above/beside this card.
+**User profile essentials (Discover / profile card):**  
+Hinge-style compact card under photos: top row **age · gender · city**; list rows for **job**, **university** (last school), **hangout looking-for** (short free text, e.g. “Looking for a travel-buddy from Istanbul”). Photos + Bits stay separate above/beside this card. Collected in Profile → About you / Edit; shown on Preview now, Discover in W3-06.
 
 | Field | Collect? | Notes |
 |-------|----------|--------|
@@ -197,7 +197,7 @@ Hinge-style compact card under photos: top row **age · gender · city**; list r
 | `radiusKm` + optional coarse lat/lng | ✅ |
 | `preferences/{uid}` (city, radiusKm, lookingForGenders, age range, buddyTypes) | ✅ W2-05/11 |
 | `isProfileComplete` | ✅ W2-06 |
-| jobTitle, university, hangoutLookingFor | Planned (Week 2–3 profile essentials) |
+| jobTitle, university, hangoutLookingFor | ✅ Week 3 spillover (About you / Edit + Preview card) |
 | bio, moderationStatus, openToGroups | Later / optional |
 
 Detail: [`docs/FIRESTORE_USERS.md`](docs/FIRESTORE_USERS.md)
