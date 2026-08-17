@@ -1,31 +1,37 @@
 import SwiftUI
 
+private enum MainTab: Hashable {
+    case discover, likes, matches, profile
+}
+
 struct MainTabView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(SplashController.self) private var splash
     @State private var showsPushPrompt = false
+    @State private var selectedTab: MainTab = .discover
 
     var body: some View {
-        TabView {
-            DiscoverFeedView()
-                .tabItem { Label("Discover", systemImage: "sparkles") }
+        TabView(selection: $selectedTab) {
+            Tab("Discover", systemImage: "sparkles", value: MainTab.discover) {
+                DiscoverFeedView()
+            }
 
-            PlaceholderTabView(
-                title: "Likes",
-                systemImage: "heart",
-                message: "People who liked you will appear here."
-            )
-            .tabItem { Label("Likes", systemImage: "heart") }
+            Tab("Likes", systemImage: "heart", value: MainTab.likes) {
+                LikesInboxView()
+            }
+            .badge(auth.incomingLikerCount)
 
-            PlaceholderTabView(
-                title: "Matches",
-                systemImage: "bubble.left.and.bubble.right",
-                message: "Chat with mutual matches here."
-            )
-            .tabItem { Label("Matches", systemImage: "bubble.left.and.bubble.right") }
+            Tab("Matches", systemImage: "bubble.left.and.bubble.right", value: MainTab.matches) {
+                PlaceholderTabView(
+                    title: "Matches",
+                    systemImage: "bubble.left.and.bubble.right",
+                    message: "Chat with mutual matches here."
+                )
+            }
 
-            ProfileTabView()
-                .tabItem { Label("Profile", systemImage: "person.crop.circle") }
+            Tab("Profile", systemImage: "person.crop.circle", value: MainTab.profile) {
+                ProfileTabView()
+            }
         }
         .tint(NADATheme.brand)
         .task(id: pushRegistrationToken) {

@@ -267,6 +267,18 @@ Detay: [`docs/FIRESTORE_DEVICE_TOKENS.md`](FIRESTORE_DEVICE_TOKENS.md)
 
 ---
 
+## 8e. Likes inbox API (W4-01)
+
+Detay: [`docs/FIRESTORE_LIKES.md`](FIRESTORE_LIKES.md)
+
+1. Firestore → **Indexes** → `firebase/firestore.indexes.json` içindeki iki composite index’i oluştur  
+   (`likes`: `toUserId` + `createdAt`, `fromUserId` + `createdAt`)
+2. A, B’yi Discover’da beğensin
+3. B olarak `AuthManager.fetchIncomingLikes()` A’yı + hedefi + yorumu dönmeli  
+   A olarak `fetchSentLikes()` aynı kaydı dönmeli
+
+---
+
 ## 9. Notlar
 
 - Project ID: `nada-app-33`

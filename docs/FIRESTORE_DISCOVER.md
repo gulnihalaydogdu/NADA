@@ -30,7 +30,8 @@ Never included: email, full `dateOfBirth` (age only), precise GPS.
    Scan up to **12 batches** until `pageSize` (default **10**) is filled.
 2. Skip **self**.
 3. Skip ids from:
-   - `likes` (outgoing `toUserId`)
+   - `likes` (outgoing `toUserId` — people you liked)
+   - `likes` (incoming `fromUserId` — people who liked you; they live in the Likes inbox)
    - `skips` (outgoing `toUserId`)
    - `discoverSeen` (already shown)
    - `blocks` (either direction)
@@ -50,7 +51,7 @@ Viewer `lastActiveAt` is touched on each feed fetch.
 
 | Collection | Doc id | Used for |
 |------------|--------|----------|
-| `likes/{from}_{to}_{type}_{target}` | W3-02 writes; feed reads outgoing targets |
+| `likes/{from}_{to}_{type}_{target}` | W3-02 writes; feed hides outgoing *and* incoming (inbox) |
 | `skips/{from}_{to}` | W3-03 writes; feed reads outgoing targets |
 | `discoverSeen/{from}_{to}` | `recordSeen` when a card is shown |
 | `blocks/{blocker}_{blocked}` | Week 5 writes; feed excludes both directions |
@@ -81,5 +82,6 @@ Empty collections / unpublished rules fail open (no extra exclusions) so the fee
 4. Change A’s looking-for gender / age range → B drops in or out.
 5. If Firestore asks for a composite index, create it from the error link.
 6. Already-seen cards recycle when nobody else is left (likes/skips/blocks still stay hidden).
+7. If A likes B, B’s Discover must not show A — A belongs on B’s Likes tab.
 
 Discover **UI** is W3-06 — this drop is the API + rules only.

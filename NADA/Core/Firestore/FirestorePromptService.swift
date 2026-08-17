@@ -37,6 +37,10 @@ final class FirestorePromptService {
         return prompts
     }
 
+    func cachedActivePrompts(locale: String = "en") -> [Prompt] {
+        Self.catalogCache[locale] ?? []
+    }
+
     // MARK: - Answers
 
     static func answerDocumentId(userId: String, promptId: String) -> String {

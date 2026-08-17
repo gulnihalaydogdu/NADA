@@ -10,6 +10,7 @@ final class NADAAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         Messaging.messaging().delegate = self
+        NADATheme.applyTabBadgeAppearance()
         return true
     }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum NADATheme {
     // NADA Coral palette (§12) — light mode only for MVP
@@ -14,6 +15,21 @@ enum NADATheme {
     static let danger = Color(red: 0.706, green: 0.137, blue: 0.094)       // #B42318
     static let hairline = Color(red: 0.898, green: 0.835, blue: 0.812)    // #E5D5CF
     static let card = Color(red: 0.996, green: 0.992, blue: 0.988)         // #FEFDFC card on paper
+
+    /// Tab-bar like-count bubble — dusty coral, not system red.
+    /// Do not assign `UITabBarAppearance` here: it flattens iOS 26’s glass tab bar.
+    static func applyTabBadgeAppearance() {
+        let coral = UIColor(red: 0.757, green: 0.482, blue: 0.435, alpha: 1)
+        let onCoral = UIColor(red: 0.980, green: 0.973, blue: 0.965, alpha: 1)
+        let text: [NSAttributedString.Key: Any] = [
+            .foregroundColor: onCoral,
+            .font: UIFont.systemFont(ofSize: 11, weight: .bold)
+        ]
+
+        UITabBarItem.appearance().badgeColor = coral
+        UITabBarItem.appearance().setBadgeTextAttributes(text, for: .normal)
+        UITabBarItem.appearance().setBadgeTextAttributes(text, for: .selected)
+    }
 
     static let titleFont = Font.system(.title, design: .default, weight: .bold)
     static let displayFont = Font.system(size: 28, weight: .bold, design: .rounded)

@@ -10,6 +10,8 @@ final class AuthManager {
     private(set) var currentPreferences: UserPreferences?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
+    /// Unique people with a pending incoming like (tab badge). 0 hides the badge.
+    private(set) var incomingLikerCount = 0
 
     /// True while a signed-in user's Firestore profile is still being read.
     private(set) var isResolvingProfile = false
@@ -25,6 +27,7 @@ final class AuthManager {
     private var warmedDiscoverPage: DiscoverFeedPage?
     private var discoverWarmTask: Task<Void, Never>?
     private var didFinishDiscoverWarm = false
+    private var didWarmLikeInbox = false
 
     /// Wizard Back on the first step returns here without clearing saved basics.
     var isRevisitingBasicProfile = false
@@ -449,7 +452,77 @@ final class AuthManager {
                 comment: comment
             )
         }
+        await likeService.refreshIncomingLikerCount()
+        dropCachedInboxUser(toUserId)
         return result
+    }
+
+    func fetchIncomingLikes(cursor: String? = nil) async -> LikeInboxPage {
+        await fetchLikeInbox(direction: .incoming, cursor: cursor)
+    }
+
+    func fetchSentLikes(cursor: String? = nil) async -> LikeInboxPage {
+        await fetchLikeInbox(direction: .sent, cursor: cursor)
+    }
+
+    func cachedLikeInbox(direction: LikeInboxDirection) -> LikeInboxPage? {
+        guard let userId = currentUser?.id else { return nil }
+        return likeService.cachedInbox(direction: direction, viewerId: userId)
+    }
+
+    /// First page + first avatars, started at sign-in so Likes is warm before the tab opens.
+    func warmLikeInbox() async {
+        guard currentUser != nil, !didWarmLikeInbox else { return }
+        didWarmLikeInbox = true
+        let page = await fetchIncomingLikes()
+        let thumbSize = RemoteImageView.thumbnailPointSize
+        var ordered: [(urlString: String, targetPointSize: CGFloat)] = []
+        for item in page.items.prefix(3) {
+            if let url = item.otherUser.photoThumbnailURL ?? item.otherUser.photoURL {
+                ordered.append((url, thumbSize))
+            }
+        }
+        RemoteImageLoader.shared.prefetchOrdered(ordered)
+        if let firstId = page.items.first?.otherUser.id {
+            Task { _ = await fetchInboxProfile(userId: firstId) }
+        }
+    }
+
+    func fetchInboxProfile(userId: String) async -> DiscoverCandidate? {
+        guard let viewer = currentUser else { return nil }
+        do {
+            return try await discoverService.fetchProfile(userId: userId, viewer: viewer)
+        } catch {
+            return nil
+        }
+    }
+
+    private func dropCachedInboxUser(_ userId: String) {
+        guard let viewerId = currentUser?.id else { return }
+        likeService.dropCachedInboxUser(userId: userId, viewerId: viewerId)
+        candidateProfileHintRemoved(userId)
+    }
+
+    private func candidateProfileHintRemoved(_ userId: String) {
+        discoverService.evictProfile(userId: userId)
+    }
+
+    private func fetchLikeInbox(direction: LikeInboxDirection, cursor: String?) async -> LikeInboxPage {
+        guard let userId = currentUser?.id else { return .empty }
+        let photos = cachedPhotosUserId == userId ? cachedPhotos : []
+        let answers = cachedAnswersUserId == userId ? cachedAnswers : []
+        do {
+            return try await likeService.fetchInbox(
+                direction: direction,
+                viewerId: userId,
+                cursor: cursor,
+                viewerPhotos: photos,
+                viewerAnswers: answers
+            )
+        } catch {
+            errorMessage = Self.likesInboxErrorMessage(error)
+            return .empty
+        }
     }
 
     @discardableResult
@@ -459,6 +532,8 @@ final class AuthManager {
         await perform {
             result = try await self.skipService.createSkip(fromUserId: fromUserId, toUserId: toUserId)
         }
+        await likeService.refreshIncomingLikerCount()
+        dropCachedInboxUser(toUserId)
         return result
     }
 
@@ -469,6 +544,7 @@ final class AuthManager {
             try await self.skipService.deleteSkip(fromUserId: fromUserId, toUserId: toUserId)
             didSucceed = true
         }
+        await likeService.refreshIncomingLikerCount()
         return didSucceed
     }
 
@@ -770,6 +846,8 @@ final class AuthManager {
             let profile = try await userService.ensureUserDocument(for: authUser)
             currentUser = profile
             DevicePushRegistrar.shared.setSignedInUser(profile.id)
+            startIncomingLikerBadge(userId: profile.id)
+            Task { await self.warmLikeInbox() }
         } catch {
             // Keep auth session; surface Firestore issues without blocking sign-in UI.
             currentUser = authUser
@@ -886,6 +964,20 @@ final class AuthManager {
         return error.localizedDescription
     }
 
+    private static func likesInboxErrorMessage(_ error: Error) -> String {
+        if let authError = error as? AuthError, let text = authError.errorDescription {
+            return text
+        }
+        let text = error.localizedDescription.lowercased()
+        if text.contains("requires an index") || text.contains("failed-precondition") {
+            return "Can't load likes yet. Create the Firestore composite index for likes (toUserId/fromUserId + createdAt) from firebase/firestore.indexes.json."
+        }
+        if text.contains("permission") || text.contains("missing or insufficient") {
+            return "Can't read likes yet. Publish firebase/firestore.rules so you can list likes sent to or from you."
+        }
+        return error.localizedDescription
+    }
+
     private func rememberPhotos(_ list: [ProfilePhoto], userId: String) {
         cachedPhotos = list
         cachedPhotosUserId = userId
@@ -910,7 +1002,17 @@ final class AuthManager {
         didLoadAnswers = true
     }
 
+    private func startIncomingLikerBadge(userId: String) {
+        likeService.startIncomingLikerCountListener(viewerId: userId) { [weak self] count in
+            self?.incomingLikerCount = count
+        }
+    }
+
     private func clearSessionCaches() {
+        likeService.stopIncomingLikerCountListener()
+        likeService.resetCaches()
+        incomingLikerCount = 0
+        didWarmLikeInbox = false
         cachedPhotos = []
         cachedPhotosUserId = nil
         didLoadPhotos = false

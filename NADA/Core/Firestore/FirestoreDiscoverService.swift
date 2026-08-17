@@ -5,7 +5,7 @@ import Foundation
 /// Builds Discover feed pages from complete nearby profiles (W3-01).
 ///
 /// Queries `isProfileComplete`, filters by viewer prefs (gender / age / city+radius),
-/// excludes self + liked / skipped / seen / blocked, ranks by distance then recency.
+/// excludes self + liked / liked-you / skipped / seen / blocked, ranks by distance then recency.
 @MainActor
 final class FirestoreDiscoverService {
     static let defaultPageSize = 10
@@ -14,6 +14,9 @@ final class FirestoreDiscoverService {
 
     private let promptService = FirestorePromptService()
     private var promptCacheById: [String: Prompt]?
+    private var profileCacheViewerId: String?
+    private var profileCache: [String: DiscoverCandidate] = [:]
+    private var profileInflight: [String: Task<DiscoverCandidate?, Never>] = [:]
 
     private var database: Firestore? {
         guard FirebaseApp.app() != nil else { return nil }
@@ -146,6 +149,56 @@ final class FirestoreDiscoverService {
         )
     }
 
+    /// Full profile for Likes inbox — no Discover gender/age/radius gates.
+    /// Someone who liked you should still be viewable even if they wouldn't appear in the feed.
+    func fetchProfile(userId: String, viewer: NADAUser) async throws -> DiscoverCandidate? {
+        guard !userId.isEmpty, userId != viewer.id else { return nil }
+
+        if profileCacheViewerId != viewer.id {
+            profileCache = [:]
+            profileInflight = [:]
+            profileCacheViewerId = viewer.id
+        }
+        if let cached = profileCache[userId] {
+            return cached
+        }
+        if let inflight = profileInflight[userId] {
+            return await inflight.value
+        }
+
+        let task = Task<DiscoverCandidate?, Never> {
+            await self.loadProfileUncached(userId: userId, viewer: viewer)
+        }
+        profileInflight[userId] = task
+        let candidate = await task.value
+        profileInflight[userId] = nil
+        if let candidate {
+            profileCache[userId] = candidate
+        }
+        return candidate
+    }
+
+    func evictProfile(userId: String) {
+        profileCache[userId] = nil
+        profileInflight[userId] = nil
+    }
+
+    private func loadProfileUncached(userId: String, viewer: NADAUser) async -> DiscoverCandidate? {
+        guard let database else { return nil }
+        guard let snapshot = try? await database.collection("users").document(userId).getDocument(),
+              snapshot.exists,
+              let data = snapshot.data() else { return nil }
+        let promptById = (try? await activePromptsById()) ?? [:]
+        return try? await assembleCandidate(
+            userId: userId,
+            data: data,
+            viewer: viewer,
+            preferences: UserPreferences.defaults(for: viewer),
+            promptById: promptById,
+            applyDiscoveryFilters: false
+        )
+    }
+
     /// Marks a profile as seen so later pages skip it (W3-01 / W3-04).
     func recordSeen(fromUserId: String, toUserId: String) async throws {
         guard let database else { throw AuthError.notConfigured }
@@ -163,6 +216,12 @@ final class FirestoreDiscoverService {
 
     private func loadExcludedUserIds(viewerId: String, excludeSeen: Bool) async throws -> Set<String> {
         async let liked = fetchToUserIds(collection: "likes", fromUserId: viewerId)
+        async let likedMe = fetchIds(
+            collection: "likes",
+            field: "toUserId",
+            equals: viewerId,
+            take: "fromUserId"
+        )
         async let skipped = fetchToUserIds(collection: "skips", fromUserId: viewerId)
         async let seen = fetchToUserIds(collection: "discoverSeen", fromUserId: viewerId)
         async let blockedByMe = fetchIds(
@@ -178,6 +237,7 @@ final class FirestoreDiscoverService {
             take: "blockerId"
         )
         var ids = try await liked
+            .union(likedMe)
             .union(skipped)
             .union(blockedByMe)
             .union(blockedMe)
@@ -224,18 +284,23 @@ final class FirestoreDiscoverService {
         data: [String: Any],
         viewer: NADAUser,
         preferences: UserPreferences,
-        promptById: [String: Prompt]
+        promptById: [String: Prompt],
+        applyDiscoveryFilters: Bool = true
     ) async throws -> DiscoverCandidate? {
         let displayName = (data["displayName"] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !displayName.isEmpty else { return nil }
 
         let gender = data["gender"] as? String
-        guard matchesLookingFor(preferences.lookingForGenders, gender: gender) else { return nil }
+        if applyDiscoveryFilters {
+            guard matchesLookingFor(preferences.lookingForGenders, gender: gender) else { return nil }
+        }
 
         let dateOfBirth = (data["dateOfBirth"] as? Timestamp)?.dateValue()
         let age = dateOfBirth.map { ProfileAge.age(from: $0) }
-        guard let age, age >= preferences.minAge, age <= preferences.maxAge else { return nil }
+        if applyDiscoveryFilters {
+            guard let age, age >= preferences.minAge, age <= preferences.maxAge else { return nil }
+        }
 
         let city = (data["city"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let candidateLat = doubleValue(data["approxLatitude"])
@@ -246,13 +311,15 @@ final class FirestoreDiscoverService {
             candidateLongitude: candidateLon
         )
 
-        guard passesLocationFilter(
-            preferences: preferences,
-            viewer: viewer,
-            candidateCity: city,
-            distanceKm: distanceKm
-        ) else {
-            return nil
+        if applyDiscoveryFilters {
+            guard passesLocationFilter(
+                preferences: preferences,
+                viewer: viewer,
+                candidateCity: city,
+                distanceKm: distanceKm
+            ) else {
+                return nil
+            }
         }
 
         async let photosTask = loadPhotos(
@@ -271,7 +338,7 @@ final class FirestoreDiscoverService {
                 thumbnailURL: data["photoThumbnailURL"] as? String
             )
         }
-        guard !photos.isEmpty else { return nil }
+        guard applyDiscoveryFilters == false || !photos.isEmpty else { return nil }
 
         let answers: [PromptAnswer]
         do {

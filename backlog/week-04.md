@@ -19,9 +19,11 @@
 
 ### W4-01 — Incoming/sent likes API
 - **P0 · 1d** — List likes received and sent, with the liked target + comment.
-- [ ] Incoming likes for current user (paginated)
-- [ ] Sent likes list
-- [ ] Excludes blocked users
+- [x] Incoming likes for current user (paginated)
+- [x] Sent likes list
+- [x] Excludes blocked users
+
+**Ship notes:** `AuthManager.fetchIncomingLikes` / `fetchSentLikes` → `LikeInboxPage`. Hydrates other user + Bit/photo target. Composite indexes in `firebase/firestore.indexes.json`. UI is W4-05.
 
 ### W4-02 — Match creation on mutual like
 - **P0 · 1.5d** — When both like, create a Match; idempotent.
@@ -44,12 +46,15 @@
 
 ### W4-05 — Likes inbox UI
 - **P0 · 1.5d** — Browse incoming likes (who liked you + on what), like back or skip.
-- [ ] Shows liked prompt/photo + comment
-- [ ] Like back triggers match flow
-- [ ] Empty state
+- [x] Shows liked prompt/photo + comment
+- [x] Like back triggers match flow
+- [x] Empty state
+
+**Ship notes:** `LikesInboxView` replaces the Likes placeholder tab. Rows show avatar, "liked your photo/Bit/profile", relative time, the liked Bit or photo thumbnail, and the comment. Tapping a row opens that person's full Discover-style profile; **All** (top right) returns to the list. Like back opens the same optional-note sheet as Discover, then writes a profile like (Match object lands in W4-02); Pass writes a skip. Both remove the row and return to the list. Tab bar badge = unique pending likers (live listener). Pull to refresh + cursor paging; thumbnails prefetched at 120pt.
 
 ### W4-06 — Sent likes view
 - **P1 · 0.5d** — See outgoing likes and their status.
+- [x] Sent tab in the Likes segment with "Waiting to hear back" status
 
 ### W4-07 — Match screen + Matches list
 - **P0 · 1.5d** — Celebratory match screen; Matches tab list.
@@ -79,7 +84,7 @@
 | Fri | W4-09 | W4-08 + W4-09 |
 
 ## Ship gate
-- [ ] Incoming likes visible with context
+- [x] Incoming likes visible with context
 - [ ] Mutual like creates exactly one Match
 - [ ] Match + like pushes delivered and deep-link correctly
 - [ ] Matches list populated

@@ -315,7 +315,7 @@ struct DiscoverFeedView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
-        .padding(.bottom, 20)
+        .padding(.bottom, 8)
         .background {
             UnevenRoundedRectangle(
                 cornerRadii: .init(topLeading: 24, topTrailing: 24),
@@ -527,7 +527,7 @@ struct DiscoverFeedView: View {
     }
 }
 
-private struct DiscoverCandidateStack: View {
+struct DiscoverCandidateStack: View {
     let candidate: DiscoverCandidate
     let catalogInterests: [Interest]
     var viewerInterestIds: [String] = []
@@ -535,6 +535,10 @@ private struct DiscoverCandidateStack: View {
     var glowingPhotoId: String? = nil
     var onLikeBit: ((DiscoverBit) -> Void)?
     var onLikePhoto: ((ProfilePhoto) -> Void)?
+    var highlightedPhotoId: String? = nil
+    var highlightedPromptId: String? = nil
+    var highlightLabel: String? = nil
+    var showsName: Bool = true
 
     private var essentials: ProfileEssentialsCard.Model {
         ProfileEssentialsCard.Model(
@@ -556,19 +560,23 @@ private struct DiscoverCandidateStack: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Text(candidate.displayName)
-                .font(NADATheme.displayFont)
-                .foregroundStyle(NADATheme.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if showsName {
+                Text(candidate.displayName)
+                    .font(NADATheme.displayFont)
+                    .foregroundStyle(NADATheme.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             if let primary = candidate.photos.first {
                 photoCard(primary)
+                    .id("photo-\(primary.id)")
             } else {
                 ProfilePreviewPhotoTile(urlString: nil)
             }
 
             if let firstBit {
                 bitCard(firstBit)
+                    .id("prompt-\(firstBit.id)")
             }
 
             ProfileEssentialsCard(model: essentials)
@@ -584,9 +592,11 @@ private struct DiscoverCandidateStack: View {
                 ForEach(0..<count, id: \.self) { index in
                     if index < remainingPhotos.count {
                         photoCard(remainingPhotos[index])
+                            .id("photo-\(remainingPhotos[index].id)")
                     }
                     if index < remainingBits.count {
                         bitCard(remainingBits[index])
+                            .id("prompt-\(remainingBits[index].id)")
                     }
                 }
             }
@@ -594,10 +604,16 @@ private struct DiscoverCandidateStack: View {
     }
 
     private func photoCard(_ photo: ProfilePhoto) -> some View {
-        ProfilePreviewPhotoTile(
+        let isHighlighted = highlightedPhotoId == photo.id
+        return ProfilePreviewPhotoTile(
             urlString: photo.url,
             thumbnailURLString: photo.thumbnailURL
         )
+        .overlay(alignment: .topLeading) {
+            if isHighlighted, let highlightLabel {
+                likeHighlightChip(highlightLabel)
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             if onLikePhoto != nil {
                 DiscoverLikeHeartButton(
@@ -611,14 +627,25 @@ private struct DiscoverCandidateStack: View {
         }
         .overlay {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(NADATheme.brand.opacity(glowingPhotoId == photo.id ? 0.85 : 0), lineWidth: 3)
+                .strokeBorder(
+                    NADATheme.brand.opacity(
+                        glowingPhotoId == photo.id ? 0.85 : (isHighlighted ? 0.55 : 0)
+                    ),
+                    lineWidth: glowingPhotoId == photo.id || isHighlighted ? 3 : 0
+                )
                 .shadow(color: NADATheme.brand.opacity(glowingPhotoId == photo.id ? 0.55 : 0), radius: 18)
                 .animation(.spring(response: 0.34, dampingFraction: 0.62), value: glowingPhotoId)
         }
     }
 
     private func bitCard(_ bit: DiscoverBit) -> some View {
-        ProfilePreviewBitCard(prompt: bit.promptText, answer: bit.answerText)
+        let isHighlighted = highlightedPromptId == bit.id
+        return ProfilePreviewBitCard(prompt: bit.promptText, answer: bit.answerText)
+            .overlay(alignment: .topLeading) {
+                if isHighlighted, let highlightLabel {
+                    likeHighlightChip(highlightLabel)
+                }
+            }
             .overlay(alignment: .bottomTrailing) {
                 if onLikeBit != nil {
                     DiscoverLikeHeartButton(
@@ -632,10 +659,25 @@ private struct DiscoverCandidateStack: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(NADATheme.brand.opacity(glowingPromptId == bit.id ? 0.85 : 0), lineWidth: 3)
+                    .strokeBorder(
+                        NADATheme.brand.opacity(
+                            glowingPromptId == bit.id ? 0.85 : (isHighlighted ? 0.55 : 0)
+                        ),
+                        lineWidth: glowingPromptId == bit.id || isHighlighted ? 3 : 0
+                    )
                     .shadow(color: NADATheme.brand.opacity(glowingPromptId == bit.id ? 0.55 : 0), radius: 18)
                     .animation(.spring(response: 0.34, dampingFraction: 0.62), value: glowingPromptId)
             }
+    }
+
+    private func likeHighlightChip(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(NADATheme.onBrand)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(NADATheme.brand, in: Capsule())
+            .padding(12)
     }
 }
 
@@ -700,77 +742,6 @@ private struct DiscoverLikeHeartButton: View {
         .buttonStyle(.plain)
         .animation(.spring(response: 0.34, dampingFraction: 0.62), value: isGlowing)
         .accessibilityLabel(accessibilityLabel)
-    }
-}
-
-private struct DiscoverLikeCommentSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let title: String
-    var isBusy = false
-    let onSend: (String?) -> Void
-
-    @State private var comment = ""
-
-    private var trimmed: String {
-        comment.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var canSend: Bool {
-        trimmed.count <= DiscoverLike.maxCommentLength && !isBusy
-    }
-
-    var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(title)
-                    .font(NADATheme.headlineFont)
-                    .foregroundStyle(NADATheme.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text("Add a short note (optional) — hangout vibes only.")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-
-                TextField("Say why you’re down to hang…", text: $comment, axis: .vertical)
-                    .lineLimit(3...5)
-                    .padding(14)
-                    .background(NADATheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                Text("\(trimmed.count)/\(DiscoverLike.maxCommentLength)")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(
-                        trimmed.count > DiscoverLike.maxCommentLength
-                            ? NADATheme.danger
-                            : NADATheme.secondaryInk
-                    )
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-
-                Button {
-                    onSend(trimmed.isEmpty ? nil : trimmed)
-                } label: {
-                    if isBusy {
-                        ProgressView().frame(maxWidth: .infinity)
-                    } else {
-                        Text("Send like")
-                    }
-                }
-                .buttonStyle(NADAPrimaryButtonStyle())
-                .disabled(!canSend)
-
-                Button("Cancel") { dismiss() }
-                    .font(NADATheme.headlineFont)
-                    .foregroundStyle(NADATheme.brandPressed)
-                    .frame(maxWidth: .infinity)
-                    .disabled(isBusy)
-
-                Spacer(minLength: 0)
-            }
-            .padding(24)
-            .background(NADATheme.paper.ignoresSafeArea())
-            .navigationTitle("Like")
-            .navigationBarTitleDisplayMode(.inline)
-        }
     }
 }
 
