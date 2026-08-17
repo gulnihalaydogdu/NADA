@@ -27,23 +27,16 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
 | `photoURL` | string | no | Denormalized primary photo download URL (W1-05 / W2-01) |
 | `profileWizardCompleted` | boolean | yes | `false` until Photos → Bits → Preferences shell finishes or is skipped (W1-12) |
 | `isProfileComplete` | boolean | yes | Discover gate (W2-06): photos≥1, bits≥3, gender, city. Recomputed client-side on hydrate / profile edits |
+| `jobTitle` | string | no | Optional Discover card role (≤60). Saved from About you / Edit |
+| `university` | string | no | Optional last / current school (≤80). Saved from About you / Edit |
+| `hangoutLookingFor` | string | no | Optional hangout-intent line (≤120). Saved from About you / Edit |
 
 † Created empty on sign-up; **Basic Profile** gate requires them before the profile wizard / tabs.
 
-### Planned profile essentials (not in Firestore yet)
+`openToGroups` stays later. Sexuality / orientation stays out of MVP.
 
-Discover/profile card fields — implement later (do not treat as shipped):
-
-| Field | Type | UI |
-|-------|------|-----|
-| `jobTitle` | string | e.g. Student |
-| `university` | string | Last / current school |
-| `hangoutLookingFor` | string | Short hangout intent line |
-| `openToGroups` | boolean | Optional later |
-
-**Shipped with W2-09:** `dateOfBirth` (age on Preview essentials card).
-
-**Out of MVP for now:** sexuality / orientation (dating-coded; revisit only with clear friends framing).
+**Shipped with W2-09:** `dateOfBirth` (age on Preview essentials card).  
+**Shipped Week 3 spillover:** `jobTitle`, `university`, `hangoutLookingFor` on the Preview essentials card (Discover reuses the same card in W3-06).
 
 ---
 
@@ -55,7 +48,7 @@ Discover/profile card fields — implement later (do not treat as shipped):
 4. **Profile wizard shell (skippable)** → Photos → Bits → Preferences (`radiusKm` saved on Finish) → `profileWizardCompleted: true`.
 5. **Location sheet** → `updateLocation` sets `city`, `radiusKm`, optional coarse lat/lng; mirrors discovery fields onto [`preferences/{uid}`](FIRESTORE_PREFERENCES.md) (W2-05).
 6. **Profile photos (W2-01)** → up to 6 ordered docs under `photos`; primary mirrored on `photoURL`.
-7. **Profile edit** → basics updated later from Profile → Edit profile.
+7. **Profile edit** → Profile → About you / Edit updates basics plus optional `jobTitle`, `university`, `hangoutLookingFor` (empty save deletes the field).
 
 ---
 
@@ -102,6 +95,9 @@ Discover/profile card fields — implement later (do not treat as shipped):
   "displayName": "Gül",
   "gender": "woman",
   "city": "Istanbul",
+  "jobTitle": "Student",
+  "university": "Bilkent University",
+  "hangoutLookingFor": "Looking for a travel-buddy from Istanbul",
   "photoURL": "https://firebasestorage.googleapis.com/...",
   "profileWizardCompleted": true,
   "isProfileComplete": true
@@ -116,10 +112,11 @@ Discover/profile card fields — implement later (do not treat as shipped):
 2. Run app → sign up with email/password
 3. Firebase Console → Firestore → `users` → `{uid}` matches table above
 4. Complete friends intent → `friendsIntentCompleted` becomes `true`
-5. Profile → Photos → add up to 6; set primary; delete → `photos` subcollection + `photoURL` stay in sync
+5. Profile → About you / Edit → job, university, hangout looking-for → Preview essentials card shows the rows  
+6. Profile → Photos → add up to 6; set primary; delete → `photos` subcollection + `photoURL` stay in sync
 
 ---
 
 ## Out of scope (later weeks)
 
-Full product `User` entity in `UYGULAMA_SEMASI.md` §7 adds `birthYear`, `bio`, `moderationStatus`, etc. Those are **not** in Firestore until profile/discover work lands.
+Full product `User` entity in `UYGULAMA_SEMASI.md` §7 still defers `bio`, `moderationStatus`, and `openToGroups`.

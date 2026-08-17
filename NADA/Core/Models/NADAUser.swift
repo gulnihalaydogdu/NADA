@@ -1,6 +1,10 @@
 import Foundation
 
 struct NADAUser: Identifiable, Equatable, Sendable {
+    static let maxJobTitleLength = 60
+    static let maxUniversityLength = 80
+    static let maxHangoutLookingForLength = 120
+
     let id: String
     var displayName: String?
     var email: String?
@@ -14,6 +18,12 @@ struct NADAUser: Identifiable, Equatable, Sendable {
     var approxLatitude: Double?
     var approxLongitude: Double?
     var photoURL: String?
+    /// Friend-coded role on the Discover card, e.g. Student, Designer.
+    var jobTitle: String?
+    /// Last / current school name.
+    var university: String?
+    /// Short hangout-intent line, e.g. “Looking for a travel-buddy from Istanbul”.
+    var hangoutLookingFor: String?
     var intent: UserIntent
     var locale: String?
     var createdAt: Date?
@@ -38,6 +48,9 @@ struct NADAUser: Identifiable, Equatable, Sendable {
         approxLatitude: Double? = nil,
         approxLongitude: Double? = nil,
         photoURL: String? = nil,
+        jobTitle: String? = nil,
+        university: String? = nil,
+        hangoutLookingFor: String? = nil,
         intent: UserIntent = .friendsOnly,
         locale: String? = nil,
         createdAt: Date? = nil,
@@ -55,6 +68,9 @@ struct NADAUser: Identifiable, Equatable, Sendable {
         self.approxLatitude = approxLatitude
         self.approxLongitude = approxLongitude
         self.photoURL = photoURL
+        self.jobTitle = jobTitle
+        self.university = university
+        self.hangoutLookingFor = hangoutLookingFor
         self.intent = intent
         self.locale = locale
         self.createdAt = createdAt
@@ -71,5 +87,28 @@ struct NADAUser: Identifiable, Equatable, Sendable {
 
     var resolvedRadiusKm: Int {
         ProfileLocation.clampRadiusKm(radiusKm ?? ProfileLocation.defaultRadiusKm)
+    }
+
+    var trimmedJobTitle: String? {
+        Self.trimmed(jobTitle, max: Self.maxJobTitleLength)
+    }
+
+    var trimmedUniversity: String? {
+        Self.trimmed(university, max: Self.maxUniversityLength)
+    }
+
+    var trimmedHangoutLookingFor: String? {
+        Self.trimmed(hangoutLookingFor, max: Self.maxHangoutLookingForLength)
+    }
+
+    var hasHangoutEssentials: Bool {
+        trimmedJobTitle != nil || trimmedUniversity != nil || trimmedHangoutLookingFor != nil
+    }
+
+    static func trimmed(_ value: String?, max: Int) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(max))
     }
 }
