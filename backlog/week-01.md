@@ -322,12 +322,12 @@
 
 ## Spillover / carry to Week 2
 
-- [ ] **Apple Sign In** — code ready (`NADAAuthConfig`); blocked until paid Apple Developer Program. Enable capability + Firebase Apple provider when enrolled. *(was W1-03b)*
-- [ ] **Multi-photo gallery (up to 6)** — Week 1 stores a single `profile.jpg` + `photoURL`. Original uncropped asset not kept (re-edit limited to already-cropped square).
-- [ ] **Bit answers (write path)** — catalog + `promptAnswers` rules stub only; pick/answer/save ≥3 in Week 2.
-- [ ] **Hangout interests + radiusKm persistence** — UI preview only in wizard / Profile sheets.
-- [ ] **My Profile polish** — hide completion meter at 100%; serif/sans type pairing; hangout-first **Preview** layout (photo ↔ Bits ↔ “We could…”), not dating-style beauty ranking.
-- [ ] **Discover / Likes / Matches** — still placeholder tabs (Week 3 core loop; Week 2 may start feed).
+- [ ] **Apple Sign In** — code ready (`NADAAuthConfig`); blocked until paid Apple Developer Program. Enable capability + Firebase Apple provider when enrolled. *(was W1-03b; still blocked Week 3)*
+- [x] **Multi-photo gallery (up to 6)** — shipped W2-01 / W2-07
+- [x] **Bit answers (write path)** — shipped W2-03 / W2-08
+- [x] **Hangout interests + radiusKm persistence** — radius W2-05 / W2-10; interest badges W2 spillover + Discover “You both like…”
+- [x] **My Profile polish** — Preview is hangout-first (photo ↔ Bits ↔ essentials); completion meter can reach 100%
+- [x] **Discover** — Week 3 feed + like/skip. **Likes / Matches** tabs still placeholders (Week 4)
 
 ---
 

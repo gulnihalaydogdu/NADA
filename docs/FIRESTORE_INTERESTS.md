@@ -61,6 +61,4 @@ Also **Publish** `firebase/firestore.rules` so the `interests` read rule is live
 
 `AuthManager.updateInterestIds` writes `users/{uid}.interestIds`.
 
-Surfaces: wizard step between Bits and Preferences · Profile → Interests · Preview block under essentials.
-
-Week 3 Discover “you both like…” is not in this drop.
+Surfaces: wizard step between Bits and Preferences · Profile → Interests · Preview block under essentials · Discover **You both like…** overlap (shared chips first; remaining as Also into).

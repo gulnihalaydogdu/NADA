@@ -24,10 +24,10 @@ One doc per device. Token refresh replaces the previous doc for that device.
 
 ## Client flow
 
-1. User lands on the main tabs → system notification permission.
-2. If allowed, register for remote notifications (APNs).
-3. FCM maps the APNs token → `fcmToken`.
-4. Upsert this subcollection. Sign-out deletes the current device doc first.
+1. After splash, if iOS already allowed notifications → register APNs/FCM silently (no dialog).
+2. Otherwise NADA shows an Enable / Skip card, **at most twice per install**, once per launch.
+3. **Turn on** is the only path that may show the system permission alert. Skip (or swipe away) leaves Discover open; we do not nag after two skips or a system deny.
+4. If allowed, FCM maps the APNs token → `fcmToken` and upserts this subcollection. Sign-out deletes the current device doc first.
 
 ---
 

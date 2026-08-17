@@ -721,10 +721,16 @@ final class AuthManager {
         }
     }
 
-    /// Permission + APNs/FCM registration after the user reaches the app shell (W3-09).
-    func registerForPushNotifications() async {
+    /// After splash: silently register if already allowed, otherwise maybe show Enable / Skip.
+    func shouldOfferPushPrompt() async -> Bool {
+        guard currentUser != nil else { return false }
+        return await DevicePushRegistrar.shared.shouldShowInAppPrompt()
+    }
+
+    /// User tapped Turn on in the in-app card — may show the iOS permission alert once.
+    func enablePushFromPrompt() async {
         guard currentUser != nil else { return }
-        await DevicePushRegistrar.shared.requestPermissionAndRegister()
+        await DevicePushRegistrar.shared.enableAfterUserConsent()
     }
 
     func clearError() {

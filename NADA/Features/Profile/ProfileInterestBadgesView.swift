@@ -97,22 +97,19 @@ struct InterestBadgeChip: View {
 /// Read-only wrap of selected badges — Preview / Discover card.
 struct ProfileInterestBadgesView: View {
     let interests: [Interest]
+    var title: String = "Interests"
+    var emphasized = true
 
     var body: some View {
         if interests.isEmpty {
             EmptyView()
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Interests")
+                Text(title)
                     .font(NADATheme.headlineFont)
                     .foregroundStyle(NADATheme.ink)
 
-                WrappingHStack(spacing: 8, lineSpacing: 8) {
-                    ForEach(interests) { interest in
-                        InterestBadgeChip(label: interest.label, isSelected: true)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                InterestBadgeWrap(interests: interests, emphasized: emphasized)
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -122,5 +119,70 @@ struct ProfileInterestBadgesView: View {
                     .strokeBorder(NADATheme.ink.opacity(0.08), lineWidth: 1)
             )
         }
+    }
+}
+
+/// Discover: shared badges first as “You both like…”, the rest as quieter Interests.
+struct DiscoverInterestOverlapView: View {
+    let interests: [Interest]
+    let viewerInterestIds: [String]
+
+    private var viewerSet: Set<String> { Set(viewerInterestIds) }
+
+    private var shared: [Interest] {
+        interests.filter { viewerSet.contains($0.id) }
+    }
+
+    private var others: [Interest] {
+        interests.filter { !viewerSet.contains($0.id) }
+    }
+
+    var body: some View {
+        if interests.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                if !shared.isEmpty {
+                    section(title: "You both like…", interests: shared, emphasized: true)
+                }
+                if !others.isEmpty {
+                    section(
+                        title: shared.isEmpty ? "Interests" : "Also into",
+                        interests: others,
+                        emphasized: false
+                    )
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(NADATheme.ink.opacity(0.08), lineWidth: 1)
+            )
+        }
+    }
+
+    private func section(title: String, interests: [Interest], emphasized: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(NADATheme.headlineFont)
+                .foregroundStyle(NADATheme.ink)
+            InterestBadgeWrap(interests: interests, emphasized: emphasized)
+        }
+    }
+}
+
+private struct InterestBadgeWrap: View {
+    let interests: [Interest]
+    var emphasized = true
+
+    var body: some View {
+        WrappingHStack(spacing: 8, lineSpacing: 8) {
+            ForEach(interests) { interest in
+                InterestBadgeChip(label: interest.label, isSelected: emphasized)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

@@ -279,9 +279,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "NADA uses your approximate location to suggest your city for hangouts nearby — never a precise pin.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "NADA needs photo access so you can set a profile picture.";
-				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_UIColorName = LaunchPaper;
 				INFOPLIST_KEY_UILaunchScreen_UIImageName = SplashMark;
@@ -317,9 +317,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "NADA uses your approximate location to suggest your city for hangouts nearby — never a precise pin.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "NADA needs photo access so you can set a profile picture.";
-				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_UIColorName = LaunchPaper;
 				INFOPLIST_KEY_UILaunchScreen_UIImageName = SplashMark;

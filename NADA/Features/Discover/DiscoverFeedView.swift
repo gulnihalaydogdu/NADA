@@ -137,6 +137,7 @@ struct DiscoverFeedView: View {
                         DiscoverCandidateStack(
                             candidate: current,
                             catalogInterests: catalogInterests,
+                            viewerInterestIds: auth.currentUser?.interestIds ?? [],
                             glowingPromptId: promptGlowId,
                             glowingPhotoId: photoGlowId,
                             onLikeBit: { bit in
@@ -529,6 +530,7 @@ struct DiscoverFeedView: View {
 private struct DiscoverCandidateStack: View {
     let candidate: DiscoverCandidate
     let catalogInterests: [Interest]
+    var viewerInterestIds: [String] = []
     var glowingPromptId: String? = nil
     var glowingPhotoId: String? = nil
     var onLikeBit: ((DiscoverBit) -> Void)?
@@ -570,7 +572,10 @@ private struct DiscoverCandidateStack: View {
             }
 
             ProfileEssentialsCard(model: essentials)
-            ProfileInterestBadgesView(interests: previewInterests)
+            DiscoverInterestOverlapView(
+                interests: previewInterests,
+                viewerInterestIds: viewerInterestIds
+            )
 
             let remainingPhotos = Array(candidate.photos.dropFirst())
             let remainingBits = Array(candidate.bits.dropFirst())

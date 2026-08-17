@@ -57,9 +57,9 @@
 ### W2-06 — Profile completeness flag
 - **P1 · 0.5d** — Compute `isProfileComplete` (photos≥1, answers≥3, gender, city).
 - [x] Exposed on `/me`
-- [ ] Used by iOS to gate Discover (Week 3)
+- [x] Used by iOS to gate Discover (Week 3)
 
-**Ship notes:** `users/{uid}.isProfileComplete` + `ProfileCompleteness` + `AuthManager.isProfileComplete`. Synced on sign-in hydrate and after basics / location / photos / bits mutations. Discover tab gate is Week 3; flag is ready to read via `auth.isProfileComplete`.
+**Ship notes:** `users/{uid}.isProfileComplete` + `ProfileCompleteness` + `AuthManager.isProfileComplete`. Synced on sign-in hydrate and after basics / location / photos / bits mutations. Discover tab shows a finish-profile gate when incomplete (W3-10).
 
 ---
 
@@ -138,11 +138,11 @@ Discover feed + gating (`isProfileComplete`); interest badges replace Hangout en
 - [x] `isProfileComplete` correct
 
 ## Spillover to Week 3
-- [ ] Profile essentials card on Discover / Preview: age · gender · city + job, university, hangout looking-for (see `UYGULAMA_SEMASI.md` §7)
+- [x] Profile essentials card on Discover / Preview: age · gender · city + job, university, hangout looking-for (see `UYGULAMA_SEMASI.md` §7)
 - [x] Collect `jobTitle`, `university`, `hangoutLookingFor` in setup/edit (no sexuality field for now)
 - [x] **Interest badges** — replaces the removed Hangout energy placeholder; closes the W1 spillover "hangout interests" half
-- [ ] Optional later: `openToGroups` chip
-- [ ] …
+- [x] Discover **You both like…** overlap on the card (shared chips first; rest as Also into)
+- [ ] Optional later: `openToGroups` chip (not Week 3; schema “later”)
 
 ### Interest badges — agreed scope (8 Aug)
 Read-only catalog `interests/{id}` (label, category, sortOrder, isActive) seeded from
@@ -155,7 +155,7 @@ Decisions:
 - Categories: Lifestyle, TV & Movies, Music, Games, Food & Drink, Sports & Outdoors, Creative, Going Out.
 - Chips wrap inside each category (no horizontal scroll) so every option is visible.
 - Surfaces: wizard step between Bits and Preferences · Profile "Interests" section · Preview block
-  under essentials · Week 3 Discover "you both like…" signal (not in this drop).
+  under essentials · Discover **You both like…** overlap (shipped).
 
 ### Scope change (8 Aug)
 **Hangout energy section removed** (`22f772a`). Interests were never wired to storage, so the

@@ -261,7 +261,7 @@ Detay: [`docs/FIRESTORE_DISCOVER.md`](FIRESTORE_DISCOVER.md)
 Detay: [`docs/FIRESTORE_DEVICE_TOKENS.md`](FIRESTORE_DEVICE_TOKENS.md)
 
 1. Firestore → **Rules** → `firebase/firestore.rules` yapıştır → **Publish** (`users/{uid}/deviceTokens` owner-only)
-2. Uygulama → ana tab’lar → bildirim izni ver
+2. Uygulama → ana tab’lar → NADA kartında **Turn on notifications** (Skip de olur; sistem izni her açılışta sorulmaz)
 3. Firestore → `users/{uid}/deviceTokens` → `fcmToken` dolu olmalı
 4. Gerçek push için paid Apple Developer + APNs `.p8` key’i Firebase Cloud Messaging’e yükle (Sign in with Apple ile aynı hesap kapısı)
 

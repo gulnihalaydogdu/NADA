@@ -8,7 +8,9 @@
 **Demo (DoD):**
 > “User A likes User B. B sees A in their Likes inbox and gets a push. B likes back → both see a Match and get a match notification.”
 
-**Depends on:** Week 3 (likes, feed, APNs).  
+**Depends on:** Week 3 (likes, feed, APNs token path).  
+**Carry-in from Week 3:** live APNs send still needs paid Apple `.p8`; Apple Sign In still blocked; Likes/Matches UI is this week.
+
 **Milestone:** M2 — core loop (Discover → like → match) complete.
 
 ---

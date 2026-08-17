@@ -3,6 +3,7 @@ import SwiftUI
 struct MainTabView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(SplashController.self) private var splash
+    @State private var showsPushPrompt = false
 
     var body: some View {
         TabView {
@@ -29,7 +30,18 @@ struct MainTabView: View {
         .tint(NADATheme.brand)
         .task(id: pushRegistrationToken) {
             guard !splash.isShowingSplash, auth.isDiscoverLaunchReady else { return }
-            await auth.registerForPushNotifications()
+            showsPushPrompt = await auth.shouldOfferPushPrompt()
+        }
+        .sheet(isPresented: $showsPushPrompt) {
+            PushPermissionPromptSheet(
+                onEnable: {
+                    await auth.enablePushFromPrompt()
+                    showsPushPrompt = false
+                },
+                onSkip: {
+                    showsPushPrompt = false
+                }
+            )
         }
     }
 

@@ -8,10 +8,15 @@ import UserNotifications
 final class DevicePushRegistrar {
     static let shared = DevicePushRegistrar()
 
+    private static let promptShownCountKey = "nada.pushPrompt.shownCount"
+    private static let promptFinishedKey = "nada.pushPrompt.finished"
+    private static let maxInAppPrompts = 2
+
     private let tokens = FirestoreDeviceTokenService()
     private var userId: String?
     private var fcmToken: String?
     private var lastUploadedToken: String?
+    private var didEvaluatePromptThisSession = false
 
     private init() {}
 
@@ -21,25 +26,57 @@ final class DevicePushRegistrar {
         Task { await upsertIfPossible() }
     }
 
-    /// System permission + APNs registration. Safe to call on every Main tab appear.
-    func requestPermissionAndRegister() async {
+    /// Silent: register only if iOS already allowed notifications. Never shows a system dialog.
+    func registerIfAlreadyAuthorized() async {
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        guard status == .authorized || status == .provisional else { return }
+        await registerForRemoteNotifications()
+    }
+
+    /// User tapped Turn on — this is the only path that may show the iOS permission alert.
+    func enableAfterUserConsent() async {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
 
         switch settings.authorizationStatus {
         case .denied:
+            Self.markPromptFinished()
             return
         case .notDetermined:
             let granted = (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
+            Self.markPromptFinished()
             guard granted else { return }
         default:
-            break
+            Self.markPromptFinished()
         }
 
-        UIApplication.shared.registerForRemoteNotifications()
+        await registerForRemoteNotifications()
+    }
 
-        if let token = try? await Messaging.messaging().token() {
-            await handleFCMToken(token)
+    /// Once per launch, after splash: whether to show NADA’s Enable / Skip card.
+    /// At most twice per install. Skip is remembered; we never nag after that.
+    func shouldShowInAppPrompt() async -> Bool {
+        guard !didEvaluatePromptThisSession else { return false }
+        didEvaluatePromptThisSession = true
+
+        await registerIfAlreadyAuthorized()
+
+        guard !Self.isPromptFinished else { return false }
+        guard Self.promptShownCount < Self.maxInAppPrompts else {
+            Self.markPromptFinished()
+            return false
+        }
+
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        switch status {
+        case .notDetermined:
+            Self.incrementPromptShownCount()
+            return true
+        case .denied:
+            Self.markPromptFinished()
+            return false
+        default:
+            return false
         }
     }
 
@@ -69,6 +106,13 @@ final class DevicePushRegistrar {
         lastUploadedToken = nil
     }
 
+    private func registerForRemoteNotifications() async {
+        UIApplication.shared.registerForRemoteNotifications()
+        if let token = try? await Messaging.messaging().token() {
+            await handleFCMToken(token)
+        }
+    }
+
     private func upsertIfPossible() async {
         guard let userId, let fcmToken else { return }
         guard lastUploadedToken != fcmToken else { return }
@@ -78,5 +122,21 @@ final class DevicePushRegistrar {
         } catch {
             // Missing capability / unpublished rules / simulator — don't block the app.
         }
+    }
+
+    private static var promptShownCount: Int {
+        UserDefaults.standard.integer(forKey: promptShownCountKey)
+    }
+
+    private static var isPromptFinished: Bool {
+        UserDefaults.standard.bool(forKey: promptFinishedKey)
+    }
+
+    private static func incrementPromptShownCount() {
+        UserDefaults.standard.set(promptShownCount + 1, forKey: promptShownCountKey)
+    }
+
+    private static func markPromptFinished() {
+        UserDefaults.standard.set(true, forKey: promptFinishedKey)
     }
 }
