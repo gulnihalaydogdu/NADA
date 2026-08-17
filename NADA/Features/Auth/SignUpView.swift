@@ -150,7 +150,7 @@ struct SignUpView: View {
                 .nadaPrimaryCTA(enabled: canSubmit)
             }
         }
-        .nadaAuthNavigationBar()
+        .nadaAuthNavigationBar(showsSkip: false)
         .onAppear { auth.clearError() }
         .onChange(of: focusedField) { oldValue, _ in
             if oldValue == .email { showEmailHint = true }

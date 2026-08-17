@@ -11,6 +11,7 @@
 		F82E9A9330174C0500CA8270 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001003 /* FirebaseCore */; };
 		F82E9A9430174C0500CA8270 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001004 /* FirebaseFirestore */; };
 		F82E9A9530174C0500CA8270 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001005 /* FirebaseStorage */; };
+		F82E9A9630174C0500CA8270 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = F8FB001006 /* FirebaseMessaging */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +35,7 @@
 				F82E9A9230174C0500CA8270 /* FirebaseAuth in Frameworks */,
 				F82E9A9430174C0500CA8270 /* FirebaseFirestore in Frameworks */,
 				F82E9A9530174C0500CA8270 /* FirebaseStorage in Frameworks */,
+				F82E9A9630174C0500CA8270 /* FirebaseMessaging in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -80,6 +82,7 @@
 				F8FB001003 /* FirebaseCore */,
 				F8FB001004 /* FirebaseFirestore */,
 				F8FB001005 /* FirebaseStorage */,
+				F8FB001006 /* FirebaseMessaging */,
 			);
 			productName = NADA;
 			productReference = F8B642BA300ACD1F00463F95 /* NADA.app */;
@@ -276,6 +279,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "NADA uses your approximate location to suggest your city for hangouts nearby — never a precise pin.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "NADA needs photo access so you can set a profile picture.";
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -313,6 +317,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "NADA uses your approximate location to suggest your city for hangouts nearby — never a precise pin.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "NADA needs photo access so you can set a profile picture.";
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -392,6 +397,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = F8FB001001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseStorage;
+		};
+		F8FB001006 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8FB001001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

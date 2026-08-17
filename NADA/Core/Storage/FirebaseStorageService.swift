@@ -6,6 +6,10 @@ import UIKit
 struct StoredPhotoURLs: Sendable {
     var url: String
     var thumbnailURL: String
+    /// Written file extensions. Re-uploading a slot with a different codec leaves the
+    /// previous objects behind, and they are only identifiable by name.
+    var fileExtension: String
+    var thumbnailFileExtension: String
 }
 
 @MainActor
@@ -40,36 +44,65 @@ final class FirebaseStorageService {
         let display = variants.display
         let thumbnail = variants.thumbnail
 
-        let displayURL = try await put(
+        // Both objects go up at once; uploading them back to back doubled the round-trips.
+        async let displayURL = put(
             data: display.data,
             contentType: display.contentType,
             path: Self.photoPath(userId: userId, photoId: photoId, fileExtension: display.fileExtension),
             storage: storage
         )
-        let thumbURL = try await put(
+        async let thumbURL = put(
             data: thumbnail.data,
             contentType: thumbnail.contentType,
             path: Self.thumbnailPath(userId: userId, photoId: photoId, fileExtension: thumbnail.fileExtension),
             storage: storage
         )
 
-        return StoredPhotoURLs(url: displayURL, thumbnailURL: thumbURL)
+        return StoredPhotoURLs(
+            url: try await displayURL,
+            thumbnailURL: try await thumbURL,
+            fileExtension: display.fileExtension,
+            thumbnailFileExtension: thumbnail.fileExtension
+        )
     }
 
     /// Deletes display + thumbnail objects. Missing objects are ignored.
     func deletePhoto(userId: String, photoId: String) async throws {
         guard let storage else { throw AuthError.notConfigured }
-        let names = [
-            "\(photoId).jpg",
-            "\(photoId).webp",
-            "\(photoId)_thumb.jpg",
-            "\(photoId)_thumb.webp",
-            "profile.jpg"
-        ]
-        for name in names {
+        for name in objectNames(photoId: photoId) {
             let reference = storage.reference().child("users/\(userId)/photos/\(name)")
             try await deleteIgnoringMissing(reference)
         }
+    }
+
+    /// Drops the objects a re-upload orphaned — the previous codec's files. The freshly
+    /// written names are skipped, so this is safe to run after the new URLs are live.
+    func deleteSupersededObjects(userId: String, photoId: String, keeping stored: StoredPhotoURLs) async {
+        guard let storage else { return }
+        let survivors: Set<String> = [
+            "\(photoId).\(stored.fileExtension)",
+            "\(photoId)_thumb.\(stored.thumbnailFileExtension)"
+        ]
+        for name in objectNames(photoId: photoId) where !survivors.contains(name) {
+            let reference = storage.reference().child("users/\(userId)/photos/\(name)")
+            try? await deleteIgnoringMissing(reference)
+        }
+    }
+
+    /// Every object name a photo slot may occupy across codecs.
+    private func objectNames(photoId: String) -> [String] {
+        var names = [
+            "\(photoId).jpg",
+            "\(photoId).webp",
+            "\(photoId)_thumb.jpg",
+            "\(photoId)_thumb.webp"
+        ]
+        // The W1 single-photo object only belongs to the migrated primary slot; removing it
+        // for any other id would delete a live photo.
+        if photoId == "profile" || photoId == "legacy-primary" {
+            names.append("profile.jpg")
+        }
+        return names
     }
 
     /// W1 compatibility: uploads as primary-style `profile.jpg`.

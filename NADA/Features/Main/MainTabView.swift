@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @Environment(AuthManager.self) private var auth
+    @Environment(SplashController.self) private var splash
+
     var body: some View {
         TabView {
             DiscoverFeedView()
@@ -24,6 +27,14 @@ struct MainTabView: View {
                 .tabItem { Label("Profile", systemImage: "person.crop.circle") }
         }
         .tint(NADATheme.brand)
+        .task(id: pushRegistrationToken) {
+            guard !splash.isShowingSplash, auth.isDiscoverLaunchReady else { return }
+            await auth.registerForPushNotifications()
+        }
+    }
+
+    private var pushRegistrationToken: String {
+        "\(splash.isShowingSplash ? "1" : "0")|\(auth.isDiscoverLaunchReady ? "1" : "0")"
     }
 }
 
@@ -61,4 +72,5 @@ private struct PlaceholderTabView: View {
 #Preview {
     MainTabView()
         .environment(AuthManager())
+        .environment(SplashController())
 }

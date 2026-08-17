@@ -201,10 +201,11 @@ struct NADABackButton: View {
 struct NADAOnboardingNavBar: View {
     var onHero = false
     var showsBack = true
+    var showsSkip = true
     var skipTitle = "Skip"
     var isBusy = false
     var onBack: () -> Void
-    var onSkip: () -> Void
+    var onSkip: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -215,18 +216,20 @@ struct NADAOnboardingNavBar: View {
 
             Spacer(minLength: 8)
 
-            Button(skipTitle) {
-                onSkip()
+            if showsSkip {
+                Button(skipTitle) {
+                    onSkip?()
+                }
+                .buttonStyle(.plain)
+                .font(NADATheme.bodyFont.weight(.semibold))
+                .foregroundStyle(onHero ? Color.white : NADATheme.brandPressed)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+                .disabled(isBusy)
+                .opacity(isBusy ? 0.55 : 1)
+                .accessibilityLabel(skipTitle)
             }
-            .buttonStyle(.plain)
-            .font(NADATheme.bodyFont.weight(.semibold))
-            .foregroundStyle(onHero ? Color.white : NADATheme.brandPressed)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-            .disabled(isBusy)
-            .opacity(isBusy ? 0.55 : 1)
-            .accessibilityLabel(skipTitle)
         }
         .padding(.horizontal, 4)
     }

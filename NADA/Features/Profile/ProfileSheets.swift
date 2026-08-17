@@ -804,8 +804,11 @@ struct ProfilePreviewPhotoTile: View {
     /// Small file shown while the full-size decode finishes.
     var thumbnailURLString: String? = nil
 
+    /// Display decode size for Discover / Preview tiles (matches prefetch).
+    static let displayPointSize: CGFloat = 430
+
     /// Full-bleed inside the sheet — one iPad-safe cap keeps this off `UIScreen`.
-    private let targetPointSize: CGFloat = 430
+    private var targetPointSize: CGFloat { Self.displayPointSize }
 
     var body: some View {
         Group {

@@ -41,9 +41,9 @@ struct FriendsIntentView: View {
 
                 NADAOnboardingNavBar(
                     onHero: true,
+                    showsSkip: false,
                     isBusy: auth.isBusy,
-                    onBack: { showLeaveConfirm = true },
-                    onSkip: { Task { await auth.skipRemainingOnboarding() } }
+                    onBack: { showLeaveConfirm = true }
                 )
                 .padding(.horizontal, 20)
                 .padding(.top, max(geometry.safeAreaInsets.top, 47) + 4)

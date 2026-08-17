@@ -7,14 +7,40 @@ struct DiscoverFeedView: View {
     @State private var queue: [DiscoverCandidate] = []
     @State private var cursor: String?
     @State private var isLoading = false
-    @State private var isActing = false
+    @State private var isRefilling = false
+    @State private var isSendingLike = false
+    @State private var inFlightActionIds: Set<String> = []
     @State private var hasLoadedOnce = false
     @State private var localError: String?
-    @State private var lastSkipped: DiscoverCandidate?
+    @State private var skippedStack: [DiscoverCandidate] = []
     @State private var likeDraft: LikeDraft?
     @State private var catalogInterests: [Interest] = []
+    @State private var likeGlow: LikeGlowTarget?
+    @State private var skipBurst = false
+
+    private static let undoCap = 10
+
+    private var canUndo: Bool { !skippedStack.isEmpty }
+
+    private var isActionLocked: Bool { likeGlow != nil || skipBurst }
 
     private var current: DiscoverCandidate? { queue.first }
+
+    private var promptGlowId: String? {
+        if case .prompt(let id) = likeGlow { return id }
+        return nil
+    }
+
+    private var photoGlowId: String? {
+        if case .photo(let id) = likeGlow { return id }
+        return nil
+    }
+
+    private enum LikeGlowTarget: Equatable {
+        case profile
+        case prompt(String)
+        case photo(String)
+    }
 
     private struct LikeDraft: Identifiable {
         let id = UUID()
@@ -106,22 +132,43 @@ struct DiscoverFeedView: View {
                 ProgressView()
                 Spacer()
             } else if let current {
-                ScrollView {
-                    DiscoverCandidateStack(
-                        candidate: current,
-                        catalogInterests: catalogInterests,
-                        onLikeBit: { bit in
-                            likeDraft = LikeDraft(
-                                toUserId: current.id,
-                                targetType: .prompt,
-                                targetId: bit.id,
-                                title: bit.promptText
-                            )
-                        }
-                    )
-                    .id(current.id)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        DiscoverCandidateStack(
+                            candidate: current,
+                            catalogInterests: catalogInterests,
+                            glowingPromptId: promptGlowId,
+                            glowingPhotoId: photoGlowId,
+                            onLikeBit: { bit in
+                                likeDraft = LikeDraft(
+                                    toUserId: current.id,
+                                    targetType: .prompt,
+                                    targetId: bit.id,
+                                    title: bit.promptText
+                                )
+                            },
+                            onLikePhoto: { photo in
+                                likeDraft = LikeDraft(
+                                    toUserId: current.id,
+                                    targetType: .photo,
+                                    targetId: photo.id,
+                                    title: "This photo"
+                                )
+                            }
+                        )
+                        .id("discover-card")
+                        .overlay { DiscoverSkipStamp(isActive: skipBurst) }
+                        .offset(x: skipBurst ? -56 : 0)
+                        .rotationEffect(.degrees(skipBurst ? -7 : 0))
+                        .opacity(skipBurst ? 0.55 : 1)
+                        .allowsHitTesting(!skipBurst)
+                        .animation(.spring(response: 0.34, dampingFraction: 0.72), value: skipBurst)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 24)
+                    }
+                    .onChange(of: current.id) { _, _ in
+                        proxy.scrollTo("discover-card", anchor: .top)
+                    }
                 }
 
                 actionBar
@@ -132,7 +179,7 @@ struct DiscoverFeedView: View {
             }
         }
         .sheet(item: $likeDraft) { draft in
-            DiscoverLikeCommentSheet(title: draft.title, isBusy: isActing) { comment in
+            DiscoverLikeCommentSheet(title: draft.title, isBusy: isSendingLike) { comment in
                 Task {
                     await sendLike(
                         toUserId: draft.toUserId,
@@ -196,20 +243,20 @@ struct DiscoverFeedView: View {
         VStack(spacing: 12) {
             HStack(spacing: 16) {
                 Button {
-                    Task { await undoSkip() }
+                    undoSkip()
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(lastSkipped == nil || isActing ? NADATheme.secondaryInk : NADATheme.ink)
+                        .foregroundStyle(canUndo ? NADATheme.ink : NADATheme.secondaryInk)
                         .frame(width: 56, height: 56)
                         .background(NADATheme.card, in: Circle())
                         .overlay(Circle().strokeBorder(NADATheme.ink.opacity(0.08), lineWidth: 1))
                 }
-                .disabled(lastSkipped == nil || isActing || isLoading)
+                .disabled(!canUndo || isActionLocked)
                 .accessibilityLabel("Undo skip")
 
                 Button {
-                    Task { await skipCurrent() }
+                    skipCurrent()
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 22, weight: .bold))
@@ -217,8 +264,18 @@ struct DiscoverFeedView: View {
                         .frame(width: 64, height: 64)
                         .background(NADATheme.card, in: Circle())
                         .overlay(Circle().strokeBorder(NADATheme.ink.opacity(0.08), lineWidth: 1))
+                        .background {
+                            DiscoverSkipGlow(isActive: skipBurst)
+                                .frame(width: 96, height: 96)
+                        }
+                        .shadow(
+                            color: NADATheme.ink.opacity(skipBurst ? 0.28 : 0),
+                            radius: skipBurst ? 16 : 0
+                        )
+                        .scaleEffect(skipBurst ? 1.12 : 1)
                 }
-                .disabled(current == nil || isActing || isLoading)
+                .disabled(current == nil || isActionLocked)
+                .animation(.spring(response: 0.34, dampingFraction: 0.62), value: skipBurst)
                 .accessibilityLabel("Skip")
 
                 Button {
@@ -235,12 +292,22 @@ struct DiscoverFeedView: View {
                         .foregroundStyle(NADATheme.onBrand)
                         .frame(width: 64, height: 64)
                         .background(NADATheme.brand, in: Circle())
+                        .background {
+                            DiscoverCoralGlow(isActive: likeGlow == .profile)
+                                .frame(width: 96, height: 96)
+                        }
+                        .shadow(
+                            color: NADATheme.brand.opacity(likeGlow == .profile ? 0.7 : 0),
+                            radius: likeGlow == .profile ? 20 : 0
+                        )
+                        .scaleEffect(likeGlow == .profile ? 1.12 : 1)
                 }
-                .disabled(current == nil || isActing || isLoading)
+                .disabled(current == nil || isActionLocked)
+                .animation(.spring(response: 0.34, dampingFraction: 0.62), value: likeGlow)
                 .accessibilityLabel("Like profile")
             }
 
-            Text("Like a Bit on the card, or the whole profile. Skip to pass — Undo brings them back.")
+            Text("Like a photo, a Bit, or the whole profile. Skip to pass — Undo brings them back.")
                 .font(NADATheme.captionFont)
                 .foregroundStyle(NADATheme.secondaryInk)
                 .multilineTextAlignment(.center)
@@ -280,22 +347,43 @@ struct DiscoverFeedView: View {
         guard !queue.isEmpty else { return }
         queue.removeFirst()
         prefetchUpcomingPhotos()
-        if queue.count <= 2 {
+        if queue.count <= 3 {
             Task { await loadMoreIfNeeded() }
         }
     }
 
-    private func skipCurrent() async {
-        guard let current, !isActing else { return }
-        isActing = true
+    private func skipCurrent() {
+        guard !isActionLocked, let current, !inFlightActionIds.contains(current.id) else { return }
+        inFlightActionIds.insert(current.id)
         localError = nil
-        defer { isActing = false }
+        skipBurst = true
+        pushSkipped(current)
 
-        if await auth.skipDiscoverUser(current.id) != nil {
-            lastSkipped = current
-            removeCurrentFromQueue()
-        } else if auth.errorMessage == nil {
-            localError = "Couldn't skip. Try again."
+        Task {
+            let write = Task { await auth.skipDiscoverUser(current.id) }
+            try? await Task.sleep(nanoseconds: 380_000_000)
+            skipBurst = false
+            if queue.first?.id == current.id {
+                removeCurrentFromQueue()
+            }
+
+            let skipped = await write.value
+            inFlightActionIds.remove(current.id)
+            if skipped == nil {
+                skippedStack.removeAll { $0.id == current.id }
+                recoverFailedRemoval(current)
+                if auth.errorMessage == nil {
+                    localError = "Couldn't skip. Try again."
+                }
+            }
+        }
+    }
+
+    private func pushSkipped(_ candidate: DiscoverCandidate) {
+        skippedStack.removeAll { $0.id == candidate.id }
+        skippedStack.append(candidate)
+        if skippedStack.count > Self.undoCap {
+            skippedStack.removeFirst(skippedStack.count - Self.undoCap)
         }
     }
 
@@ -305,46 +393,90 @@ struct DiscoverFeedView: View {
         targetId: String,
         comment: String?
     ) async {
-        guard !isActing else { return }
-        isActing = true
+        guard !isSendingLike, !skipBurst, !inFlightActionIds.contains(toUserId) else { return }
+        isSendingLike = true
+        inFlightActionIds.insert(toUserId)
         localError = nil
-        defer { isActing = false }
+        likeDraft = nil
+        isSendingLike = false
 
-        if await auth.likeDiscoverTarget(
-            toUserId: toUserId,
-            targetType: targetType,
-            targetId: targetId,
-            comment: comment
-        ) != nil {
-            likeDraft = nil
-            if queue.first?.id == toUserId {
-                if lastSkipped?.id == toUserId { lastSkipped = nil }
-                removeCurrentFromQueue()
+        likeGlow = glowTarget(type: targetType, targetId: targetId)
+        let write = Task {
+            await auth.likeDiscoverTarget(
+                toUserId: toUserId,
+                targetType: targetType,
+                targetId: targetId,
+                comment: comment
+            )
+        }
+        try? await Task.sleep(nanoseconds: 420_000_000)
+        likeGlow = nil
+
+        var removed: DiscoverCandidate?
+        if queue.first?.id == toUserId {
+            removed = queue.first
+            skippedStack.removeAll { $0.id == toUserId }
+            removeCurrentFromQueue()
+        }
+
+        let liked = await write.value
+        inFlightActionIds.remove(toUserId)
+        if liked == nil {
+            if let removed {
+                recoverFailedRemoval(removed)
             }
-        } else if auth.errorMessage == nil {
-            localError = "Couldn't send that like."
+            if auth.errorMessage == nil {
+                localError = "Couldn't send that like."
+            }
         }
     }
 
-    private func undoSkip() async {
-        guard let restored = lastSkipped, !isActing else { return }
-        isActing = true
-        localError = nil
-        defer { isActing = false }
-
-        if await auth.undoDiscoverSkip(toUserId: restored.id) {
-            queue.removeAll { $0.id == restored.id }
-            queue.insert(restored, at: 0)
-            lastSkipped = nil
-        } else if auth.errorMessage == nil {
-            localError = "Nothing to undo."
+    private func glowTarget(type: DiscoverLike.TargetType, targetId: String) -> LikeGlowTarget {
+        switch type {
+        case .profile: return .profile
+        case .prompt: return .prompt(targetId)
+        case .photo: return .photo(targetId)
         }
+    }
+
+    private func undoSkip() {
+        guard !isActionLocked, let restored = skippedStack.popLast() else { return }
+        localError = nil
+        queue.removeAll { $0.id == restored.id }
+        queue.insert(restored, at: 0)
+        prefetchUpcomingPhotos()
+
+        Task {
+            let ok = await auth.undoDiscoverSkip(toUserId: restored.id)
+            if !ok {
+                queue.removeAll { $0.id == restored.id }
+                skippedStack.append(restored)
+                prefetchUpcomingPhotos()
+                if auth.errorMessage == nil {
+                    localError = "Nothing to undo."
+                }
+            }
+        }
+    }
+
+    /// Skip/like already advanced the card — don't yank the new profile if the write fails.
+    private func recoverFailedRemoval(_ candidate: DiscoverCandidate) {
+        guard !queue.contains(where: { $0.id == candidate.id }) else {
+            prefetchUpcomingPhotos()
+            return
+        }
+        if queue.isEmpty {
+            queue.insert(candidate, at: 0)
+        } else {
+            queue.insert(candidate, at: 1)
+        }
+        prefetchUpcomingPhotos()
     }
 
     private func loadMoreIfNeeded() async {
-        guard let cursor, !isLoading else { return }
-        isLoading = true
-        defer { isLoading = false }
+        guard let cursor, !isRefilling, !isLoading else { return }
+        isRefilling = true
+        defer { isRefilling = false }
 
         let page = await auth.fetchDiscoverFeed(
             extraExcludedUserIds: Set(queue.map(\.id)),
@@ -356,11 +488,36 @@ struct DiscoverFeedView: View {
         prefetchUpcomingPhotos()
     }
 
+    /// Priority: next primary → current 2nd photo → after-next primary → a few thumbs.
     private func prefetchUpcomingPhotos() {
-        let urls = queue.prefix(3).flatMap { candidate in
-            candidate.photos.map(\.url)
+        let current = queue.first
+        let next = queue.count > 1 ? queue[1] : nil
+        let afterNext = queue.count > 2 ? queue[2] : nil
+        let photoSize = ProfilePreviewPhotoTile.displayPointSize
+        let thumbSize = RemoteImageView.thumbnailPointSize
+
+        var ordered: [(urlString: String, targetPointSize: CGFloat)] = []
+
+        if let photo = next?.photos.first {
+            ordered.append((photo.url, photoSize))
         }
-        RemoteImageLoader.shared.prefetch(urlStrings: Array(urls), targetPointSize: 430, limit: 6)
+        if let photo = current?.photos.dropFirst().first {
+            ordered.append((photo.url, photoSize))
+        }
+        if let photo = afterNext?.photos.first {
+            ordered.append((photo.url, photoSize))
+        }
+        if let next {
+            for photo in next.photos.dropFirst().prefix(2) {
+                ordered.append((photo.thumbnailURL ?? photo.previewURL, thumbSize))
+            }
+        }
+        if let afterNext, let thumb = afterNext.photos.first?.thumbnailURL
+            ?? afterNext.photos.first?.previewURL {
+            ordered.append((thumb, thumbSize))
+        }
+
+        RemoteImageLoader.shared.prefetchOrdered(ordered)
     }
 
     private func distanceLabel(_ km: Double) -> String {
@@ -372,7 +529,10 @@ struct DiscoverFeedView: View {
 private struct DiscoverCandidateStack: View {
     let candidate: DiscoverCandidate
     let catalogInterests: [Interest]
+    var glowingPromptId: String? = nil
+    var glowingPhotoId: String? = nil
     var onLikeBit: ((DiscoverBit) -> Void)?
+    var onLikePhoto: ((ProfilePhoto) -> Void)?
 
     private var essentials: ProfileEssentialsCard.Model {
         ProfileEssentialsCard.Model(
@@ -400,10 +560,7 @@ private struct DiscoverCandidateStack: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if let primary = candidate.photos.first {
-                ProfilePreviewPhotoTile(
-                    urlString: primary.url,
-                    thumbnailURLString: primary.thumbnailURL
-                )
+                photoCard(primary)
             } else {
                 ProfilePreviewPhotoTile(urlString: nil)
             }
@@ -418,17 +575,40 @@ private struct DiscoverCandidateStack: View {
             let remainingPhotos = Array(candidate.photos.dropFirst())
             let remainingBits = Array(candidate.bits.dropFirst())
             let count = max(remainingPhotos.count, remainingBits.count)
-            ForEach(0..<count, id: \.self) { index in
-                if index < remainingPhotos.count {
-                    ProfilePreviewPhotoTile(
-                        urlString: remainingPhotos[index].url,
-                        thumbnailURLString: remainingPhotos[index].thumbnailURL
-                    )
-                }
-                if index < remainingBits.count {
-                    bitCard(remainingBits[index])
+            LazyVStack(spacing: 14) {
+                ForEach(0..<count, id: \.self) { index in
+                    if index < remainingPhotos.count {
+                        photoCard(remainingPhotos[index])
+                    }
+                    if index < remainingBits.count {
+                        bitCard(remainingBits[index])
+                    }
                 }
             }
+        }
+    }
+
+    private func photoCard(_ photo: ProfilePhoto) -> some View {
+        ProfilePreviewPhotoTile(
+            urlString: photo.url,
+            thumbnailURLString: photo.thumbnailURL
+        )
+        .overlay(alignment: .bottomTrailing) {
+            if onLikePhoto != nil {
+                DiscoverLikeHeartButton(
+                    isGlowing: glowingPhotoId == photo.id,
+                    accessibilityLabel: "Like this photo"
+                ) {
+                    onLikePhoto?(photo)
+                }
+                .padding(12)
+            }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(NADATheme.brand.opacity(glowingPhotoId == photo.id ? 0.85 : 0), lineWidth: 3)
+                .shadow(color: NADATheme.brand.opacity(glowingPhotoId == photo.id ? 0.55 : 0), radius: 18)
+                .animation(.spring(response: 0.34, dampingFraction: 0.62), value: glowingPhotoId)
         }
     }
 
@@ -436,21 +616,85 @@ private struct DiscoverCandidateStack: View {
         ProfilePreviewBitCard(prompt: bit.promptText, answer: bit.answerText)
             .overlay(alignment: .bottomTrailing) {
                 if onLikeBit != nil {
-                    Button {
+                    DiscoverLikeHeartButton(
+                        isGlowing: glowingPromptId == bit.id,
+                        accessibilityLabel: "Like this Bit"
+                    ) {
                         onLikeBit?(bit)
-                    } label: {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(NADATheme.brand)
-                            .padding(12)
-                            .background(NADATheme.card, in: Circle())
-                            .shadow(color: NADATheme.ink.opacity(0.08), radius: 4, y: 2)
                     }
-                    .buttonStyle(.plain)
                     .padding(12)
-                    .accessibilityLabel("Like this Bit")
                 }
             }
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(NADATheme.brand.opacity(glowingPromptId == bit.id ? 0.85 : 0), lineWidth: 3)
+                    .shadow(color: NADATheme.brand.opacity(glowingPromptId == bit.id ? 0.55 : 0), radius: 18)
+                    .animation(.spring(response: 0.34, dampingFraction: 0.62), value: glowingPromptId)
+            }
+    }
+}
+
+private struct DiscoverCoralGlow: View {
+    var isActive: Bool
+
+    var body: some View {
+        Circle()
+            .fill(NADATheme.brand.opacity(isActive ? 0.5 : 0))
+            .blur(radius: isActive ? 16 : 0)
+            .scaleEffect(isActive ? 1.85 : 0.65)
+            .allowsHitTesting(false)
+    }
+}
+
+private struct DiscoverSkipGlow: View {
+    var isActive: Bool
+
+    var body: some View {
+        Circle()
+            .fill(NADATheme.ink.opacity(isActive ? 0.22 : 0))
+            .blur(radius: isActive ? 14 : 0)
+            .scaleEffect(isActive ? 1.85 : 0.65)
+            .allowsHitTesting(false)
+    }
+}
+
+private struct DiscoverSkipStamp: View {
+    var isActive: Bool
+
+    var body: some View {
+        Image(systemName: "xmark")
+            .font(.system(size: 72, weight: .bold))
+            .foregroundStyle(NADATheme.ink.opacity(isActive ? 0.42 : 0))
+            .scaleEffect(isActive ? 1 : 0.45)
+            .allowsHitTesting(false)
+    }
+}
+
+private struct DiscoverLikeHeartButton: View {
+    var isGlowing: Bool
+    var accessibilityLabel: String
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "heart.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(isGlowing ? NADATheme.onBrand : NADATheme.brand)
+                .padding(12)
+                .background(isGlowing ? NADATheme.brand : NADATheme.card, in: Circle())
+                .overlay {
+                    DiscoverCoralGlow(isActive: isGlowing)
+                }
+                .shadow(
+                    color: isGlowing ? NADATheme.brand.opacity(0.7) : NADATheme.ink.opacity(0.08),
+                    radius: isGlowing ? 16 : 4,
+                    y: 2
+                )
+                .scaleEffect(isGlowing ? 1.18 : 1)
+        }
+        .buttonStyle(.plain)
+        .animation(.spring(response: 0.34, dampingFraction: 0.62), value: isGlowing)
+        .accessibilityLabel(accessibilityLabel)
     }
 }
 

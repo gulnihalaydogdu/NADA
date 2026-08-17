@@ -17,6 +17,15 @@ final class AuthManager {
     /// False until the initial session has been fully resolved on launch.
     private(set) var isSessionResolved = false
 
+    /// Splash stays up until this is true. Non-Discover landings flip it immediately;
+    /// Discover waits until the first card's primary photo is in cache (or a timeout).
+    private(set) var isDiscoverLaunchReady = false
+
+    /// First feed page warmed during splash so Discover does not refetch on appear.
+    private var warmedDiscoverPage: DiscoverFeedPage?
+    private var discoverWarmTask: Task<Void, Never>?
+    private var didFinishDiscoverWarm = false
+
     /// Wizard Back on the first step returns here without clearing saved basics.
     var isRevisitingBasicProfile = false
 
@@ -78,8 +87,10 @@ final class AuthManager {
                 await handleAuthUser(cached)
             }
 
+            startDiscoverWarmIfNeeded()
             listenForAuthChanges()
             isSessionResolved = true
+            await prepareDiscoverLaunch()
         }
     }
 
@@ -321,6 +332,83 @@ final class AuthManager {
         extraExcludedUserIds: Set<String> = [],
         cursor: String? = nil
     ) async -> DiscoverFeedPage {
+        if cursor == nil, extraExcludedUserIds.isEmpty {
+            if let discoverWarmTask {
+                await discoverWarmTask.value
+            }
+            if let warmed = warmedDiscoverPage {
+                warmedDiscoverPage = nil
+                return warmed
+            }
+        }
+
+        return await fetchDiscoverFeedFromNetwork(
+            extraExcludedUserIds: extraExcludedUserIds,
+            cursor: cursor
+        )
+    }
+
+    private static let discoverLaunchTimeoutSeconds: TimeInterval = 6
+
+    private func startDiscoverWarmIfNeeded() {
+        guard landsOnDiscoverAtLaunch, discoverWarmTask == nil else { return }
+        isDiscoverLaunchReady = false
+        didFinishDiscoverWarm = false
+        discoverWarmTask = Task { await self.loadDiscoverWarm() }
+    }
+
+    /// Holds the NADA splash until the first Discover photo is cached (or we time out).
+    private func prepareDiscoverLaunch() async {
+        guard landsOnDiscoverAtLaunch else {
+            isDiscoverLaunchReady = true
+            return
+        }
+
+        startDiscoverWarmIfNeeded()
+
+        let deadline = Date().addingTimeInterval(Self.discoverLaunchTimeoutSeconds)
+        while !didFinishDiscoverWarm, Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        isDiscoverLaunchReady = true
+    }
+
+    private var landsOnDiscoverAtLaunch: Bool {
+        isAuthenticated
+            && hasCompletedFriendsIntent
+            && hasCompletedProfileWizard
+            && isProfileComplete
+            && !isRevisitingBasicProfile
+    }
+
+    private func loadDiscoverWarm() async {
+        defer { didFinishDiscoverWarm = true }
+        let page = await fetchDiscoverFeedFromNetwork(
+            extraExcludedUserIds: [],
+            cursor: nil
+        )
+        warmedDiscoverPage = page
+        guard let photo = page.candidates.first?.photos.first else { return }
+
+        let size = ProfilePreviewPhotoTile.displayPointSize
+        _ = await RemoteImageLoader.shared.image(
+            urlString: photo.url,
+            targetPointSize: size
+        )
+        if let next = page.candidates.dropFirst().first?.photos.first {
+            Task {
+                _ = await RemoteImageLoader.shared.image(
+                    urlString: next.url,
+                    targetPointSize: size
+                )
+            }
+        }
+    }
+
+    private func fetchDiscoverFeedFromNetwork(
+        extraExcludedUserIds: Set<String>,
+        cursor: String?
+    ) async -> DiscoverFeedPage {
         guard let user = currentUser else {
             return DiscoverFeedPage(candidates: [], cursor: nil)
         }
@@ -415,19 +503,12 @@ final class AuthManager {
 
         var didSucceed = false
         await perform {
-            _ = try await self.photoService.upsertPrimaryPhoto(
+            let list = try await self.photoService.upsertPrimaryPhoto(
                 userId: userId,
                 image: image,
                 legacyPhotoURL: self.currentUser?.photoURL
             )
-            if let profile = try await self.userService.fetchUser(id: userId) {
-                self.currentUser = profile
-            }
-            let list = try await self.photoService.fetchPhotos(
-                userId: userId,
-                legacyPhotoURL: self.currentUser?.photoURL
-            )
-            self.rememberPhotos(list, userId: userId)
+            self.applyPhotoMutation(list, userId: userId)
             try await self.syncProfileCompleteness(photoCount: list.count)
             didSucceed = true
         }
@@ -453,20 +534,14 @@ final class AuthManager {
     }
 
     @discardableResult
-    func addPhoto(_ image: UIImage, at index: Int? = nil) async -> ProfilePhoto? {
+    func addPhoto(_ image: UIImage, at index: Int? = nil) async -> [ProfilePhoto]? {
         guard let userId = currentUser?.id else { return nil }
-        var result: ProfilePhoto?
+        var result: [ProfilePhoto]?
         await perform {
-            result = try await self.photoService.addPhoto(userId: userId, image: image, at: index)
-            if let profile = try await self.userService.fetchUser(id: userId) {
-                self.currentUser = profile
-            }
-            let list = try await self.photoService.fetchPhotos(
-                userId: userId,
-                legacyPhotoURL: self.currentUser?.photoURL
-            )
-            self.rememberPhotos(list, userId: userId)
+            let list = try await self.photoService.addPhoto(userId: userId, image: image, at: index)
+            self.applyPhotoMutation(list, userId: userId)
             try await self.syncProfileCompleteness(photoCount: list.count)
+            result = list
         }
         return result
     }
@@ -476,18 +551,31 @@ final class AuthManager {
         guard let userId = currentUser?.id, !images.isEmpty else { return nil }
         var result: [ProfilePhoto]?
         await perform {
-            result = try await self.photoService.addPhotos(
+            let list = try await self.photoService.addPhotos(
                 userId: userId,
                 images: images,
                 startingAt: index
             )
-            if let profile = try await self.userService.fetchUser(id: userId) {
-                self.currentUser = profile
-            }
-            if let result {
-                self.rememberPhotos(result, userId: userId)
-                try await self.syncProfileCompleteness(photoCount: result.count)
-            }
+            self.applyPhotoMutation(list, userId: userId)
+            try await self.syncProfileCompleteness(photoCount: list.count)
+            result = list
+        }
+        return result
+    }
+
+    @discardableResult
+    func replacePhoto(id: String, image: UIImage) async -> [ProfilePhoto]? {
+        guard let userId = currentUser?.id else { return nil }
+        var result: [ProfilePhoto]?
+        await perform {
+            let list = try await self.photoService.replacePhoto(
+                userId: userId,
+                photoId: id,
+                image: image
+            )
+            self.applyPhotoMutation(list, userId: userId)
+            try await self.syncProfileCompleteness(photoCount: list.count)
+            result = list
         }
         return result
     }
@@ -497,14 +585,10 @@ final class AuthManager {
         guard let userId = currentUser?.id else { return nil }
         var result: [ProfilePhoto]?
         await perform {
-            result = try await self.photoService.deletePhoto(userId: userId, photoId: id)
-            if let profile = try await self.userService.fetchUser(id: userId) {
-                self.currentUser = profile
-            }
-            if let result {
-                self.rememberPhotos(result, userId: userId)
-            }
-            try await self.syncProfileCompleteness(photoCount: result?.count)
+            let list = try await self.photoService.deletePhoto(userId: userId, photoId: id)
+            self.applyPhotoMutation(list, userId: userId)
+            try await self.syncProfileCompleteness(photoCount: list.count)
+            result = list
         }
         return result
     }
@@ -514,13 +598,9 @@ final class AuthManager {
         guard let userId = currentUser?.id else { return nil }
         var result: [ProfilePhoto]?
         await perform {
-            result = try await self.photoService.setPrimary(userId: userId, photoId: id)
-            if let profile = try await self.userService.fetchUser(id: userId) {
-                self.currentUser = profile
-            }
-            if let result {
-                self.rememberPhotos(result, userId: userId)
-            }
+            let list = try await self.photoService.setPrimary(userId: userId, photoId: id)
+            self.applyPhotoMutation(list, userId: userId)
+            result = list
         }
         return result
     }
@@ -530,14 +610,9 @@ final class AuthManager {
         guard let userId = currentUser?.id else { return nil }
         var result: [ProfilePhoto]?
         await perform {
-            result = try await self.photoService.reorder(userId: userId, orderedIds: orderedIds)
-            // Reorder may change primary → refresh denormalized photoURL on the profile.
-            if let profile = try await self.userService.fetchUser(id: userId) {
-                self.currentUser = profile
-            }
-            if let result {
-                self.rememberPhotos(result, userId: userId)
-            }
+            let list = try await self.photoService.reorder(userId: userId, orderedIds: orderedIds)
+            self.applyPhotoMutation(list, userId: userId)
+            result = list
         }
         return result
     }
@@ -629,16 +704,27 @@ final class AuthManager {
     }
 
     func signOut() {
-        do {
-            try authService.signOut()
-            currentUser = nil
-            currentPreferences = nil
-            errorMessage = nil
-            isRevisitingBasicProfile = false
-            clearSessionCaches()
-        } catch {
-            errorMessage = error.localizedDescription
+        Task {
+            await DevicePushRegistrar.shared.clearForSignOut()
+            do {
+                try authService.signOut()
+                currentUser = nil
+                currentPreferences = nil
+                errorMessage = nil
+                isRevisitingBasicProfile = false
+                isDiscoverLaunchReady = true
+                warmedDiscoverPage = nil
+                clearSessionCaches()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
+    }
+
+    /// Permission + APNs/FCM registration after the user reaches the app shell (W3-09).
+    func registerForPushNotifications() async {
+        guard currentUser != nil else { return }
+        await DevicePushRegistrar.shared.requestPermissionAndRegister()
     }
 
     func clearError() {
@@ -663,6 +749,9 @@ final class AuthManager {
             currentPreferences = nil
             isResolvingProfile = false
             isRevisitingBasicProfile = false
+            isDiscoverLaunchReady = true
+            warmedDiscoverPage = nil
+            DevicePushRegistrar.shared.forgetUser()
             clearSessionCaches()
             return
         }
@@ -674,6 +763,7 @@ final class AuthManager {
         do {
             let profile = try await userService.ensureUserDocument(for: authUser)
             currentUser = profile
+            DevicePushRegistrar.shared.setSignedInUser(profile.id)
         } catch {
             // Keep auth session; surface Firestore issues without blocking sign-in UI.
             currentUser = authUser
@@ -796,6 +886,18 @@ final class AuthManager {
         didLoadPhotos = true
     }
 
+    /// Mirrors a finished photo mutation onto local state. The service has already written the
+    /// denormalized `photoURL` / `photoThumbnailURL`, so re-reading the profile and the photo
+    /// subcollection would only buy us back what we already know.
+    private func applyPhotoMutation(_ list: [ProfilePhoto], userId: String) {
+        rememberPhotos(list, userId: userId)
+        guard var user = currentUser, user.id == userId else { return }
+        let primary = list.first(where: \.isPrimary) ?? list.first
+        user.photoURL = primary?.url
+        user.photoThumbnailURL = primary?.thumbnailURL
+        currentUser = user
+    }
+
     private func rememberAnswers(_ list: [PromptAnswer], userId: String) {
         cachedAnswers = list
         cachedAnswersUserId = userId
@@ -809,6 +911,8 @@ final class AuthManager {
         cachedAnswers = []
         cachedAnswersUserId = nil
         didLoadAnswers = false
+        warmedDiscoverPage = nil
+        discoverWarmTask = nil
         RemoteImageLoader.shared.invalidateAll()
     }
 

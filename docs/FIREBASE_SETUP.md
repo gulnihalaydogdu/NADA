@@ -173,6 +173,7 @@ Xcode:
 | User doc yok | Firestore Database oluşturuldu mu? Console’da `users` koleksiyonuna bak |
 | Storage permission denied | Storage Rules publish edildi mi? Blaze açık mı? Path `users/{uid}/photos/` mi? |
 | Missing FirebaseStorage | File → Packages → Resolve Package Versions |
+| Missing FirebaseMessaging | File → Packages → Resolve Package Versions |
 
 ---
 
@@ -252,6 +253,17 @@ Detay: [`docs/FIRESTORE_DISCOVER.md`](FIRESTORE_DISCOVER.md)
    (complete `users` readable; photos / promptAnswers / preferences signed-in read)
 2. İki complete test hesabı, aynı şehir
 3. `AuthManager.fetchDiscoverFeed()` A olarak B’yi dönmeli (kendisi ve incomplete yok)
+
+---
+
+## 8d. Device tokens / APNs (W3-05, W3-09)
+
+Detay: [`docs/FIRESTORE_DEVICE_TOKENS.md`](FIRESTORE_DEVICE_TOKENS.md)
+
+1. Firestore → **Rules** → `firebase/firestore.rules` yapıştır → **Publish** (`users/{uid}/deviceTokens` owner-only)
+2. Uygulama → ana tab’lar → bildirim izni ver
+3. Firestore → `users/{uid}/deviceTokens` → `fcmToken` dolu olmalı
+4. Gerçek push için paid Apple Developer + APNs `.p8` key’i Firebase Cloud Messaging’e yükle (Sign in with Apple ile aynı hesap kapısı)
 
 ---
 

@@ -33,15 +33,23 @@ enum ImageProcessing {
         let box = UncheckedBox(image)
         return await limiter.run {
             await perform {
-                guard let display = ImageIOCodec.encode(
-                    box.value,
-                    maxPixelSize: ImageIOCodec.displayMaxPixelSize,
+                // Shrink once for display, then again from those pixels — resizing the
+                // original a second time would redo the expensive step for a 360px file.
+                let displayImage = ImageIOCodec.downsample(
+                    image: box.value,
+                    maxPixelSize: ImageIOCodec.displayMaxPixelSize
+                )
+                guard let display = ImageIOCodec.encodePrepared(
+                    displayImage,
                     quality: ImageIOCodec.displayQuality
                 ) else { return nil }
 
-                let thumbnail = ImageIOCodec.encode(
-                    box.value,
-                    maxPixelSize: ImageIOCodec.thumbnailMaxPixelSize,
+                let thumbnailImage = ImageIOCodec.downsample(
+                    image: displayImage,
+                    maxPixelSize: ImageIOCodec.thumbnailMaxPixelSize
+                )
+                let thumbnail = ImageIOCodec.encodePrepared(
+                    thumbnailImage,
                     quality: ImageIOCodec.thumbnailQuality
                 ) ?? display
 

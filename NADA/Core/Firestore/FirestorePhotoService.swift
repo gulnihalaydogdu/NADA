@@ -46,8 +46,9 @@ final class FirestorePhotoService {
 
     /// Adds a photo (max 6). Optional `at` inserts into that slot (0-based); others shift right.
     /// Slot 0 is always primary and syncs `users/{uid}.photoURL`.
+    /// Returns the full ordered list, rebuilt from the writes we just made.
     @discardableResult
-    func addPhoto(userId: String, image: UIImage, at insertAt: Int? = nil) async throws -> ProfilePhoto {
+    func addPhoto(userId: String, image: UIImage, at insertAt: Int? = nil) async throws -> [ProfilePhoto] {
         let collection = try photosCollection(userId: userId)
         let snapshot = try await collection.getDocuments()
         let existing = snapshot.documents.compactMap { mapPhoto(id: $0.documentID, data: $0.data()) }
@@ -104,14 +105,22 @@ final class FirestorePhotoService {
             )
         }
 
-        return ProfilePhoto(
-            id: photoId,
-            url: stored.url,
-            thumbnailURL: stored.thumbnailURL,
-            sortOrder: sortOrder,
-            isPrimary: makePrimary,
-            createdAt: Date()
+        var updated = existing
+        for index in updated.indices where updated[index].sortOrder >= sortOrder {
+            updated[index].sortOrder += 1
+            updated[index].isPrimary = false
+        }
+        updated.append(
+            ProfilePhoto(
+                id: photoId,
+                url: stored.url,
+                thumbnailURL: stored.thumbnailURL,
+                sortOrder: sortOrder,
+                isPrimary: makePrimary,
+                createdAt: Date()
+            )
         )
+        return updated.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     /// Crops first, then one write: upload all images, then a single Firestore batch.
@@ -125,9 +134,7 @@ final class FirestorePhotoService {
             return try await fetchPhotos(userId: userId, legacyPhotoURL: nil)
         }
         if images.count == 1 {
-            return [
-                try await addPhoto(userId: userId, image: images[0], at: insertAt)
-            ]
+            return try await addPhoto(userId: userId, image: images[0], at: insertAt)
         }
 
         let collection = try photosCollection(userId: userId)
@@ -221,7 +228,32 @@ final class FirestorePhotoService {
             )
         }
 
-        return try await fetchPhotos(userId: userId, legacyPhotoURL: nil)
+        var updated = existing
+        if firstSort < existing.count {
+            for index in updated.indices where updated[index].sortOrder >= firstSort {
+                updated[index].sortOrder += 1
+                updated[index].isPrimary = false
+            }
+        }
+        if placements.contains(where: { $0.sortOrder == 0 }) {
+            for index in updated.indices {
+                updated[index].isPrimary = false
+            }
+        }
+        for (index, placement) in placements.enumerated() {
+            guard let urls = urlsByIndex[index] else { continue }
+            updated.append(
+                ProfilePhoto(
+                    id: placement.id,
+                    url: urls.url,
+                    thumbnailURL: urls.thumbnailURL,
+                    sortOrder: placement.sortOrder,
+                    isPrimary: placement.sortOrder == 0,
+                    createdAt: Date()
+                )
+            )
+        }
+        return updated.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     /// Replaces the primary photo image, or adds one if none exist.
@@ -230,42 +262,92 @@ final class FirestorePhotoService {
         userId: String,
         image: UIImage,
         legacyPhotoURL: String? = nil
-    ) async throws -> ProfilePhoto {
-        let photos = try await fetchPhotos(userId: userId, legacyPhotoURL: legacyPhotoURL)
-        if let primary = photos.first(where: \.isPrimary) ?? photos.first {
-            RemoteImageLoader.shared.invalidate(urlString: primary.url)
-            RemoteImageLoader.shared.invalidate(urlString: primary.thumbnailURL)
-            try await storageService.deletePhoto(userId: userId, photoId: primary.id)
-            let stored = try await storageService.uploadPhoto(
-                userId: userId,
-                photoId: primary.id,
-                image: image
-            )
-            let collection = try photosCollection(userId: userId)
-            try await collection.document(primary.id).updateData([
+    ) async throws -> [ProfilePhoto] {
+        var photos = try await fetchPhotos(userId: userId, legacyPhotoURL: legacyPhotoURL)
+        guard let primaryIndex = photos.firstIndex(where: \.isPrimary) ?? photos.indices.first else {
+            return try await addPhoto(userId: userId, image: image)
+        }
+        let primary = photos[primaryIndex]
+
+        let stored = try await storageService.uploadPhoto(
+            userId: userId,
+            photoId: primary.id,
+            image: image
+        )
+        RemoteImageLoader.shared.invalidate(urlString: primary.url)
+        RemoteImageLoader.shared.invalidate(urlString: primary.thumbnailURL)
+
+        let collection = try photosCollection(userId: userId)
+        let batch = try requireDatabase().batch()
+        batch.updateData(
+            [
                 "url": stored.url,
                 "thumbnailURL": stored.thumbnailURL,
                 "isPrimary": true
-            ])
-            // Ensure only one primary.
-            for photo in photos where photo.id != primary.id && photo.isPrimary {
-                try await collection.document(photo.id).updateData(["isPrimary": false])
-            }
+            ],
+            forDocument: collection.document(primary.id)
+        )
+        // Ensure only one primary.
+        for photo in photos where photo.id != primary.id && photo.isPrimary {
+            batch.updateData(["isPrimary": false], forDocument: collection.document(photo.id))
+        }
+        try await batch.commit()
+
+        try await syncUserPhotoURL(
+            userId: userId,
+            url: stored.url,
+            thumbnailURL: stored.thumbnailURL
+        )
+        cleanUpSupersededObjects(userId: userId, photoId: primary.id, keeping: stored)
+
+        for index in photos.indices {
+            photos[index].isPrimary = index == primaryIndex
+        }
+        photos[primaryIndex].url = stored.url
+        photos[primaryIndex].thumbnailURL = stored.thumbnailURL
+        return photos
+    }
+
+    /// Replaces the image for an existing slot without changing order or primary.
+    @discardableResult
+    func replacePhoto(userId: String, photoId: String, image: UIImage) async throws -> [ProfilePhoto] {
+        let collection = try photosCollection(userId: userId)
+        let snapshot = try await collection.getDocuments()
+        var photos = snapshot.documents.compactMap { mapPhoto(id: $0.documentID, data: $0.data()) }
+            .sorted { $0.sortOrder < $1.sortOrder }
+
+        guard let targetIndex = photos.firstIndex(where: { $0.id == photoId }) else {
+            throw AuthError.unknown("Photo not found.")
+        }
+        let target = photos[targetIndex]
+
+        // Upload first — the new object overwrites the old one under the same name, so the
+        // user never waits on delete round-trips before their photo starts going up.
+        let stored = try await storageService.uploadPhoto(
+            userId: userId,
+            photoId: photoId,
+            image: image
+        )
+        RemoteImageLoader.shared.invalidate(urlString: target.url)
+        RemoteImageLoader.shared.invalidate(urlString: target.thumbnailURL)
+
+        try await collection.document(photoId).updateData([
+            "url": stored.url,
+            "thumbnailURL": stored.thumbnailURL
+        ])
+
+        if target.isPrimary {
             try await syncUserPhotoURL(
                 userId: userId,
                 url: stored.url,
                 thumbnailURL: stored.thumbnailURL
             )
-            return ProfilePhoto(
-                id: primary.id,
-                url: stored.url,
-                thumbnailURL: stored.thumbnailURL,
-                sortOrder: primary.sortOrder,
-                isPrimary: true,
-                createdAt: primary.createdAt
-            )
         }
-        return try await addPhoto(userId: userId, image: image)
+        cleanUpSupersededObjects(userId: userId, photoId: photoId, keeping: stored)
+
+        photos[targetIndex].url = stored.url
+        photos[targetIndex].thumbnailURL = stored.thumbnailURL
+        return photos
     }
 
     func deletePhoto(userId: String, photoId: String) async throws -> [ProfilePhoto] {
@@ -278,33 +360,34 @@ final class FirestorePhotoService {
             throw AuthError.unknown("Photo not found.")
         }
 
-        RemoteImageLoader.shared.invalidate(urlString: target.url)
-        RemoteImageLoader.shared.invalidate(urlString: target.thumbnailURL)
-        try await storageService.deletePhoto(userId: userId, photoId: photoId)
-        try await collection.document(photoId).delete()
         photos.removeAll { $0.id == photoId }
 
-        // Re-pack sortOrder 0…n-1 and promote primary if needed.
-        if !photos.isEmpty || target.isPrimary {
-            let batch = try requireDatabase().batch()
-            for (index, photo) in photos.enumerated() {
-                batch.updateData(["sortOrder": index], forDocument: collection.document(photo.id))
-                photos[index].sortOrder = index
-            }
+        // Removal, re-packed sortOrder 0…n-1, and the promoted primary ride in one commit.
+        let batch = try requireDatabase().batch()
+        batch.deleteDocument(collection.document(photoId))
+        for (index, photo) in photos.enumerated() {
+            batch.updateData(["sortOrder": index], forDocument: collection.document(photo.id))
+            photos[index].sortOrder = index
+        }
+        if target.isPrimary, !photos.isEmpty {
+            photos[0].isPrimary = true
+            batch.updateData(["isPrimary": true], forDocument: collection.document(photos[0].id))
+        }
+        try await batch.commit()
 
-            if target.isPrimary {
-                if var next = photos.first {
-                    next.isPrimary = true
-                    photos[0] = next
-                    batch.updateData(["isPrimary": true], forDocument: collection.document(next.id))
-                    try await batch.commit()
-                    try await syncUserPhotoURL(userId: userId, url: next.url, thumbnailURL: next.thumbnailURL)
-                } else {
-                    try await syncUserPhotoURL(userId: userId, url: nil, thumbnailURL: nil)
-                }
-            } else {
-                try await batch.commit()
-            }
+        if target.isPrimary {
+            try await syncUserPhotoURL(
+                userId: userId,
+                url: photos.first?.url,
+                thumbnailURL: photos.first?.thumbnailURL
+            )
+        }
+
+        RemoteImageLoader.shared.invalidate(urlString: target.url)
+        RemoteImageLoader.shared.invalidate(urlString: target.thumbnailURL)
+        // Storage objects are unreferenced now; reclaiming them shouldn't hold up the grid.
+        Task { [storageService] in
+            try? await storageService.deletePhoto(userId: userId, photoId: photoId)
         }
 
         return photos
@@ -383,6 +466,22 @@ final class FirestorePhotoService {
     }
 
     // MARK: - Private
+
+    /// A re-upload only orphans the previous codec's files. Nothing points at them anymore,
+    /// so they are reclaimed off the critical path.
+    private func cleanUpSupersededObjects(
+        userId: String,
+        photoId: String,
+        keeping stored: StoredPhotoURLs
+    ) {
+        Task { [storageService] in
+            await storageService.deleteSupersededObjects(
+                userId: userId,
+                photoId: photoId,
+                keeping: stored
+            )
+        }
+    }
 
     private func migrateLegacyPhotoURL(
         userId: String,

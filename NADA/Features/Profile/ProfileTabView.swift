@@ -329,7 +329,7 @@ struct ProfileTabView: View {
                 .presentationDragIndicator(.visible)
         case .photos:
             ProfilePhotosSheet()
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .onDisappear {
                     Task {

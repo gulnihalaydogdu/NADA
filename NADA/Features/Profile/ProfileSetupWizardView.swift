@@ -64,7 +64,7 @@ struct ProfileSetupWizardView: View {
         var subtitle: String {
             switch self {
             case .photos:
-                return "Add \(ProfilePhoto.maxCount) photos. The first is your main — drag to reorder."
+                return "Add \(ProfilePhoto.maxCount) photos. Tap one to recrop it. The first is your main — drag to reorder."
             case .bits:
                 return "Three short answers friends will see on your profile."
             case .essentials:
@@ -188,9 +188,10 @@ struct ProfileSetupWizardView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
             NADAOnboardingNavBar(
+                showsSkip: step != .preferences,
                 isBusy: auth.isBusy,
                 onBack: goBack,
-                onSkip: { Task { await skipRemaining() } }
+                onSkip: skipCurrentStep
             )
 
             Text("\(step.rawValue + 1) of \(Step.allCases.count)")
@@ -443,13 +444,11 @@ struct ProfileSetupWizardView: View {
         step = previous
     }
 
-    private func skipRemaining() async {
+    private func skipCurrentStep() {
         localError = nil
         auth.clearError()
-        let ok = await auth.skipRemainingOnboarding()
-        if !ok, auth.errorMessage == nil {
-            localError = "Couldn't skip setup. Try again."
-        }
+        guard step != .preferences, let next = Step(rawValue: step.rawValue + 1) else { return }
+        step = next
     }
 
     private func advance() async {

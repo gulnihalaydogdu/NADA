@@ -30,6 +30,8 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
 | `isProfileComplete` | boolean | yes | Discover gate (W2-06): photos≥1, bits≥3, gender, city. Recomputed client-side on hydrate / profile edits |
 | `interestIds` | array&lt;string&gt; | no | Catalog ids from `interests/{id}`; max **8**. Optional; does not affect `isProfileComplete`. See [`FIRESTORE_INTERESTS.md`](FIRESTORE_INTERESTS.md) |
 
+Push tokens live in owner-only [`users/{uid}/deviceTokens`](FIRESTORE_DEVICE_TOKENS.md) — never on this document (Discover can read complete profiles).
+
 † Created empty on sign-up; **Basic Profile** gate requires them before the profile wizard / tabs.
 
 ### Planned profile essentials (not in Firestore yet)

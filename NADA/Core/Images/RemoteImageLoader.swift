@@ -3,7 +3,8 @@ import UIKit
 
 /// Downloads, downsamples, and caches remote photos.
 /// In-flight requests are coalesced; decode happens off the main thread.
-/// A request is cancelled once every view waiting on it goes away.
+/// A request is cancelled once every view waiting on it goes away — unless a
+/// prefetch still needs the same decode (Discover next-card warming).
 @MainActor
 final class RemoteImageLoader {
     static let shared = RemoteImageLoader()
@@ -12,13 +13,14 @@ final class RemoteImageLoader {
     private let session: URLSession
     private var inflight: [String: Task<UIImage?, Never>] = [:]
     private var waiters: [String: Int] = [:]
+    private var prefetchHolds: [String: Int] = [:]
 
     private init() {
         let config = URLSessionConfiguration.default
         config.urlCache = URLCache(memoryCapacity: 20 * 1024 * 1024, diskCapacity: 80 * 1024 * 1024)
         config.requestCachePolicy = .returnCacheDataElseLoad
         config.timeoutIntervalForRequest = 30
-        config.httpMaximumConnectionsPerHost = 4
+        config.httpMaximumConnectionsPerHost = 6
         session = URLSession(configuration: config)
     }
 
@@ -32,6 +34,62 @@ final class RemoteImageLoader {
     }
 
     func image(urlString: String?, targetPointSize: CGFloat) async -> UIImage? {
+        await image(urlString: urlString, targetPointSize: targetPointSize, isPrefetch: false)
+    }
+
+    /// Warms images in **priority order**: the first URL is awaited so it wins
+    /// connections and decode slots; the rest start in parallel after that.
+    func prefetchOrdered(_ items: [(urlString: String, targetPointSize: CGFloat)]) {
+        let filtered = items.filter { !$0.urlString.isEmpty }
+        guard !filtered.isEmpty else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let first = filtered[0]
+            _ = await self.image(
+                urlString: first.urlString,
+                targetPointSize: first.targetPointSize,
+                isPrefetch: true
+            )
+            guard filtered.count > 1 else { return }
+            await withTaskGroup(of: Void.self) { group in
+                for item in filtered.dropFirst() {
+                    group.addTask { @MainActor in
+                        _ = await self.image(
+                            urlString: item.urlString,
+                            targetPointSize: item.targetPointSize,
+                            isPrefetch: true
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /// Warms nearby photos in parallel so the next Discover card can paint immediately.
+    func prefetch(urlStrings: [String], targetPointSize: CGFloat, limit: Int = 3) {
+        let prefix = Array(urlStrings.prefix(limit).filter { !$0.isEmpty })
+        guard !prefix.isEmpty else { return }
+        prefetchOrdered(prefix.map { (urlString: $0, targetPointSize: targetPointSize) })
+    }
+
+    func invalidate(urlString: String?) {
+        guard let urlString, !urlString.isEmpty else { return }
+        cache.remove(urlString: urlString)
+    }
+
+    func invalidateAll() {
+        cache.removeAll()
+        inflight.values.forEach { $0.cancel() }
+        inflight.removeAll()
+        waiters.removeAll()
+        prefetchHolds.removeAll()
+    }
+
+    private func image(
+        urlString: String?,
+        targetPointSize: CGFloat,
+        isPrefetch: Bool
+    ) async -> UIImage? {
         guard let urlString, let url = URL(string: urlString), !urlString.isEmpty else {
             return nil
         }
@@ -48,6 +106,14 @@ final class RemoteImageLoader {
             urlString: urlString,
             maxPixelSize: maxPixelSize
         )
+
+        if isPrefetch {
+            prefetchHolds[key, default: 0] += 1
+            let image = await task.value
+            releasePrefetch(key: key)
+            return image
+        }
+
         waiters[key, default: 0] += 1
         let ticket = WaiterTicket()
 
@@ -66,29 +132,6 @@ final class RemoteImageLoader {
         return image
     }
 
-    /// Warms the next few images only — deliberately small so we don't waste bandwidth.
-    func prefetch(urlStrings: [String], targetPointSize: CGFloat, limit: Int = 3) {
-        let prefix = Array(urlStrings.prefix(limit))
-        guard !prefix.isEmpty else { return }
-        Task { [weak self] in
-            for urlString in prefix {
-                _ = await self?.image(urlString: urlString, targetPointSize: targetPointSize)
-            }
-        }
-    }
-
-    func invalidate(urlString: String?) {
-        guard let urlString, !urlString.isEmpty else { return }
-        cache.remove(urlString: urlString)
-    }
-
-    func invalidateAll() {
-        cache.removeAll()
-        inflight.values.forEach { $0.cancel() }
-        inflight.removeAll()
-        waiters.removeAll()
-    }
-
     private func pixelSize(for targetPointSize: CGFloat) -> CGFloat {
         let scale = max(UITraitCollection.current.displayScale, 1)
         return min(max(targetPointSize * scale, 1), ImageIOCodec.displayMaxPixelSize)
@@ -101,13 +144,24 @@ final class RemoteImageLoader {
         maxPixelSize: CGFloat
     ) -> Task<UIImage?, Never> {
         let task = Task<UIImage?, Never> { [weak self] in
-            await self?.load(url: url, urlString: urlString, maxPixelSize: maxPixelSize) ?? nil
+            let image = await self?.load(url: url, urlString: urlString, maxPixelSize: maxPixelSize)
+            await MainActor.run {
+                self?.finishInflight(key: key)
+            }
+            return image
         }
         inflight[key] = task
         return task
     }
 
-    /// Cancels the download when the last interested view disappears.
+    private func finishInflight(key: String) {
+        if (waiters[key] ?? 0) == 0, (prefetchHolds[key] ?? 0) == 0 {
+            inflight[key] = nil
+        }
+    }
+
+    /// Cancels the download when the last interested view disappears — never
+    /// while a Discover prefetch still holds the same key.
     private func dropWaiter(key: String, cancelWhenLast: Bool) {
         guard let count = waiters[key] else { return }
         let remaining = count - 1
@@ -117,10 +171,26 @@ final class RemoteImageLoader {
         }
 
         waiters[key] = nil
-        if cancelWhenLast {
+        let held = prefetchHolds[key] ?? 0
+        if cancelWhenLast, held == 0 {
             inflight[key]?.cancel()
+            inflight[key] = nil
+        } else if held == 0 {
+            inflight[key] = nil
         }
-        inflight[key] = nil
+    }
+
+    private func releasePrefetch(key: String) {
+        guard let count = prefetchHolds[key] else { return }
+        let remaining = count - 1
+        if remaining <= 0 {
+            prefetchHolds[key] = nil
+            if (waiters[key] ?? 0) == 0 {
+                inflight[key] = nil
+            }
+        } else {
+            prefetchHolds[key] = remaining
+        }
     }
 
     private func load(url: URL, urlString: String, maxPixelSize: CGFloat) async -> UIImage? {

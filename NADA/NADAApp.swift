@@ -4,6 +4,7 @@ import FirebaseCore
 
 @main
 struct NADAApp: App {
+    @UIApplicationDelegateAdaptor(NADAAppDelegate.self) private var appDelegate
     @State private var authManager = AuthManager()
     @State private var splashController = SplashController()
 

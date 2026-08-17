@@ -26,18 +26,26 @@ struct ProfilePhotosEditor: View {
     @State private var isEditorPresented = false
     @State private var editorImage: UIImage?
     @State private var editorImageID = UUID()
+    @State private var recropTarget: ProfilePhoto?
+    @State private var isReplacePresented = false
+    @State private var replacementItem: PhotosPickerItem?
+    @State private var preparingPhotoId: String?
 
     @State private var draggingPhotoId: String?
     @State private var needsReplacement = false
     @State private var replacementIndex: Int?
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 14), count: 2)
+    private let gridImagePointSize: CGFloat = 220
 
     private var remainingSlots: Int {
         max(0, ProfilePhoto.maxCount - photos.count)
     }
 
     private var editorSubtitle: String? {
+        if recropTarget != nil {
+            return "Drag and pinch to recrop. Done saves this slot."
+        }
         if photos.isEmpty {
             return cropQueue.isEmpty
                 ? "Frame your main photo"
@@ -54,7 +62,7 @@ struct ProfilePhotosEditor: View {
                     .font(NADATheme.captionFont)
                     .foregroundStyle(NADATheme.secondaryInk)
 
-                Text("Drag photos to change the order — the first one is your main photo. Tap ✕ to remove one; the next photo you add fills that same spot.")
+                Text("Tap a photo to recrop it. Drag to change the order — the first one is your main. Tap ✕ to remove one; the next photo you add fills that same spot.")
                     .font(NADATheme.bodyFont)
                     .foregroundStyle(NADATheme.warmSecondaryInk)
             } else {
@@ -68,7 +76,7 @@ struct ProfilePhotosEditor: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
             } else {
-                LazyVGrid(columns: columns, spacing: 12) {
+                LazyVGrid(columns: columns, spacing: 14) {
                     ForEach(photos) { photo in
                         photoCell(photo)
                     }
@@ -120,11 +128,21 @@ struct ProfilePhotosEditor: View {
                     aspectWidthOverHeight: 1,
                     subtitle: editorSubtitle,
                     onCancel: { cancelCropQueue() },
+                    onReplace: recropTarget == nil ? nil : { isReplacePresented = true },
                     onCrop: { cropped in
                         acceptCrop(cropped)
                     }
                 )
                 .id(editorImageID)
+                .photosPicker(
+                    isPresented: $isReplacePresented,
+                    selection: $replacementItem,
+                    matching: .images,
+                    photoLibrary: .shared()
+                )
+                .onChange(of: replacementItem) { _, item in
+                    Task { await replaceRecropSource(with: item) }
+                }
             }
         }
     }
@@ -159,16 +177,30 @@ struct ProfilePhotosEditor: View {
 
     private func photoCell(_ photo: ProfilePhoto) -> some View {
         let isDragging = draggingPhotoId == photo.id
+        let isPreparing = preparingPhotoId == photo.id
 
-        return Group {
+        return ZStack {
             RemoteImageView(
                 urlString: photo.previewURL,
-                targetPointSize: 130
+                targetPointSize: gridImagePointSize
             )
+            .frame(maxWidth: .infinity)
+            .aspectRatio(1, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .onTapGesture {
+                Task { await beginRecrop(photo) }
+            }
+
+            if isPreparing {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(NADATheme.ink.opacity(0.35))
+                    .allowsHitTesting(false)
+                ProgressView()
+                    .tint(.white)
+                    .allowsHitTesting(false)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             if photo.isPrimary {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -183,6 +215,7 @@ struct ProfilePhotosEditor: View {
                         ),
                         lineWidth: 2.5
                     )
+                    .allowsHitTesting(false)
             }
         }
         .overlay(alignment: .topTrailing) {
@@ -196,8 +229,8 @@ struct ProfilePhotosEditor: View {
                     .background(Color.black.opacity(0.55), in: Circle())
             }
             .buttonStyle(.plain)
-            .padding(6)
-            .disabled(isSaving || isCommittingCrops || auth.isBusy)
+            .padding(8)
+            .disabled(isSaving || isCommittingCrops || auth.isBusy || isPreparing)
             .accessibilityLabel("Delete photo")
         }
         .opacity(isDragging ? 0.55 : 1)
@@ -218,7 +251,7 @@ struct ProfilePhotosEditor: View {
         )
         .disabled(isSaving || isCommittingCrops || auth.isBusy)
         .accessibilityLabel(photo.isPrimary ? "Primary photo" : "Photo")
-        .accessibilityHint("Drag to reorder")
+        .accessibilityHint("Tap to recrop. Drag to reorder.")
     }
 
     // MARK: - Data
@@ -245,7 +278,7 @@ struct ProfilePhotosEditor: View {
         notifyPhotosChanged()
         RemoteImageLoader.shared.prefetch(
             urlStrings: photos.map(\.previewURL),
-            targetPointSize: 130
+            targetPointSize: gridImagePointSize
         )
     }
 
@@ -263,6 +296,7 @@ struct ProfilePhotosEditor: View {
         }
 
         guard let first = images.first else { return }
+        recropTarget = nil
         pendingCropped = []
         cropQueue = Array(images.dropFirst())
         editorImage = first
@@ -286,6 +320,10 @@ struct ProfilePhotosEditor: View {
         cropQueue = []
         pendingCropped = []
         libraryItems = []
+        recropTarget = nil
+        replacementItem = nil
+        isReplacePresented = false
+        preparingPhotoId = nil
     }
 
     private func cancelCropQueue() {
@@ -298,6 +336,18 @@ struct ProfilePhotosEditor: View {
     /// Crop every picked photo first; upload only after the last Done.
     private func acceptCrop(_ image: UIImage) {
         guard !isCommittingCrops else { return }
+        if let recropTarget {
+            isEditorPresented = false
+            editorImage = nil
+            cropQueue = []
+            pendingCropped = []
+            libraryItems = []
+            replacementItem = nil
+            isReplacePresented = false
+            Task { await commitRecrop(recropTarget, image: image) }
+            return
+        }
+
         pendingCropped.append(image)
 
         if cropQueue.isEmpty {
@@ -310,6 +360,66 @@ struct ProfilePhotosEditor: View {
             Task { await commitCroppedPhotos(images) }
         } else {
             presentNextInQueue()
+        }
+    }
+
+    private func beginRecrop(_ photo: ProfilePhoto) async {
+        guard !isSaving, !isCommittingCrops, !auth.isBusy, !isEditorPresented else { return }
+        localError = nil
+        auth.clearError()
+        preparingPhotoId = photo.id
+        var image = await RemoteImageLoader.shared.image(
+            urlString: photo.url,
+            targetPointSize: ImageIOCodec.displayMaxPixelSize
+        )
+        if image == nil {
+            image = await RemoteImageLoader.shared.image(
+                urlString: photo.previewURL,
+                targetPointSize: ImageIOCodec.displayMaxPixelSize
+            )
+        }
+        preparingPhotoId = nil
+        guard let image else {
+            localError = "Couldn't load that photo to edit."
+            return
+        }
+
+        recropTarget = photo
+        cropQueue = []
+        pendingCropped = []
+        editorImage = image
+        editorImageID = UUID()
+        isEditorPresented = true
+    }
+
+    private func replaceRecropSource(with item: PhotosPickerItem?) async {
+        guard recropTarget != nil, let item else { return }
+        let image = await PickerImageLoader.load(item)
+        replacementItem = nil
+        guard let image else {
+            localError = "Couldn't load that photo."
+            return
+        }
+        editorImage = image
+        editorImageID = UUID()
+    }
+
+    private func commitRecrop(_ photo: ProfilePhoto, image: UIImage) async {
+        guard !isCommittingCrops else { return }
+        isCommittingCrops = true
+        isSaving = true
+        localError = nil
+        defer {
+            isCommittingCrops = false
+            isSaving = false
+            recropTarget = nil
+        }
+
+        if let updated = await auth.replacePhoto(id: photo.id, image: image) {
+            photos = updated
+            notifyPhotosChanged()
+        } else if auth.errorMessage == nil {
+            localError = "Couldn't update that photo."
         }
     }
 
