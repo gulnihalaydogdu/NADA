@@ -65,7 +65,7 @@ final class FirestorePhotoService {
             sortOrder = existing.count
         }
         let makePrimary = sortOrder == 0
-        let url = try await storageService.uploadPhoto(userId: userId, photoId: photoId, image: image)
+        let stored = try await storageService.uploadPhoto(userId: userId, photoId: photoId, image: image)
 
         let batch = try requireDatabase().batch()
 
@@ -87,7 +87,8 @@ final class FirestorePhotoService {
         }
 
         let payload: [String: Any] = [
-            "url": url,
+            "url": stored.url,
+            "thumbnailURL": stored.thumbnailURL,
             "sortOrder": sortOrder,
             "isPrimary": makePrimary,
             "createdAt": FieldValue.serverTimestamp()
@@ -96,12 +97,17 @@ final class FirestorePhotoService {
         try await batch.commit()
 
         if makePrimary {
-            try await syncUserPhotoURL(userId: userId, url: url)
+            try await syncUserPhotoURL(
+                userId: userId,
+                url: stored.url,
+                thumbnailURL: stored.thumbnailURL
+            )
         }
 
         return ProfilePhoto(
             id: photoId,
-            url: url,
+            url: stored.url,
+            thumbnailURL: stored.thumbnailURL,
             sortOrder: sortOrder,
             isPrimary: makePrimary,
             createdAt: Date()
@@ -117,24 +123,33 @@ final class FirestorePhotoService {
     ) async throws -> ProfilePhoto {
         let photos = try await fetchPhotos(userId: userId, legacyPhotoURL: legacyPhotoURL)
         if let primary = photos.first(where: \.isPrimary) ?? photos.first {
-            let url = try await storageService.uploadPhoto(
+            RemoteImageLoader.shared.invalidate(urlString: primary.url)
+            RemoteImageLoader.shared.invalidate(urlString: primary.thumbnailURL)
+            try await storageService.deletePhoto(userId: userId, photoId: primary.id)
+            let stored = try await storageService.uploadPhoto(
                 userId: userId,
                 photoId: primary.id,
                 image: image
             )
             let collection = try photosCollection(userId: userId)
             try await collection.document(primary.id).updateData([
-                "url": url,
+                "url": stored.url,
+                "thumbnailURL": stored.thumbnailURL,
                 "isPrimary": true
             ])
             // Ensure only one primary.
             for photo in photos where photo.id != primary.id && photo.isPrimary {
                 try await collection.document(photo.id).updateData(["isPrimary": false])
             }
-            try await syncUserPhotoURL(userId: userId, url: url)
+            try await syncUserPhotoURL(
+                userId: userId,
+                url: stored.url,
+                thumbnailURL: stored.thumbnailURL
+            )
             return ProfilePhoto(
                 id: primary.id,
-                url: url,
+                url: stored.url,
+                thumbnailURL: stored.thumbnailURL,
                 sortOrder: primary.sortOrder,
                 isPrimary: true,
                 createdAt: primary.createdAt
@@ -153,6 +168,8 @@ final class FirestorePhotoService {
             throw AuthError.unknown("Photo not found.")
         }
 
+        RemoteImageLoader.shared.invalidate(urlString: target.url)
+        RemoteImageLoader.shared.invalidate(urlString: target.thumbnailURL)
         try await storageService.deletePhoto(userId: userId, photoId: photoId)
         try await collection.document(photoId).delete()
         photos.removeAll { $0.id == photoId }
@@ -171,9 +188,9 @@ final class FirestorePhotoService {
                     photos[0] = next
                     batch.updateData(["isPrimary": true], forDocument: collection.document(next.id))
                     try await batch.commit()
-                    try await syncUserPhotoURL(userId: userId, url: next.url)
+                    try await syncUserPhotoURL(userId: userId, url: next.url, thumbnailURL: next.thumbnailURL)
                 } else {
-                    try await syncUserPhotoURL(userId: userId, url: nil)
+                    try await syncUserPhotoURL(userId: userId, url: nil, thumbnailURL: nil)
                 }
             } else {
                 try await batch.commit()
@@ -203,7 +220,11 @@ final class FirestorePhotoService {
             )
         }
         try await batch.commit()
-        try await syncUserPhotoURL(userId: userId, url: photos[targetIndex].url)
+        try await syncUserPhotoURL(
+            userId: userId,
+            url: photos[targetIndex].url,
+            thumbnailURL: photos[targetIndex].thumbnailURL
+        )
         return photos
     }
 
@@ -242,7 +263,11 @@ final class FirestorePhotoService {
 
         let sorted = updated.sorted { $0.sortOrder < $1.sortOrder }
         if let primary = sorted.first {
-            try await syncUserPhotoURL(userId: userId, url: primary.url)
+            try await syncUserPhotoURL(
+                userId: userId,
+                url: primary.url,
+                thumbnailURL: primary.thumbnailURL
+            )
         }
         return sorted
     }
@@ -262,24 +287,32 @@ final class FirestorePhotoService {
             "createdAt": FieldValue.serverTimestamp()
         ]
         try await collection.document(photoId).setData(payload)
-        try await syncUserPhotoURL(userId: userId, url: url)
+        try await syncUserPhotoURL(userId: userId, url: url, thumbnailURL: nil)
         return ProfilePhoto(
             id: photoId,
             url: url,
+            thumbnailURL: nil,
             sortOrder: 0,
             isPrimary: true,
             createdAt: Date()
         )
     }
 
-    private func syncUserPhotoURL(userId: String, url: String?) async throws {
+    private func syncUserPhotoURL(userId: String, url: String?, thumbnailURL: String?) async throws {
         let database = try requireDatabase()
         let document = database.collection("users").document(userId)
+        var fields: [String: Any] = [:]
         if let url {
-            try await document.updateData(["photoURL": url])
+            fields["photoURL"] = url
         } else {
-            try await document.updateData(["photoURL": FieldValue.delete()])
+            fields["photoURL"] = FieldValue.delete()
         }
+        if let thumbnailURL {
+            fields["photoThumbnailURL"] = thumbnailURL
+        } else {
+            fields["photoThumbnailURL"] = FieldValue.delete()
+        }
+        try await document.updateData(fields)
     }
 
     private func requireDatabase() throws -> Firestore {
@@ -307,6 +340,7 @@ final class FirestorePhotoService {
         return ProfilePhoto(
             id: id,
             url: url,
+            thumbnailURL: data["thumbnailURL"] as? String,
             sortOrder: sortOrder,
             isPrimary: isPrimary,
             createdAt: createdAt

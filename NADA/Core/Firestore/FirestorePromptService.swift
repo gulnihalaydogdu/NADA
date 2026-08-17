@@ -15,19 +15,26 @@ final class FirestorePromptService {
     // MARK: - Catalog
 
     /// Active catalog bits, ordered by `sortOrder` (English MVP seed).
-    /// Loads the collection and filters in memory so Console type mismatches
-    /// (`isActive` as string, `sortOrder` as Int64) still work.
+    /// Cached in-process so Profile / wizard / bits sheets don't re-download the catalog.
+    private static var catalogCache: [String: [Prompt]] = [:]
+
     func fetchActivePrompts(locale: String = "en") async throws -> [Prompt] {
+        if let cached = Self.catalogCache[locale], !cached.isEmpty {
+            return cached
+        }
         guard let database else { throw AuthError.notConfigured }
 
         let snapshot = try await database.collection(Self.promptsCollection).getDocuments()
 
-        return snapshot.documents
+        let prompts = snapshot.documents
             .compactMap { doc -> Prompt? in
                 mapPrompt(id: doc.documentID, data: doc.data())
             }
             .filter { $0.isActive && $0.locale == locale }
             .sorted { $0.sortOrder < $1.sortOrder }
+
+        Self.catalogCache[locale] = prompts
+        return prompts
     }
 
     // MARK: - Answers

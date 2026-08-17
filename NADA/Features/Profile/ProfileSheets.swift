@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
 enum ProfileRoute: String, Identifiable {
     case edit
@@ -727,7 +728,7 @@ struct ProfilePreviewSheet: View {
 
     var body: some View {
         ProfileSheetScaffold(title: "Preview") {
-            VStack(spacing: 14) {
+            LazyVStack(spacing: 14) {
                 if isLoadingPhotos && photos.isEmpty {
                     ProgressView()
                         .frame(maxWidth: .infinity)
@@ -797,6 +798,11 @@ struct ProfilePreviewSheet: View {
         isLoadingPhotos = true
         defer { isLoadingPhotos = false }
         photos = await auth.fetchPhotos()
+        let displaySize = min(UIScreen.main.bounds.width - 48, 430)
+        RemoteImageLoader.shared.prefetch(
+            urlStrings: Array(photos.prefix(2).map(\.url)),
+            targetPointSize: displaySize
+        )
     }
 }
 
@@ -809,24 +815,17 @@ private enum ProfilePreviewBlock {
 struct ProfilePreviewPhotoTile: View {
     let urlString: String?
 
+    private var targetPointSize: CGFloat {
+        min(UIScreen.main.bounds.width - 48, 430)
+    }
+
     var body: some View {
         Group {
-            if let urlString, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .empty:
-                        ZStack {
-                            NADATheme.brandSoft
-                            ProgressView()
-                        }
-                    default:
-                        placeholder
-                    }
-                }
+            if urlString?.isEmpty == false {
+                RemoteImageView(
+                    urlString: urlString,
+                    targetPointSize: targetPointSize
+                )
             } else {
                 placeholder
             }

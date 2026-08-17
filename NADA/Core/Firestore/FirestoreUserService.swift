@@ -172,6 +172,7 @@ final class FirestoreUserService {
             approxLatitude: doubleValue(data["approxLatitude"]) ?? fallback.approxLatitude,
             approxLongitude: doubleValue(data["approxLongitude"]) ?? fallback.approxLongitude,
             photoURL: data["photoURL"] as? String ?? fallback.photoURL,
+            photoThumbnailURL: data["photoThumbnailURL"] as? String ?? fallback.photoThumbnailURL,
             intent: intent,
             locale: data["locale"] as? String ?? fallback.locale,
             createdAt: createdAt,

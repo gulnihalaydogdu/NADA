@@ -18,8 +18,25 @@ struct ProfilePhotoCropView: View {
     @State private var lastOffset: CGSize = .zero
     @State private var cropSize: CGSize = CGSize(width: 280, height: 280)
 
-    private var normalized: UIImage {
-        source.normalizedOrientation()
+    private let normalized: UIImage
+
+    init(
+        source: UIImage,
+        aspectWidthOverHeight: CGFloat = 1,
+        title: String = "Edit Photo",
+        subtitle: String? = nil,
+        onCancel: @escaping () -> Void,
+        onReplace: (() -> Void)? = nil,
+        onCrop: @escaping (UIImage) -> Void
+    ) {
+        self.source = source
+        self.aspectWidthOverHeight = aspectWidthOverHeight
+        self.title = title
+        self.subtitle = subtitle
+        self.onCancel = onCancel
+        self.onReplace = onReplace
+        self.onCrop = onCrop
+        self.normalized = source.normalizedOrientation()
     }
 
     private var isSquare: Bool { abs(aspectWidthOverHeight - 1) < 0.01 }

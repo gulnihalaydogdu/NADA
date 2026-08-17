@@ -146,22 +146,10 @@ struct ProfilePhotosEditor: View {
         let isDragging = draggingPhotoId == photo.id
 
         return Group {
-            if let url = URL(string: photo.url) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .empty:
-                        ProgressView()
-                    default:
-                        NADATheme.brandSoft
-                    }
-                }
-            } else {
-                NADATheme.brandSoft
-            }
+            RemoteImageView(
+                urlString: photo.previewURL,
+                targetPointSize: 130
+            )
         }
         .frame(maxWidth: .infinity)
         .aspectRatio(1, contentMode: .fit)
@@ -240,6 +228,10 @@ struct ProfilePhotosEditor: View {
         defer { isLoading = false }
         photos = await auth.fetchPhotos()
         notifyPhotosChanged()
+        RemoteImageLoader.shared.prefetch(
+            urlStrings: photos.map(\.previewURL),
+            targetPointSize: 130
+        )
     }
 
     private func enqueuePickedItems(_ items: [PhotosPickerItem]) async {
@@ -248,8 +240,7 @@ struct ProfilePhotosEditor: View {
 
         var images: [UIImage] = []
         for item in capped {
-            guard let data = try? await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data) else {
+            guard let image = await PickerImageLoader.load(item) else {
                 localError = "Couldn't load one of the selected photos."
                 continue
             }

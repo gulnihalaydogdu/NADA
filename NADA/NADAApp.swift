@@ -10,6 +10,11 @@ struct NADAApp: App {
     init() {
         FirebaseAuthService.configureAtLaunch()
 
+        URLCache.shared = URLCache(
+            memoryCapacity: 20 * 1024 * 1024,
+            diskCapacity: 80 * 1024 * 1024
+        )
+
         UIWindow.appearance().backgroundColor = UIColor(
             red: 0.980,
             green: 0.973,

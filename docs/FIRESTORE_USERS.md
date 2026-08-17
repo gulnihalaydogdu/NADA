@@ -25,6 +25,7 @@ MVP user profile document. Document ID **must** equal Firebase Auth `uid`.
 | `approxLatitude` | number | no | Coarse (~2 decimals); set via “Use approximate location” |
 | `approxLongitude` | number | no | Coarse (~2 decimals); never a precise pin |
 | `photoURL` | string | no | Denormalized primary photo download URL (W1-05 / W2-01) |
+| `photoThumbnailURL` | string | no | Denormalized primary thumbnail for avatars (Week 3 image pipeline) |
 | `profileWizardCompleted` | boolean | yes | `false` until Photos → Bits → Preferences shell finishes or is skipped (W1-12) |
 | `isProfileComplete` | boolean | yes | Discover gate (W2-06): photos≥1, bits≥3, gender, city. Recomputed client-side on hydrate / profile edits |
 
@@ -80,10 +81,14 @@ Discover/profile card fields — implement later (do not treat as shipped):
 | Field | Type | Notes |
 |-------|------|--------|
 | *(document id)* | string | UUID (or `legacy-primary` after migration) |
-| `url` | string | Storage download URL |
+| `url` | string | Storage download URL (display, max 1200px, WebP or JPEG) |
+| `thumbnailURL` | string | no | Small derivative (max 360px) for avatars / grids. Missing on legacy photos |
 | `sortOrder` | number | `0…5`, packed after deletes |
 | `isPrimary` | boolean | Exactly one should be true when count ≥ 1 |
 | `createdAt` | timestamp | Server timestamp on create |
+
+Storage objects: `users/{uid}/photos/{photoId}.{jpg\|webp}` and `{photoId}_thumb.{jpg\|webp}` with `Cache-Control: public, max-age=31536000, immutable`.  
+Client decodes at display size (ImageIO thumbnail) and keeps a bounded memory + disk cache.
 
 **Max 6** enforced in `FirestorePhotoService` before upload.  
 **Lazy migration:** if the subcollection is empty but `users/{uid}.photoURL` is set, the first `fetchPhotos` creates `legacy-primary` without re-uploading.

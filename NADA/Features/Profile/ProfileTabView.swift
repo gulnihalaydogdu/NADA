@@ -56,10 +56,10 @@ struct ProfileTabView: View {
             Button("Cancel", role: .cancel) {}
         }
         .task {
-            await auth.refreshCurrentUser()
-            await loadBitsCatalog()
-            await refreshPhotoCount()
-            await refreshBitAnswers()
+            async let bits: Void = loadBitsCatalog()
+            async let photos: Void = refreshPhotoCount()
+            async let answers: Void = refreshBitAnswers()
+            _ = await (bits, photos, answers)
         }
     }
 
@@ -377,6 +377,9 @@ struct ProfileTabView: View {
         photoCount = photos.count
         if photoCount == 0, auth.currentUser?.photoURL?.isEmpty == false {
             photoCount = 1
+        }
+        if let avatarURL = auth.currentUser?.avatarURL {
+            RemoteImageLoader.shared.prefetch(urlStrings: [avatarURL], targetPointSize: 132)
         }
     }
 

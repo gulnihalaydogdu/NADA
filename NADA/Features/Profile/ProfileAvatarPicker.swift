@@ -2,7 +2,7 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
-/// Read-only circular avatar backed by the stored `photoURL`.
+/// Read-only circular avatar backed by the stored thumbnail (or display URL).
 struct ProfileAvatarImage: View {
     let urlString: String?
     var size: CGFloat = 128
@@ -26,19 +26,11 @@ struct ProfileAvatarImage: View {
             localImage
                 .resizable()
                 .scaledToFill()
-        } else if let urlString, let url = URL(string: urlString) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                case .empty:
-                    ProgressView()
-                default:
-                    placeholder
-                }
-            }
+        } else if let urlString {
+            RemoteImageView(
+                urlString: urlString,
+                targetPointSize: size
+            )
         } else {
             placeholder
         }
@@ -96,7 +88,7 @@ struct ProfileAvatarPicker: View {
     }
 
     private var avatarLabel: some View {
-        let photoURL = auth.currentUser?.photoURL
+        let photoURL = auth.currentUser?.avatarURL
         let currentAvatar = localAvatar
 
         return ZStack {
@@ -128,7 +120,7 @@ struct ProfileAvatarPicker: View {
             }
             .frame(width: size, height: size)
         }
-        .onChange(of: auth.currentUser?.photoURL) { _, _ in
+        .onChange(of: auth.currentUser?.avatarURL) { _, _ in
             // Drop optimistic local preview when the server primary URL changes (e.g. reorder).
             localAvatar = nil
         }
@@ -172,7 +164,7 @@ struct ProfileAvatarPicker: View {
     private func openEditor() async {
         auth.clearError()
 
-        guard auth.currentUser?.photoURL?.isEmpty == false else {
+        guard auth.currentUser?.avatarURL?.isEmpty == false else {
             isLibraryPresented = true
             return
         }
@@ -221,17 +213,14 @@ struct ProfileAvatarPicker: View {
     }
 
     private func loadImage(from item: PhotosPickerItem) async -> UIImage? {
-        guard let data = try? await item.loadTransferable(type: Data.self) else { return nil }
-        return UIImage(data: data)
+        await PickerImageLoader.load(item)
     }
 
     private func currentPhotoImage() async -> UIImage? {
-        guard let urlString = auth.currentUser?.photoURL,
-              let url = URL(string: urlString),
-              let (data, _) = try? await URLSession.shared.data(from: url) else {
-            return nil
-        }
-        return UIImage(data: data)
+        await RemoteImageLoader.shared.image(
+            urlString: auth.currentUser?.photoURL,
+            targetPointSize: ImageIOCodec.displayMaxPixelSize
+        )
     }
 
     private func upload(_ image: UIImage) async {

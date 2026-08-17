@@ -14,6 +14,8 @@ struct NADAUser: Identifiable, Equatable, Sendable {
     var approxLatitude: Double?
     var approxLongitude: Double?
     var photoURL: String?
+    /// Small primary photo for avatars / grids. Falls back to `photoURL` when missing.
+    var photoThumbnailURL: String?
     var intent: UserIntent
     var locale: String?
     var createdAt: Date?
@@ -38,6 +40,7 @@ struct NADAUser: Identifiable, Equatable, Sendable {
         approxLatitude: Double? = nil,
         approxLongitude: Double? = nil,
         photoURL: String? = nil,
+        photoThumbnailURL: String? = nil,
         intent: UserIntent = .friendsOnly,
         locale: String? = nil,
         createdAt: Date? = nil,
@@ -55,6 +58,7 @@ struct NADAUser: Identifiable, Equatable, Sendable {
         self.approxLatitude = approxLatitude
         self.approxLongitude = approxLongitude
         self.photoURL = photoURL
+        self.photoThumbnailURL = photoThumbnailURL
         self.intent = intent
         self.locale = locale
         self.createdAt = createdAt
@@ -72,4 +76,6 @@ struct NADAUser: Identifiable, Equatable, Sendable {
     var resolvedRadiusKm: Int {
         ProfileLocation.clampRadiusKm(radiusKm ?? ProfileLocation.defaultRadiusKm)
     }
+
+    var avatarURL: String? { photoThumbnailURL ?? photoURL }
 }

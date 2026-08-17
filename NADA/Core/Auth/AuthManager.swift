@@ -25,6 +25,13 @@ final class AuthManager {
     private let promptService: FirestorePromptService
     private var authStateHandle: AuthStateHandle?
 
+    private var cachedPhotos: [ProfilePhoto] = []
+    private var cachedPhotosUserId: String?
+    private var didLoadPhotos = false
+    private var cachedAnswers: [PromptAnswer] = []
+    private var cachedAnswersUserId: String?
+    private var didLoadAnswers = false
+
     init() {
         self.authService = FirebaseAuthService()
         self.userService = FirestoreUserService()
@@ -277,19 +284,29 @@ final class AuthManager {
             if let profile = try await self.userService.fetchUser(id: userId) {
                 self.currentUser = profile
             }
-            try await self.syncProfileCompleteness()
+            let list = try await self.photoService.fetchPhotos(
+                userId: userId,
+                legacyPhotoURL: self.currentUser?.photoURL
+            )
+            self.rememberPhotos(list, userId: userId)
+            try await self.syncProfileCompleteness(photoCount: list.count)
             didSucceed = true
         }
         return didSucceed
     }
 
-    func fetchPhotos() async -> [ProfilePhoto] {
+    func fetchPhotos(force: Bool = false) async -> [ProfilePhoto] {
         guard let userId = currentUser?.id else { return [] }
+        if !force, didLoadPhotos, cachedPhotosUserId == userId {
+            return cachedPhotos
+        }
         do {
-            return try await photoService.fetchPhotos(
+            let list = try await photoService.fetchPhotos(
                 userId: userId,
                 legacyPhotoURL: currentUser?.photoURL
             )
+            rememberPhotos(list, userId: userId)
+            return list
         } catch {
             errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
             return []
@@ -305,7 +322,12 @@ final class AuthManager {
             if let profile = try await self.userService.fetchUser(id: userId) {
                 self.currentUser = profile
             }
-            try await self.syncProfileCompleteness()
+            let list = try await self.photoService.fetchPhotos(
+                userId: userId,
+                legacyPhotoURL: self.currentUser?.photoURL
+            )
+            self.rememberPhotos(list, userId: userId)
+            try await self.syncProfileCompleteness(photoCount: list.count)
         }
         return result
     }
@@ -318,6 +340,9 @@ final class AuthManager {
             result = try await self.photoService.deletePhoto(userId: userId, photoId: id)
             if let profile = try await self.userService.fetchUser(id: userId) {
                 self.currentUser = profile
+            }
+            if let result {
+                self.rememberPhotos(result, userId: userId)
             }
             try await self.syncProfileCompleteness(photoCount: result?.count)
         }
@@ -333,6 +358,9 @@ final class AuthManager {
             if let profile = try await self.userService.fetchUser(id: userId) {
                 self.currentUser = profile
             }
+            if let result {
+                self.rememberPhotos(result, userId: userId)
+            }
         }
         return result
     }
@@ -347,16 +375,24 @@ final class AuthManager {
             if let profile = try await self.userService.fetchUser(id: userId) {
                 self.currentUser = profile
             }
+            if let result {
+                self.rememberPhotos(result, userId: userId)
+            }
         }
         return result
     }
 
     // MARK: - Bit answers
 
-    func fetchBitAnswers() async -> [PromptAnswer] {
+    func fetchBitAnswers(force: Bool = false) async -> [PromptAnswer] {
         guard let userId = currentUser?.id else { return [] }
+        if !force, didLoadAnswers, cachedAnswersUserId == userId {
+            return cachedAnswers
+        }
         do {
-            return try await promptService.fetchAnswers(userId: userId)
+            let list = try await promptService.fetchAnswers(userId: userId)
+            rememberAnswers(list, userId: userId)
+            return list
         } catch {
             errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
             return []
@@ -374,7 +410,9 @@ final class AuthManager {
                 answerText: answerText,
                 sortOrder: sortOrder
             )
-            try await self.syncProfileCompleteness()
+            let answers = try await self.promptService.fetchAnswers(userId: userId)
+            self.rememberAnswers(answers, userId: userId)
+            try await self.syncProfileCompleteness(answeredBits: answers.count)
         }
         return result
     }
@@ -385,6 +423,9 @@ final class AuthManager {
         var result: [PromptAnswer]?
         await perform {
             result = try await self.promptService.deleteAnswer(userId: userId, promptId: promptId)
+            if let result {
+                self.rememberAnswers(result, userId: userId)
+            }
             try await self.syncProfileCompleteness(answeredBits: result?.count)
         }
         return result
@@ -399,6 +440,9 @@ final class AuthManager {
                 userId: userId,
                 orderedPromptIds: orderedPromptIds
             )
+            if let result {
+                self.rememberAnswers(result, userId: userId)
+            }
         }
         return result
     }
@@ -418,6 +462,8 @@ final class AuthManager {
                 toPromptId: toPromptId,
                 answerText: answerText
             )
+            let answers = try await self.promptService.fetchAnswers(userId: userId)
+            self.rememberAnswers(answers, userId: userId)
         }
         return result
     }
@@ -428,6 +474,7 @@ final class AuthManager {
             currentUser = nil
             currentPreferences = nil
             errorMessage = nil
+            clearSessionCaches()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -454,6 +501,7 @@ final class AuthManager {
             currentUser = nil
             currentPreferences = nil
             isResolvingProfile = false
+            clearSessionCaches()
             return
         }
 
@@ -473,19 +521,21 @@ final class AuthManager {
         }
 
         // Preferences must not wipe a valid user profile if rules aren't published yet.
-        do {
-            guard let profile = currentUser else { return }
-            currentPreferences = try await preferencesService.ensurePreferences(for: profile)
-            errorMessage = nil
-        } catch {
-            currentPreferences = nil
-            errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
-        }
-
+        // Completeness (photos + bits) runs in parallel with prefs hydrate.
+        guard let profile = currentUser else { return }
+        async let prefsLoad = loadPreferencesResult(for: profile)
         do {
             try await syncProfileCompleteness()
         } catch {
-            // Completeness sync is best-effort; don't bounce the user to onboarding.
+            if errorMessage == nil {
+                errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
+            }
+        }
+        switch await prefsLoad {
+        case .success(let prefs):
+            currentPreferences = prefs
+        case .failure(let error):
+            currentPreferences = nil
             if errorMessage == nil {
                 errorMessage = (error as? AuthError)?.errorDescription ?? error.localizedDescription
             }
@@ -500,25 +550,46 @@ final class AuthManager {
         guard let user = currentUser else { return }
 
         let photos: Int
-        if let photoCount {
-            photos = photoCount
-        } else {
-            let list = try await photoService.fetchPhotos(
+        let bits: Int
+
+        let needsPhotos = photoCount == nil && !(didLoadPhotos && cachedPhotosUserId == user.id)
+        let needsAnswers = answeredBits == nil && !(didLoadAnswers && cachedAnswersUserId == user.id)
+
+        if needsPhotos && needsAnswers {
+            async let photoList = photoService.fetchPhotos(
                 userId: user.id,
                 legacyPhotoURL: user.photoURL
             )
-            if list.isEmpty, let url = user.photoURL, !url.isEmpty {
-                photos = 1
-            } else {
-                photos = list.count
-            }
-        }
-
-        let bits: Int
-        if let answeredBits {
-            bits = answeredBits
+            async let answerList = promptService.fetchAnswers(userId: user.id)
+            let list = try await photoList
+            let answers = try await answerList
+            rememberPhotos(list, userId: user.id)
+            rememberAnswers(answers, userId: user.id)
+            photos = resolvedPhotoCount(list, user: user)
+            bits = answers.count
         } else {
-            bits = try await promptService.fetchAnswers(userId: user.id).count
+            if let photoCount {
+                photos = photoCount
+            } else if didLoadPhotos, cachedPhotosUserId == user.id {
+                photos = resolvedPhotoCount(cachedPhotos, user: user)
+            } else {
+                let list = try await photoService.fetchPhotos(
+                    userId: user.id,
+                    legacyPhotoURL: user.photoURL
+                )
+                rememberPhotos(list, userId: user.id)
+                photos = resolvedPhotoCount(list, user: user)
+            }
+
+            if let answeredBits {
+                bits = answeredBits
+            } else if didLoadAnswers, cachedAnswersUserId == user.id {
+                bits = cachedAnswers.count
+            } else {
+                let answers = try await promptService.fetchAnswers(userId: user.id)
+                rememberAnswers(answers, userId: user.id)
+                bits = answers.count
+            }
         }
 
         let complete = ProfileCompleteness.evaluate(
@@ -531,6 +602,41 @@ final class AuthManager {
             userId: user.id,
             isComplete: complete
         )
+    }
+
+    private func loadPreferencesResult(for profile: NADAUser) async -> Result<UserPreferences, Error> {
+        do {
+            return .success(try await preferencesService.ensurePreferences(for: profile))
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private func resolvedPhotoCount(_ list: [ProfilePhoto], user: NADAUser) -> Int {
+        if list.isEmpty, let url = user.photoURL, !url.isEmpty { return 1 }
+        return list.count
+    }
+
+    private func rememberPhotos(_ list: [ProfilePhoto], userId: String) {
+        cachedPhotos = list
+        cachedPhotosUserId = userId
+        didLoadPhotos = true
+    }
+
+    private func rememberAnswers(_ list: [PromptAnswer], userId: String) {
+        cachedAnswers = list
+        cachedAnswersUserId = userId
+        didLoadAnswers = true
+    }
+
+    private func clearSessionCaches() {
+        cachedPhotos = []
+        cachedPhotosUserId = nil
+        didLoadPhotos = false
+        cachedAnswers = []
+        cachedAnswersUserId = nil
+        didLoadAnswers = false
+        RemoteImageLoader.shared.invalidateAll()
     }
 
     private func perform(_ action: () async throws -> Void) async {

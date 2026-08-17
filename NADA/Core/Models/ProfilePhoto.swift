@@ -6,7 +6,11 @@ struct ProfilePhoto: Identifiable, Equatable, Sendable {
 
     let id: String
     var url: String
+    var thumbnailURL: String?
     var sortOrder: Int
     var isPrimary: Bool
     var createdAt: Date?
+
+    /// Grid / avatar — thumbnail when present, otherwise the display file (legacy photos).
+    var previewURL: String { thumbnailURL ?? url }
 }
