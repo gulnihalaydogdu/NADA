@@ -139,7 +139,7 @@ Discover feed + gating (`isProfileComplete`); interest badges replace Hangout en
 
 ## Spillover to Week 3
 - [ ] Profile essentials card on Discover / Preview: age · gender · city + job, university, hangout looking-for (see `UYGULAMA_SEMASI.md` §7)
-- [ ] Collect `jobTitle`, `university`, `hangoutLookingFor` in setup/edit (no sexuality field for now)
+- [x] Collect `jobTitle`, `university`, `hangoutLookingFor` in setup/edit (no sexuality field for now)
 - [x] **Interest badges** — replaces the removed Hangout energy placeholder; closes the W1 spillover "hangout interests" half
 - [ ] Optional later: `openToGroups` chip
 - [ ] …

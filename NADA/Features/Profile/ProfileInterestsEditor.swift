@@ -7,6 +7,7 @@ struct ProfileInterestsEditor: View {
     var isLoading = false
     var errorMessage: String?
     var atLimitMessage: String?
+    var showsSelectionCount = true
 
     private var selectedSet: Set<String> {
         Set(selectedIds)
@@ -21,14 +22,16 @@ struct ProfileInterestsEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Text("\(selectedIds.count) / \(InterestSelection.maxCount)")
-                    .font(NADATheme.headlineFont)
-                    .foregroundStyle(NADATheme.ink)
-                Spacer()
-                Text("Optional — pick up to \(InterestSelection.maxCount)")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
+            if showsSelectionCount {
+                HStack {
+                    Text("\(selectedIds.count) / \(InterestSelection.maxCount)")
+                        .font(NADATheme.headlineFont)
+                        .foregroundStyle(NADATheme.ink)
+                    Spacer()
+                    Text("Optional — pick up to \(InterestSelection.maxCount)")
+                        .font(NADATheme.captionFont)
+                        .foregroundStyle(NADATheme.secondaryInk)
+                }
             }
 
             if let atLimitMessage, selectedIds.count >= InterestSelection.maxCount {

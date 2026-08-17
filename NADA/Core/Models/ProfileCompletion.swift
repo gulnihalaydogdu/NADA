@@ -50,11 +50,15 @@ struct ProfileCompletion {
     let hasGender: Bool
     let hasCity: Bool
     let hasBirthday: Bool
-    let hasHangoutEssentials: Bool
+    let hasJobTitle: Bool
+    let hasUniversity: Bool
+    let hasHangoutLookingFor: Bool
     let userRadiusKm: Int?
 
-    /// Completeness still uses the four required sections so the meter can hit 100% without badges.
+    /// Photos, Bits, About basics, and city — Discover-ready. These own 90% of the meter.
     private static let meterSections: [ProfileSection] = [.photos, .bits, .about, .location]
+    private static let coreWeight = 0.90
+    private static let extrasWeight = 0.10
 
     init(user: NADAUser?, photoCount: Int? = nil, answeredBits: Int = 0) {
         if let photoCount {
@@ -68,7 +72,9 @@ struct ProfileCompletion {
         self.hasGender = ProfileGender.fromStored(user?.gender) != nil
         self.hasCity = user?.city?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         self.hasBirthday = user?.dateOfBirth.map { ProfileAge.isAtLeastMinimumAge($0) } == true
-        self.hasHangoutEssentials = user?.hasHangoutEssentials == true
+        self.hasJobTitle = user?.trimmedJobTitle != nil
+        self.hasUniversity = user?.trimmedUniversity != nil
+        self.hasHangoutLookingFor = user?.trimmedHangoutLookingFor != nil
         self.userRadiusKm = user?.radiusKm.map { ProfileLocation.clampRadiusKm($0) }
     }
 
@@ -89,10 +95,25 @@ struct ProfileCompletion {
         }
     }
 
-    /// Average of the required sections. Interests are optional and do not cap the meter.
+    private var hasHangoutEssentials: Bool {
+        hasJobTitle || hasUniversity || hasHangoutLookingFor
+    }
+
+    /// Job / uni / looking-for fill half of the optional 10%; interests fill the other half.
+    private var extrasProgress: Double {
+        let filled = [hasJobTitle, hasUniversity, hasHangoutLookingFor].filter { $0 }.count
+        let essentials = Double(filled) / 3.0
+        let interests = progress(for: .interests)
+        return (essentials + interests) / 2.0
+    }
+
+    /// Core sections are 90%. Optional extras (Discover-card fields + interests) are 10%,
+    /// so skipping them never looks like an incomplete profile for Discover.
     var percentComplete: Int {
-        let total = Self.meterSections.reduce(0.0) { $0 + progress(for: $1) }
-        return Int((total / Double(Self.meterSections.count) * 100).rounded())
+        let core = Self.meterSections.reduce(0.0) { $0 + progress(for: $1) }
+            / Double(Self.meterSections.count)
+        let total = core * Self.coreWeight + extrasProgress * Self.extrasWeight
+        return Int((total * 100).rounded())
     }
 
     func detail(for section: ProfileSection) -> String? {

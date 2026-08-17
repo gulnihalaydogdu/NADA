@@ -88,18 +88,11 @@ struct ProfilePhotoCropView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { onCancel() }
                         .foregroundStyle(NADATheme.brandPressed)
+                        .disabled(isRendering)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
-                        guard !isRendering else { return }
-                        isRendering = true
-                        Task {
-                            let cropped = await renderCropOffMain()
-                            isRendering = false
-                            if let cropped {
-                                onCrop(cropped)
-                            }
-                        }
+                        confirmCrop()
                     }
                     .fontWeight(.semibold)
                     .foregroundStyle(NADATheme.brandPressed)
@@ -108,6 +101,21 @@ struct ProfilePhotoCropView: View {
             }
             .toolbarBackground(NADATheme.paper, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+        }
+    }
+
+    /// Keep Done disabled until this crop is handed off — resetting `isRendering`
+    /// before `onCrop` let a second tap save the same photo twice.
+    private func confirmCrop() {
+        guard !isRendering else { return }
+        isRendering = true
+        Task {
+            let cropped = await renderCropOffMain()
+            guard let cropped else {
+                isRendering = false
+                return
+            }
+            onCrop(cropped)
         }
     }
 

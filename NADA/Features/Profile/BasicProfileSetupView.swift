@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Mandatory gate after friends intent — cannot dismiss until name, gender, birthday (18+), and city are saved.
+/// After friends intent: name, gender, birthday (18+), and city. Skip enters the app;
+/// Discover stays gated until `isProfileComplete`.
 struct BasicProfileSetupView: View {
     @Environment(AuthManager.self) private var auth
 
@@ -23,17 +24,21 @@ struct BasicProfileSetupView: View {
             NADAScreenBackground()
 
             VStack(spacing: 0) {
+                NADAOnboardingNavBar(
+                    isBusy: auth.isBusy,
+                    onBack: { Task { await auth.reopenFriendsIntent() } },
+                    onSkip: { Task { await auth.skipRemainingOnboarding() } }
+                )
+                .padding(.horizontal, NADATheme.Layout.screenPadding)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("A few basics")
-                                .font(NADATheme.displayFont)
-                                .foregroundStyle(NADATheme.ink)
-                            Text("Name, gender, birthday, and city — so hangouts feel personal. NADA is 18+. Friends only see your age, not your full birthday.")
-                                .font(NADATheme.bodyFont)
-                                .foregroundStyle(NADATheme.warmSecondaryInk)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                    VStack(alignment: .leading, spacing: NADATheme.Layout.headerToContent) {
+                        NADAOnboardingHeader(
+                            title: "A few basics",
+                            subtitle: "Name, gender, age, and city — so hangouts feel personal. Friends only see your age."
+                        )
 
                         ProfileBasicsForm(
                             displayName: $displayName,
@@ -43,33 +48,28 @@ struct BasicProfileSetupView: View {
                             errorMessage: localError ?? auth.errorMessage
                         )
                     }
-                    .padding(24)
+                    .padding(.horizontal, NADATheme.Layout.screenPadding)
+                    .padding(.top, 4)
+                    .padding(.bottom, 24)
                 }
-
+                .scrollDismissesKeyboard(.interactively)
+                .scrollIndicators(.hidden)
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            NADAStickyFooter {
                 Button {
                     Task { await save() }
                 } label: {
                     if auth.isBusy {
                         ProgressView()
+                            .tint(NADATheme.onBrand)
                             .frame(maxWidth: .infinity)
                     } else {
                         Text("Continue")
                     }
                 }
-                .buttonStyle(NADAPrimaryButtonStyle())
-                .disabled(!canSave)
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-                .padding(.bottom, 32)
-                .frame(maxWidth: .infinity)
-                .background {
-                    UnevenRoundedRectangle(
-                        cornerRadii: .init(topLeading: 28, topTrailing: 28),
-                        style: .continuous
-                    )
-                    .fill(NADATheme.surface.opacity(0.96))
-                    .ignoresSafeArea(edges: .bottom)
-                }
+                .nadaPrimaryCTA(enabled: canSave)
             }
         }
         .onAppear {
@@ -88,11 +88,11 @@ struct BasicProfileSetupView: View {
     private func save() async {
         localError = nil
         guard let gender else {
-            localError = "Please select a gender option."
+            localError = "Select a gender option."
             return
         }
         guard let dateOfBirth else {
-            localError = "Please add your birthday."
+            localError = "Add your age to continue."
             return
         }
         guard ProfileAge.isAtLeastMinimumAge(dateOfBirth) else {

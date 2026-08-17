@@ -41,11 +41,11 @@ final class FirestoreUserService {
         return mapUser(id: id, data: data, fallback: fallback)
     }
 
-    func setFriendsIntentCompleted(userId: String) async throws -> NADAUser {
+    func setFriendsIntentCompleted(userId: String, isCompleted: Bool = true) async throws -> NADAUser {
         try await patchUser(
             userId: userId,
             fields: [
-                "friendsIntentCompleted": true,
+                "friendsIntentCompleted": isCompleted,
                 "intent": NADAUser.UserIntent.friendsOnly.rawValue
             ]
         )

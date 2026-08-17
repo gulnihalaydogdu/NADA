@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FriendsIntentView: View {
     @Environment(AuthManager.self) private var auth
+    @State private var showLeaveConfirm = false
 
     private enum Layout {
         static let heroImage = "FriendsIntentHero"
@@ -21,7 +22,7 @@ struct FriendsIntentView: View {
             let topPad = max(geometry.safeAreaInsets.top, 47) + 24
             let bottomPad = max(geometry.safeAreaInsets.bottom + Layout.ctaBottomExtra, 32)
 
-            ZStack {
+            ZStack(alignment: .top) {
                 heroBackground(size: size)
 
                 VStack(spacing: 0) {
@@ -37,10 +38,25 @@ struct FriendsIntentView: View {
                         .padding(.bottom, bottomPad)
                 }
                 .frame(width: size.width, height: size.height, alignment: .top)
+
+                NADAOnboardingNavBar(
+                    onHero: true,
+                    isBusy: auth.isBusy,
+                    onBack: { showLeaveConfirm = true },
+                    onSkip: { Task { await auth.skipRemainingOnboarding() } }
+                )
+                .padding(.horizontal, 20)
+                .padding(.top, max(geometry.safeAreaInsets.top, 47) + 4)
             }
             .frame(width: size.width, height: size.height)
         }
         .ignoresSafeArea()
+        .confirmationDialog("Leave setup?", isPresented: $showLeaveConfirm, titleVisibility: .visible) {
+            Button("Log out", role: .destructive) { auth.signOut() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You’ll be logged out. Your account stays — log in anytime to finish.")
+        }
     }
 
     private func heroBackground(size: CGSize) -> some View {
@@ -112,13 +128,13 @@ struct FriendsIntentView: View {
             if auth.isBusy {
                 ProgressView()
                     .tint(.white)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: NADATheme.Layout.ctaMinHeight)
             } else {
                 Text("Continue")
             }
         }
-        .buttonStyle(NADAPrimaryButtonStyle())
-        .disabled(auth.isBusy)
+        .buttonStyle(NADAPrimaryButtonStyle(isEnabled: !auth.isBusy))
+        .allowsHitTesting(!auth.isBusy)
         .frame(maxWidth: .infinity)
     }
 }

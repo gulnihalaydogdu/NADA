@@ -20,18 +20,52 @@ enum NADATheme {
     static let headlineFont = Font.system(.headline, design: .default, weight: .semibold)
     static let bodyFont = Font.system(.body, design: .default)
     static let captionFont = Font.system(.caption, design: .default)
+
+    /// Shared registration / setup spacing — keep screens in the same rhythm.
+    enum Layout {
+        static let screenPadding: CGFloat = 24
+        static let titleToSubtitle: CGFloat = 8
+        static let headerToContent: CGFloat = 24
+        static let fieldSpacing: CGFloat = 14
+        static let fieldRadius: CGFloat = 12
+        static let fieldMinHeight: CGFloat = 52
+        static let fieldHPadding: CGFloat = 16
+        static let footerTop: CGFloat = 14
+        static let footerBottom: CGFloat = 16
+        static let progressHeight: CGFloat = 4
+        static let backHit: CGFloat = 36
+        static let ctaRadius: CGFloat = 14
+        static let ctaMinHeight: CGFloat = 52
+    }
 }
 
 struct NADAPrimaryButtonStyle: ButtonStyle {
+    var isEnabled: Bool = true
+
     func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed && isEnabled
         configuration.label
             .font(NADATheme.headlineFont)
-            .foregroundStyle(NADATheme.onBrand)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
-            .background(configuration.isPressed ? NADATheme.brandPressed : NADATheme.brand)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: NADATheme.brand.opacity(configuration.isPressed ? 0.1 : 0.2), radius: 10, y: 4)
+            .foregroundStyle(NADATheme.onBrand.opacity(isEnabled ? 1 : 0.92))
+            .frame(maxWidth: .infinity, minHeight: NADATheme.Layout.ctaMinHeight)
+            .background(isEnabled ? (pressed ? NADATheme.brandPressed : NADATheme.brand) : NADATheme.brand.opacity(0.48))
+            .clipShape(RoundedRectangle(cornerRadius: NADATheme.Layout.ctaRadius, style: .continuous))
+            .shadow(
+                color: NADATheme.brand.opacity(isEnabled ? (pressed ? 0.08 : 0.18) : 0),
+                radius: isEnabled ? 10 : 0,
+                y: isEnabled ? 4 : 0
+            )
+            .scaleEffect(pressed ? 0.985 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+extension View {
+    /// Primary CTA without SwiftUI’s default disabled fade (which made buttons look broken).
+    func nadaPrimaryCTA(enabled: Bool) -> some View {
+        self
+            .buttonStyle(NADAPrimaryButtonStyle(isEnabled: enabled))
+            .allowsHitTesting(enabled)
     }
 }
 

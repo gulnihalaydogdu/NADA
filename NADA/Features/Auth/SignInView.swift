@@ -14,70 +14,104 @@ struct SignInView: View {
         case password
     }
 
+    private var trimmedEmail: String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSubmit: Bool {
+        !auth.isBusy
+            && auth.isFirebaseReady
+            && !trimmedEmail.isEmpty
+            && !password.isEmpty
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Welcome back")
-                    .font(NADATheme.titleFont)
-                    .foregroundStyle(NADATheme.ink)
-                Text("Pick up where you left off.")
-                    .font(NADATheme.bodyFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-            }
+        ZStack {
+            NADAScreenBackground(showBottomBlob: false)
 
-            VStack(spacing: 16) {
-                NADAAuthField(title: "Email", text: $email, focusedField: $focusedField, field: .email)
-                    .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                NADAAuthField(title: "Password", text: $password, isSecure: true, focusedField: $focusedField, field: .password)
-                    .textContentType(.password)
-            }
-
-            if let error = auth.errorMessage {
-                NADAAuthErrorBanner(message: error)
-            }
-
-            Button {
-                focusedField = nil
-                Task {
-                    await auth.signInWithEmail(
-                        email: email.trimmingCharacters(in: .whitespaces),
-                        password: password
+            ScrollView {
+                VStack(alignment: .leading, spacing: NADATheme.Layout.headerToContent) {
+                    NADAOnboardingHeader(
+                        title: "Welcome back",
+                        subtitle: "Pick up where you left off."
                     )
+
+                    VStack(spacing: NADATheme.Layout.fieldSpacing) {
+                        NADAAuthField(
+                            title: "Email",
+                            text: $email,
+                            placeholder: "you@email.com",
+                            submitLabel: .next,
+                            onSubmit: { focusedField = .password },
+                            focusedField: $focusedField,
+                            field: .email
+                        )
+                        .textContentType(.emailAddress)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                        NADAAuthField(
+                            title: "Password",
+                            text: $password,
+                            placeholder: "Your password",
+                            isSecure: true,
+                            submitLabel: .go,
+                            onSubmit: { submit() },
+                            focusedField: $focusedField,
+                            field: .password
+                        )
+                        .textContentType(.password)
+                    }
+
+                    if let error = auth.errorMessage {
+                        NADAAuthErrorBanner(message: error)
+                    }
+
+                    if NADAAuthConfig.isAppleSignInEnabled {
+                        NADAAuthDivider(label: "or")
+                        AppleSignInButton(isLoading: auth.isBusy) {
+                            focusedField = nil
+                            Task { await AuthAppleSignIn.signIn(auth: auth, coordinator: appleCoordinator) }
+                        }
+                        .disabled(auth.isBusy || !auth.isFirebaseReady)
+                    }
                 }
-            } label: {
-                if auth.isBusy {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                } else {
-                    Text("Sign in")
-                }
+                .padding(.horizontal, NADATheme.Layout.screenPadding)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
-            .buttonStyle(NADAPrimaryButtonStyle())
-            .disabled(auth.isBusy || email.isEmpty || password.isEmpty || !auth.isFirebaseReady)
-
-            if NADAAuthConfig.isAppleSignInEnabled {
-                NADAAuthDivider(label: "or")
-
-                AppleSignInButton(isLoading: auth.isBusy) {
-                    focusedField = nil
-                    Task { await AuthAppleSignIn.signIn(auth: auth, coordinator: appleCoordinator) }
-                }
-                .disabled(auth.isBusy || !auth.isFirebaseReady)
-            }
-
-            Spacer(minLength: 0)
+            .scrollDismissesKeyboard(.interactively)
+            .scrollIndicators(.hidden)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(NADATheme.paper)
-        .nadaAuthNavigationBar()
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            NADAStickyFooter {
+                Button {
+                    submit()
+                } label: {
+                    if auth.isBusy {
+                        ProgressView()
+                            .tint(NADATheme.onBrand)
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Text("Log in")
+                    }
+                }
+                .nadaPrimaryCTA(enabled: canSubmit)
+            }
+        }
+        .nadaAuthNavigationBar(showsSkip: false)
         .onAppear { auth.clearError() }
         .onChange(of: auth.isAuthenticated) { _, isAuth in
             if isAuth { dismiss() }
+        }
+    }
+
+    private func submit() {
+        guard canSubmit else { return }
+        focusedField = nil
+        Task {
+            await auth.signInWithEmail(email: trimmedEmail, password: password)
         }
     }
 }

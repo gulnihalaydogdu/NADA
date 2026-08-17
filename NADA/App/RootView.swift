@@ -38,12 +38,12 @@ struct RootView: View {
             WelcomeView()
         } else if !auth.hasCompletedFriendsIntent {
             FriendsIntentView()
-        } else if !auth.hasCompletedBasicProfile {
-            BasicProfileSetupView()
-        } else if !auth.hasCompletedProfileWizard {
-            ProfileSetupWizardView()
-        } else {
+        } else if auth.hasCompletedProfileWizard {
             MainTabView()
+        } else if !auth.hasCompletedBasicProfile || auth.isRevisitingBasicProfile {
+            BasicProfileSetupView()
+        } else {
+            ProfileSetupWizardView()
         }
     }
 }

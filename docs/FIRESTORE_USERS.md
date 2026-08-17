@@ -54,7 +54,7 @@ Discover/profile card fields — implement later (do not treat as shipped):
 1. **Sign up / sign in** → `FirestoreUserService.ensureUserDocument` creates doc if missing.
 2. **Friends intent** → `setFriendsIntentCompleted` sets `friendsIntentCompleted: true`, reaffirms `intent`.
 3. **Profile basics (required)** → `updateProfile` sets `displayName`, `gender`, `city`, `dateOfBirth` (18+).
-4. **Profile wizard shell (skippable)** → Photos → Bits → Interests → Preferences (`radiusKm` saved on Finish) → `profileWizardCompleted: true`.
+4. **Profile wizard shell (skippable extras)** → Photos → Bits → Discover card (job / university / hangout looking-for) → Interests → Preferences (`radiusKm` saved on Finish) → `profileWizardCompleted: true`. Job, university, looking-for, and interests never block `isProfileComplete`.
 5. **Location sheet** → `updateLocation` sets `city`, `radiusKm`, optional coarse lat/lng; mirrors discovery fields onto [`preferences/{uid}`](FIRESTORE_PREFERENCES.md) (W2-05).
 6. **Profile photos (W2-01)** → up to 6 ordered docs under `photos`; primary mirrored on `photoURL`.
 7. **Profile edit** → basics updated later from Profile → Edit profile.

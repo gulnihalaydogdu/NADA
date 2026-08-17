@@ -26,7 +26,7 @@ Selections live on **`users/{uid}.interestIds`** (string array, max 8) so Week 3
 |-------|------|--------|
 | `interestIds` | array&lt;string&gt; | Catalog ids; **max 8**; order = pick order |
 
-Not required for `isProfileComplete`. Empty array is allowed.
+Not required for `isProfileComplete` / Discover. They add a small slice of the Profile completeness meter (together with job / university / hangout looking-for, the last 10%). Empty array is allowed.
 
 ---
 

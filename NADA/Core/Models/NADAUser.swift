@@ -30,7 +30,7 @@ struct NADAUser: Identifiable, Equatable, Sendable {
     var locale: String?
     var createdAt: Date?
     var friendsIntentCompleted: Bool
-    /// Soft profile setup shell (Photos → Bits → Interests → Preferences). Skip allowed.
+    /// Soft profile setup shell (Photos → Bits → Discover card → Interests → Preferences). Skip allowed.
     var profileWizardCompleted: Bool
     /// Discover gate (W2-06): photos≥1, bits≥3, gender, city.
     var isProfileComplete: Bool

@@ -59,22 +59,38 @@ struct InterestBadgeChip: View {
                     .font(.system(size: 11, weight: .bold))
             }
             Text(label)
-                .font(NADATheme.captionFont)
+                .font(NADATheme.captionFont.weight(.medium))
         }
-        .foregroundStyle(isSelected ? NADATheme.onBrand : NADATheme.ink)
+        .foregroundStyle(chipForeground)
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
-        .background(
-            isSelected ? NADATheme.brand : NADATheme.card,
-            in: Capsule()
-        )
+        .frame(minHeight: 34)
+        .background(chipBackground, in: Capsule())
         .overlay(
             Capsule()
-                .strokeBorder(
-                    isSelected ? Color.clear : NADATheme.ink.opacity(0.1),
-                    lineWidth: 1
-                )
+                .strokeBorder(chipStroke, lineWidth: 1)
         )
+    }
+
+    private var chipForeground: Color {
+        if isInteractive {
+            return isSelected ? NADATheme.brandPressed : NADATheme.ink
+        }
+        return isSelected ? NADATheme.onBrand : NADATheme.ink
+    }
+
+    private var chipBackground: Color {
+        if isInteractive {
+            return isSelected ? NADATheme.brandSoft : NADATheme.card
+        }
+        return isSelected ? NADATheme.brand : NADATheme.card
+    }
+
+    private var chipStroke: Color {
+        if isInteractive {
+            return isSelected ? NADATheme.brand.opacity(0.55) : NADATheme.ink.opacity(0.1)
+        }
+        return isSelected ? Color.clear : NADATheme.ink.opacity(0.1)
     }
 }
 

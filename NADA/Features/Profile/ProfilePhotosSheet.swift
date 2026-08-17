@@ -21,6 +21,8 @@ struct ProfilePhotosEditor: View {
     @State private var isLibraryPresented = false
 
     @State private var cropQueue: [UIImage] = []
+    @State private var pendingCropped: [UIImage] = []
+    @State private var isCommittingCrops = false
     @State private var isEditorPresented = false
     @State private var editorImage: UIImage?
     @State private var editorImageID = UUID()
@@ -55,6 +57,10 @@ struct ProfilePhotosEditor: View {
                 Text("Drag photos to change the order — the first one is your main photo. Tap ✕ to remove one; the next photo you add fills that same spot.")
                     .font(NADATheme.bodyFont)
                     .foregroundStyle(NADATheme.warmSecondaryInk)
+            } else {
+                Text("\(photos.count) / \(ProfilePhoto.maxCount)")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
             }
 
             if isLoading && photos.isEmpty {
@@ -80,8 +86,13 @@ struct ProfilePhotosEditor: View {
             }
 
             if isSaving {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text(isCommittingCrops ? "Saving photos…" : "Saving…")
+                        .font(NADATheme.captionFont)
+                        .foregroundStyle(NADATheme.secondaryInk)
+                }
+                .frame(maxWidth: .infinity)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -110,7 +121,7 @@ struct ProfilePhotosEditor: View {
                     subtitle: editorSubtitle,
                     onCancel: { cancelCropQueue() },
                     onCrop: { cropped in
-                        Task { await addCroppedAndContinue(cropped) }
+                        acceptCrop(cropped)
                     }
                 )
                 .id(editorImageID)
@@ -131,15 +142,19 @@ struct ProfilePhotosEditor: View {
                     .fill(NADATheme.brandSoft)
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(NADATheme.ink.opacity(0.08), lineWidth: 1)
-                Image(systemName: "plus")
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(NADATheme.brand)
+                VStack(spacing: 6) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 22, weight: .medium))
+                    Text("Add")
+                        .font(NADATheme.captionFont.weight(.semibold))
+                }
+                .foregroundStyle(NADATheme.brand)
             }
             .aspectRatio(1, contentMode: .fit)
         }
         .buttonStyle(.plain)
-        .disabled(isSaving || auth.isBusy || isEditorPresented)
-        .accessibilityLabel("Add photos")
+        .disabled(isSaving || isCommittingCrops || auth.isBusy || isEditorPresented)
+        .accessibilityLabel("Add a photo")
     }
 
     private func photoCell(_ photo: ProfilePhoto) -> some View {
@@ -182,7 +197,7 @@ struct ProfilePhotosEditor: View {
             }
             .buttonStyle(.plain)
             .padding(6)
-            .disabled(isSaving || auth.isBusy)
+            .disabled(isSaving || isCommittingCrops || auth.isBusy)
             .accessibilityLabel("Delete photo")
         }
         .opacity(isDragging ? 0.55 : 1)
@@ -201,7 +216,7 @@ struct ProfilePhotosEditor: View {
                 }
             )
         )
-        .disabled(isSaving || auth.isBusy)
+        .disabled(isSaving || isCommittingCrops || auth.isBusy)
         .accessibilityLabel(photo.isPrimary ? "Primary photo" : "Photo")
         .accessibilityHint("Drag to reorder")
     }
@@ -248,6 +263,7 @@ struct ProfilePhotosEditor: View {
         }
 
         guard let first = images.first else { return }
+        pendingCropped = []
         cropQueue = Array(images.dropFirst())
         editorImage = first
         editorImageID = UUID()
@@ -262,13 +278,13 @@ struct ProfilePhotosEditor: View {
         cropQueue.removeFirst()
         editorImage = next
         editorImageID = UUID()
-        isEditorPresented = true
     }
 
     private func closeEditor() {
         isEditorPresented = false
         editorImage = nil
         cropQueue = []
+        pendingCropped = []
         libraryItems = []
     }
 
@@ -279,25 +295,46 @@ struct ProfilePhotosEditor: View {
         }
     }
 
-    private func addCroppedAndContinue(_ image: UIImage) async {
+    /// Crop every picked photo first; upload only after the last Done.
+    private func acceptCrop(_ image: UIImage) {
+        guard !isCommittingCrops else { return }
+        pendingCropped.append(image)
+
+        if cropQueue.isEmpty {
+            let images = pendingCropped
+            pendingCropped = []
+            isEditorPresented = false
+            editorImage = nil
+            cropQueue = []
+            libraryItems = []
+            Task { await commitCroppedPhotos(images) }
+        } else {
+            presentNextInQueue()
+        }
+    }
+
+    private func commitCroppedPhotos(_ images: [UIImage]) async {
+        guard !images.isEmpty, !isCommittingCrops else { return }
+        isCommittingCrops = true
         isSaving = true
         localError = nil
-        defer { isSaving = false }
+        defer {
+            isCommittingCrops = false
+            isSaving = false
+        }
 
         let insertAt = needsReplacement ? replacementIndex : nil
-        if await auth.addPhoto(image, at: insertAt) != nil {
-            photos = await auth.fetchPhotos()
+        if let updated = await auth.addPhotos(images, startingAt: insertAt) {
+            photos = updated
             if needsReplacement {
                 setNeedsReplacement(false)
                 replacementIndex = nil
             }
             notifyPhotosChanged()
-            presentNextInQueue()
         } else {
             if auth.errorMessage == nil {
-                localError = "Couldn't add that photo."
+                localError = "Couldn't add those photos."
             }
-            closeEditor()
         }
     }
 

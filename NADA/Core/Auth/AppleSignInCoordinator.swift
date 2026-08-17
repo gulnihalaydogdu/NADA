@@ -113,10 +113,13 @@ struct AppleSignInButton: View {
             }
             .font(NADATheme.headlineFont)
             .foregroundStyle(NADATheme.ink)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(Color.primary.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: NADATheme.Layout.ctaMinHeight)
+            .background(NADATheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: NADATheme.Layout.ctaRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: NADATheme.Layout.ctaRadius, style: .continuous)
+                    .strokeBorder(NADATheme.ink.opacity(0.08), lineWidth: 1)
+            )
         }
         .disabled(isLoading)
         .opacity(isLoading ? 0.6 : 1)

@@ -17,6 +17,9 @@ final class AuthManager {
     /// False until the initial session has been fully resolved on launch.
     private(set) var isSessionResolved = false
 
+    /// Wizard Back on the first step returns here without clearing saved basics.
+    var isRevisitingBasicProfile = false
+
     private let authService: FirebaseAuthService
     private let userService: FirestoreUserService
     private let preferencesService: FirestorePreferencesService
@@ -107,9 +110,40 @@ final class AuthManager {
     func completeFriendsIntent() async {
         guard let userId = currentUser?.id else { return }
         await perform {
-            let updated = try await self.userService.setFriendsIntentCompleted(userId: userId)
+            let updated = try await self.userService.setFriendsIntentCompleted(userId: userId, isCompleted: true)
             self.currentUser = updated
         }
+    }
+
+    /// Returns to the friends-intent screen from Basics without signing out.
+    func reopenFriendsIntent() async {
+        guard let userId = currentUser?.id else { return }
+        isRevisitingBasicProfile = false
+        await perform {
+            let updated = try await self.userService.setFriendsIntentCompleted(userId: userId, isCompleted: false)
+            self.currentUser = updated
+        }
+    }
+
+    /// Skip remaining setup and enter the app. Discover stays gated on `isProfileComplete`.
+    @discardableResult
+    func skipRemainingOnboarding() async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+        var didSucceed = false
+        await perform {
+            var updated = self.currentUser
+            if updated?.friendsIntentCompleted != true {
+                updated = try await self.userService.setFriendsIntentCompleted(
+                    userId: userId,
+                    isCompleted: true
+                )
+            }
+            updated = try await self.userService.setProfileWizardCompleted(userId: userId)
+            self.currentUser = updated
+            self.isRevisitingBasicProfile = false
+            didSucceed = true
+        }
+        return didSucceed
     }
 
     func refreshCurrentUser() async {
@@ -179,6 +213,9 @@ final class AuthManager {
                 seedFrom: updated
             )
             try await self.syncProfileCompleteness()
+            if !updateHangoutEssentials {
+                self.isRevisitingBasicProfile = false
+            }
             didSucceed = true
         }
         return didSucceed
@@ -365,6 +402,7 @@ final class AuthManager {
         await perform {
             let updated = try await self.userService.setProfileWizardCompleted(userId: userId)
             self.currentUser = updated
+            self.isRevisitingBasicProfile = false
             didSucceed = true
         }
         return didSucceed
@@ -429,6 +467,27 @@ final class AuthManager {
             )
             self.rememberPhotos(list, userId: userId)
             try await self.syncProfileCompleteness(photoCount: list.count)
+        }
+        return result
+    }
+
+    @discardableResult
+    func addPhotos(_ images: [UIImage], startingAt index: Int? = nil) async -> [ProfilePhoto]? {
+        guard let userId = currentUser?.id, !images.isEmpty else { return nil }
+        var result: [ProfilePhoto]?
+        await perform {
+            result = try await self.photoService.addPhotos(
+                userId: userId,
+                images: images,
+                startingAt: index
+            )
+            if let profile = try await self.userService.fetchUser(id: userId) {
+                self.currentUser = profile
+            }
+            if let result {
+                self.rememberPhotos(result, userId: userId)
+                try await self.syncProfileCompleteness(photoCount: result.count)
+            }
         }
         return result
     }
@@ -575,6 +634,7 @@ final class AuthManager {
             currentUser = nil
             currentPreferences = nil
             errorMessage = nil
+            isRevisitingBasicProfile = false
             clearSessionCaches()
         } catch {
             errorMessage = error.localizedDescription
@@ -602,6 +662,7 @@ final class AuthManager {
             currentUser = nil
             currentPreferences = nil
             isResolvingProfile = false
+            isRevisitingBasicProfile = false
             clearSessionCaches()
             return
         }

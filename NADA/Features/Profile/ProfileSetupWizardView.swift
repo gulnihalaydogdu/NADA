@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Soft multi-step shell after basics: Photos → Bits → Interests → Preferences.
+/// Soft multi-step shell after basics: Photos → Bits → Discover card → Interests → Preferences.
 /// Bits require 3 answers before Continue (W2-08); Preferences saves city radius (W2-10).
+/// Job / university / hangout looking-for and interests are skippable and never block Discover.
 struct ProfileSetupWizardView: View {
     @Environment(AuthManager.self) private var auth
 
@@ -26,6 +27,9 @@ struct ProfileSetupWizardView: View {
     @State private var selectedInterestIds: [String] = []
     @State private var isLoadingInterests = false
     @State private var interestsLoadError: String?
+    @State private var jobTitle = ""
+    @State private var university = ""
+    @State private var hangoutLookingFor = ""
 
     private let promptService = FirestorePromptService()
     private let interestService = FirestoreInterestService()
@@ -33,13 +37,15 @@ struct ProfileSetupWizardView: View {
     private enum Step: Int, CaseIterable {
         case photos = 0
         case bits = 1
-        case interests = 2
-        case preferences = 3
+        case essentials = 2
+        case interests = 3
+        case preferences = 4
 
         var title: String {
             switch self {
             case .photos: return "Photos"
             case .bits: return "Bits"
+            case .essentials: return "Discover card"
             case .interests: return "Interests"
             case .preferences: return "Preferences"
             }
@@ -49,6 +55,7 @@ struct ProfileSetupWizardView: View {
             switch self {
             case .photos: return "Add your photos"
             case .bits: return "Answer 3 Bits"
+            case .essentials: return "On your Discover card"
             case .interests: return "Add interest badges"
             case .preferences: return "Hangout preferences"
             }
@@ -57,13 +64,15 @@ struct ProfileSetupWizardView: View {
         var subtitle: String {
             switch self {
             case .photos:
-                return "Add \(ProfilePhoto.maxCount) photos. The first one is your main profile photo — drag to reorder, or tap ✕ to swap one out."
+                return "Add \(ProfilePhoto.maxCount) photos. The first is your main — drag to reorder."
             case .bits:
-                return "Pick three questions and write short answers friends will see on your profile."
+                return "Three short answers friends will see on your profile."
+            case .essentials:
+                return "Optional job, school, and hangout looking-for. Skip anything that doesn’t fit."
             case .interests:
-                return "Pick up to \(InterestSelection.maxCount) badges. They show on your Discover card — skip if you’d rather add them later."
+                return "Up to \(InterestSelection.maxCount) badges on your Discover card. Skip if you’d rather add them later."
             case .preferences:
-                return "Set who you’d like to meet nearby. We’ll use your approximate location to suggest a city — you can edit it anytime."
+                return "Who you’d like to meet nearby. You can change this anytime."
             }
         }
     }
@@ -119,27 +128,30 @@ struct ProfileSetupWizardView: View {
                     .padding(.bottom, 8)
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: NADATheme.Layout.headerToContent) {
+                        VStack(alignment: .leading, spacing: NADATheme.Layout.titleToSubtitle) {
                             Text(step.headline)
                                 .font(NADATheme.displayFont)
                                 .foregroundStyle(NADATheme.ink)
                             Text(step.subtitle)
                                 .font(NADATheme.bodyFont)
                                 .foregroundStyle(NADATheme.warmSecondaryInk)
+                                .lineSpacing(3)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
 
                         stepContent
 
                         if let message = localError ?? auth.errorMessage {
-                            Text(message)
-                                .font(NADATheme.captionFont)
-                                .foregroundStyle(NADATheme.danger)
+                            NADAAuthErrorBanner(message: message)
                         }
                     }
-                    .padding(24)
+                    .padding(.horizontal, NADATheme.Layout.screenPadding)
+                    .padding(.top, 8)
+                    .padding(.bottom, 24)
                 }
+                .scrollDismissesKeyboard(.interactively)
+                .scrollIndicators(.hidden)
 
                 footer
             }
@@ -147,6 +159,9 @@ struct ProfileSetupWizardView: View {
         .task(id: step) {
             if step == .bits {
                 await loadBitsStep()
+            }
+            if step == .essentials {
+                hydrateEssentialsStep()
             }
             if step == .interests {
                 await loadInterestsStep()
@@ -172,38 +187,24 @@ struct ProfileSetupWizardView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                if step != .photos {
-                    Button {
-                        goBack()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(NADATheme.ink)
-                            .frame(width: 36, height: 36)
-                            .background(NADATheme.surface, in: Circle())
-                    }
-                    .accessibilityLabel("Back")
-                }
+            NADAOnboardingNavBar(
+                isBusy: auth.isBusy,
+                onBack: goBack,
+                onSkip: { Task { await skipRemaining() } }
+            )
 
-                Spacer()
+            Text("\(step.rawValue + 1) of \(Step.allCases.count)")
+                .font(NADATheme.captionFont)
+                .foregroundStyle(NADATheme.secondaryInk)
+                .frame(maxWidth: .infinity)
 
-                Text("\(step.rawValue + 1) of \(Step.allCases.count)")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
-            }
-
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 ForEach(Step.allCases, id: \.rawValue) { item in
                     Capsule()
                         .fill(item.rawValue <= step.rawValue ? NADATheme.brand : NADATheme.brandSoft)
-                        .frame(height: 4)
+                        .frame(height: NADATheme.Layout.progressHeight)
                 }
             }
-
-            Text(step.title)
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.brandPressed)
         }
     }
 
@@ -214,6 +215,8 @@ struct ProfileSetupWizardView: View {
             photosStep
         case .bits:
             bitsStep
+        case .essentials:
+            essentialsStep
         case .interests:
             interestsStep
         case .preferences:
@@ -223,7 +226,7 @@ struct ProfileSetupWizardView: View {
 
     private var photosStep: some View {
         ProfilePhotosEditor(
-            showsHeaderCopy: true,
+            showsHeaderCopy: false,
             onPhotosChanged: { photos in
                 photoCount = photos.count
             },
@@ -260,13 +263,23 @@ struct ProfileSetupWizardView: View {
         )
     }
 
+    private var essentialsStep: some View {
+        ProfileHangoutEssentialsForm(
+            jobTitle: $jobTitle,
+            university: $university,
+            hangoutLookingFor: $hangoutLookingFor,
+            showsSectionHeader: false
+        )
+    }
+
     private var interestsStep: some View {
         ProfileInterestsEditor(
             catalog: catalogInterests,
             selectedIds: $selectedInterestIds,
             isLoading: isLoadingInterests,
             errorMessage: interestsLoadError,
-            atLimitMessage: "That’s 8 — tap one to swap it out."
+            atLimitMessage: "That’s 8 — tap one to swap it out.",
+            showsSelectionCount: false
         )
     }
 
@@ -283,6 +296,39 @@ struct ProfileSetupWizardView: View {
             isBusy: auth.isBusy,
             autoDetectLocationOnAppear: true
         )
+    }
+
+    private func hydrateEssentialsStep() {
+        localError = nil
+        jobTitle = auth.currentUser?.trimmedJobTitle ?? ""
+        university = auth.currentUser?.trimmedUniversity ?? ""
+        hangoutLookingFor = auth.currentUser?.trimmedHangoutLookingFor ?? ""
+    }
+
+    private func saveEssentials() async -> Bool {
+        localError = nil
+        auth.clearError()
+        guard let user = auth.currentUser,
+              let gender = ProfileGender.fromStored(user.gender),
+              let dateOfBirth = user.dateOfBirth else {
+            localError = "Finish the basics first, then add these."
+            return false
+        }
+
+        let ok = await auth.updateBasicProfile(
+            displayName: user.displayName ?? "",
+            gender: gender,
+            city: user.city ?? "",
+            dateOfBirth: dateOfBirth,
+            jobTitle: jobTitle,
+            university: university,
+            hangoutLookingFor: hangoutLookingFor,
+            updateHangoutEssentials: true
+        )
+        if !ok, auth.errorMessage == nil {
+            localError = "Couldn't save your Discover card details. Try again."
+        }
+        return ok
     }
 
     private func hydratePreferencesStep() {
@@ -329,15 +375,15 @@ struct ProfileSetupWizardView: View {
     }
 
     private var footer: some View {
-        VStack(spacing: 12) {
+        NADAStickyFooter {
             if step == .photos, !hasRequiredPhotos {
                 Text(
                     photosNeedReplacement
                         ? "Add a photo to fill that spot"
                         : "Add \(ProfilePhoto.maxCount) photos to continue"
                 )
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.secondaryInk)
+                .font(NADATheme.captionFont)
+                .foregroundStyle(NADATheme.secondaryInk)
             }
 
             if step == .bits, !hasRequiredBits {
@@ -348,6 +394,12 @@ struct ProfileSetupWizardView: View {
 
             if step == .interests {
                 Text("\(selectedInterestIds.count) / \(InterestSelection.maxCount) selected")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+            }
+
+            if step == .essentials {
+                Text("Optional — skip anything that doesn’t fit.")
                     .font(NADATheme.captionFont)
                     .foregroundStyle(NADATheme.secondaryInk)
             }
@@ -363,51 +415,41 @@ struct ProfileSetupWizardView: View {
             } label: {
                 if auth.isBusy {
                     ProgressView()
+                        .tint(NADATheme.onBrand)
                         .frame(maxWidth: .infinity)
                 } else {
                     Text(step == .preferences ? "Finish" : "Continue")
                 }
             }
-            .buttonStyle(NADAPrimaryButtonStyle())
-            .disabled(
-                auth.isBusy
-                    || (step == .photos && !hasRequiredPhotos)
-                    || (step == .bits && !hasRequiredBits)
-                    || (step == .preferences && !hasRequiredPreferences)
-            )
+            .nadaPrimaryCTA(enabled: canAdvance)
+        }
+    }
 
-            if step == .preferences || step == .interests {
-                Button {
-                    Task { await skipOrFinish() }
-                } label: {
-                    Text("Skip for now")
-                        .font(NADATheme.headlineFont)
-                        .foregroundStyle(NADATheme.brandPressed)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                }
-                .disabled(auth.isBusy)
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 16)
-        .padding(.bottom, 32)
-        .frame(maxWidth: .infinity)
-        .background {
-            UnevenRoundedRectangle(
-                cornerRadii: .init(topLeading: 28, topTrailing: 28),
-                style: .continuous
-            )
-            .fill(NADATheme.surface.opacity(0.96))
-            .ignoresSafeArea(edges: .bottom)
-        }
+    private var canAdvance: Bool {
+        !auth.isBusy
+            && !(step == .photos && !hasRequiredPhotos)
+            && !(step == .bits && !hasRequiredBits)
+            && !(step == .preferences && !hasRequiredPreferences)
     }
 
     private func goBack() {
         localError = nil
         auth.clearError()
+        if step == .photos {
+            auth.isRevisitingBasicProfile = true
+            return
+        }
         guard let previous = Step(rawValue: step.rawValue - 1) else { return }
         step = previous
+    }
+
+    private func skipRemaining() async {
+        localError = nil
+        auth.clearError()
+        let ok = await auth.skipRemainingOnboarding()
+        if !ok, auth.errorMessage == nil {
+            localError = "Couldn't skip setup. Try again."
+        }
     }
 
     private func advance() async {
@@ -421,6 +463,10 @@ struct ProfileSetupWizardView: View {
         if step == .bits, !hasRequiredBits {
             localError = "Answer \(PromptAnswer.maxCount) Bits to continue."
             return
+        }
+        if step == .essentials {
+            let saved = await saveEssentials()
+            if !saved { return }
         }
         if step == .interests {
             let saved = await saveInterestIds()
@@ -438,63 +484,43 @@ struct ProfileSetupWizardView: View {
         step = next
     }
 
-    private func skipOrFinish() async {
-        localError = nil
-        auth.clearError()
-        if step == .interests {
-            let saved = await saveInterestIds()
-            if !saved { return }
-            guard let next = Step(rawValue: step.rawValue + 1) else { return }
-            step = next
+    private func finishWizard() async {
+        guard let userId = auth.currentUser?.id else { return }
+
+        let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCity.isEmpty else {
+            localError = "City is required."
             return
         }
-        if step == .preferences {
-            await finishWizard(saveRadius: false)
-            return
-        }
-        guard let next = Step(rawValue: step.rawValue + 1) else { return }
-        step = next
-    }
 
-    private func finishWizard(saveRadius: Bool = true) async {
-        if saveRadius {
-            guard let userId = auth.currentUser?.id else { return }
+        let age = UserPreferences.clampAgeRange(min: Int(minAge), max: Int(maxAge))
+        var prefs = auth.currentPreferences ?? UserPreferences.defaults(
+            for: auth.currentUser ?? NADAUser(id: userId)
+        )
+        prefs.city = trimmedCity
+        prefs.radiusKm = ProfileLocation.clampRadiusKm(radiusKm)
+        prefs.lookingForGenders = lookingFor
+        prefs.minAge = age.min
+        prefs.maxAge = age.max
+        prefs.buddyTypes = [.openToAll]
 
-            let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedCity.isEmpty else {
-                localError = "City is required."
-                return
+        let prefsOK = await auth.updatePreferences(prefs)
+        if !prefsOK {
+            if auth.errorMessage == nil {
+                localError = "Couldn't save your preferences. Try again."
             }
+            return
+        }
 
-            let age = UserPreferences.clampAgeRange(min: Int(minAge), max: Int(maxAge))
-            var prefs = auth.currentPreferences ?? UserPreferences.defaults(
-                for: auth.currentUser ?? NADAUser(id: userId)
+        if let approxLatitude, let approxLongitude {
+            let locationOK = await auth.updateLocation(
+                city: trimmedCity,
+                radiusKm: prefs.resolvedRadiusKm,
+                approxLatitude: approxLatitude,
+                approxLongitude: approxLongitude
             )
-            prefs.city = trimmedCity
-            prefs.radiusKm = ProfileLocation.clampRadiusKm(radiusKm)
-            prefs.lookingForGenders = lookingFor
-            prefs.minAge = age.min
-            prefs.maxAge = age.max
-            prefs.buddyTypes = [.openToAll]
-
-            let prefsOK = await auth.updatePreferences(prefs)
-            if !prefsOK {
-                if auth.errorMessage == nil {
-                    localError = "Couldn't save your preferences. Try again."
-                }
-                return
-            }
-
-            if let approxLatitude, let approxLongitude {
-                let locationOK = await auth.updateLocation(
-                    city: trimmedCity,
-                    radiusKm: prefs.resolvedRadiusKm,
-                    approxLatitude: approxLatitude,
-                    approxLongitude: approxLongitude
-                )
-                if !locationOK, auth.errorMessage == nil {
-                    localError = "Preferences saved, but approximate location couldn't be stored."
-                }
+            if !locationOK, auth.errorMessage == nil {
+                localError = "Preferences saved, but approximate location couldn't be stored."
             }
         }
 

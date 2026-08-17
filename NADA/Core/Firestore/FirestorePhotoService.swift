@@ -114,6 +114,116 @@ final class FirestorePhotoService {
         )
     }
 
+    /// Crops first, then one write: upload all images, then a single Firestore batch.
+    @discardableResult
+    func addPhotos(
+        userId: String,
+        images: [UIImage],
+        startingAt insertAt: Int? = nil
+    ) async throws -> [ProfilePhoto] {
+        guard !images.isEmpty else {
+            return try await fetchPhotos(userId: userId, legacyPhotoURL: nil)
+        }
+        if images.count == 1 {
+            return [
+                try await addPhoto(userId: userId, image: images[0], at: insertAt)
+            ]
+        }
+
+        let collection = try photosCollection(userId: userId)
+        let snapshot = try await collection.getDocuments()
+        let existing = snapshot.documents
+            .compactMap { mapPhoto(id: $0.documentID, data: $0.data()) }
+            .sorted { $0.sortOrder < $1.sortOrder }
+
+        guard existing.count + images.count <= Self.maxPhotos else {
+            throw AuthError.unknown("You can add up to \(Self.maxPhotos) photos.")
+        }
+
+        let firstSort: Int
+        if let insertAt {
+            firstSort = min(max(0, insertAt), existing.count)
+        } else {
+            firstSort = existing.count
+        }
+
+        struct Placement {
+            let id: String
+            let sortOrder: Int
+            let image: UIImage
+        }
+
+        let placements: [Placement] = images.enumerated().map { index, image in
+            Placement(
+                id: UUID().uuidString.lowercased(),
+                sortOrder: index == 0 ? firstSort : existing.count + index,
+                image: image
+            )
+        }
+
+        var urlsByIndex: [Int: StoredPhotoURLs] = [:]
+        try await withThrowingTaskGroup(of: (Int, StoredPhotoURLs).self) { group in
+            for (index, placement) in placements.enumerated() {
+                group.addTask { @MainActor in
+                    let urls = try await self.storageService.uploadPhoto(
+                        userId: userId,
+                        photoId: placement.id,
+                        image: placement.image
+                    )
+                    return (index, urls)
+                }
+            }
+            for try await (index, urls) in group {
+                urlsByIndex[index] = urls
+            }
+        }
+
+        let batch = try requireDatabase().batch()
+        if firstSort < existing.count {
+            for photo in existing where photo.sortOrder >= firstSort {
+                batch.updateData(
+                    [
+                        "sortOrder": photo.sortOrder + 1,
+                        "isPrimary": false
+                    ],
+                    forDocument: collection.document(photo.id)
+                )
+            }
+        }
+
+        if placements.contains(where: { $0.sortOrder == 0 }) {
+            for photo in existing where photo.isPrimary {
+                batch.updateData(["isPrimary": false], forDocument: collection.document(photo.id))
+            }
+        }
+
+        for (index, placement) in placements.enumerated() {
+            guard let urls = urlsByIndex[index] else { continue }
+            batch.setData(
+                [
+                    "url": urls.url,
+                    "thumbnailURL": urls.thumbnailURL,
+                    "sortOrder": placement.sortOrder,
+                    "isPrimary": placement.sortOrder == 0,
+                    "createdAt": FieldValue.serverTimestamp()
+                ],
+                forDocument: collection.document(placement.id)
+            )
+        }
+        try await batch.commit()
+
+        if let primaryIndex = placements.firstIndex(where: { $0.sortOrder == 0 }),
+           let urls = urlsByIndex[primaryIndex] {
+            try await syncUserPhotoURL(
+                userId: userId,
+                url: urls.url,
+                thumbnailURL: urls.thumbnailURL
+            )
+        }
+
+        return try await fetchPhotos(userId: userId, legacyPhotoURL: nil)
+    }
+
     /// Replaces the primary photo image, or adds one if none exist.
     @discardableResult
     func upsertPrimaryPhoto(
