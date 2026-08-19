@@ -1,0 +1,244 @@
+import SwiftUI
+
+/// Click-back screen from Clicks — full page, not a bottom sheet.
+struct ClickBackConnectionView: View {
+    let name: String
+    let target: LikeTargetPreview
+    let incomingComment: String?
+    let otherPhotoURL: String?
+    let otherPhotoThumbnailURL: String?
+    var isBusy = false
+    let onSend: (String?) -> Void
+    let onDismiss: () -> Void
+
+    @State private var message = ""
+    @FocusState private var messageFocused: Bool
+    @State private var isVisible = false
+    @State private var isExiting = false
+
+    private var firstName: String {
+        name.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? name
+    }
+
+    private var trimmed: String {
+        message.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSend: Bool {
+        trimmed.count <= DiscoverLike.maxCommentLength && !isBusy
+    }
+
+    private var contextLine: String {
+        switch target.type {
+        case .photo: return "Clicked your photo"
+        case .prompt: return "Clicked your Bit"
+        case .profile: return "Clicked your profile"
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                NADATheme.paper
+                    .opacity(isVisible ? 1 : 0)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    header
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
+
+                    ScrollView {
+                        VStack(spacing: 18) {
+                            VStack(spacing: 8) {
+                                Text("New connection")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(NADATheme.brand)
+
+                                Text(name)
+                                    .font(NADATheme.displayFont)
+                                    .foregroundStyle(NADATheme.ink)
+                                    .multilineTextAlignment(.center)
+
+                                Text(contextLine)
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundStyle(NADATheme.brand)
+
+                                if let incomingComment, !incomingComment.isEmpty {
+                                    Text(incomingComment)
+                                        .font(NADATheme.bodyFont)
+                                        .foregroundStyle(NADATheme.secondaryInk)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 12)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+
+                            featuredContent
+
+                            messageField
+
+                            Button {
+                                send()
+                            } label: {
+                                if isBusy {
+                                    ProgressView()
+                                        .tint(NADATheme.onBrand)
+                                        .frame(maxWidth: .infinity)
+                                } else {
+                                    Text("Say hi to \(firstName)")
+                                }
+                            }
+                            .nadaPrimaryCTA(enabled: canSend && !isExiting)
+
+                            Button("Not now") { dismissAnimated() }
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(NADATheme.secondaryInk)
+                                .padding(.top, 2)
+                                .disabled(isBusy || isExiting)
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.top, 12)
+                        .padding(.bottom, 28)
+                    }
+                    .scrollDismissesKeyboard(.immediately)
+                }
+                .opacity(isVisible ? 1 : 0)
+                .offset(y: isVisible ? 0 : 36)
+                .scaleEffect(isVisible ? 1 : 0.97)
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { messageFocused = false }
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(NADATheme.brand)
+                }
+            }
+        }
+        .onAppear {
+            guard !isVisible else { return }
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) {
+                isVisible = true
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack {
+            Button(action: dismissAnimated) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(NADATheme.ink)
+                    .frame(width: 36, height: 36)
+            }
+            .disabled(isBusy || isExiting)
+            .accessibilityLabel("Close")
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private var featuredContent: some View {
+        switch target.type {
+        case .photo:
+            photoFeature(
+                url: target.photoURL ?? otherPhotoURL,
+                thumb: target.photoThumbnailURL ?? otherPhotoThumbnailURL,
+                bubble: "They clicked this photo of you"
+            )
+        case .prompt:
+            if let answer = target.answerText, !answer.isEmpty {
+                ProfilePreviewBitCard(prompt: target.promptText ?? "", answer: answer)
+            } else {
+                photoFeature(url: otherPhotoURL, thumb: otherPhotoThumbnailURL, bubble: nil)
+            }
+        case .profile:
+            photoFeature(url: otherPhotoURL, thumb: otherPhotoThumbnailURL, bubble: nil)
+        }
+    }
+
+    private func photoFeature(url: String?, thumb: String?, bubble: String?) -> some View {
+        ProfilePreviewPhotoTile(urlString: url, thumbnailURLString: thumb)
+            .overlay(alignment: .bottomLeading) {
+                if let bubble {
+                    HStack(spacing: 6) {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(NADATheme.brand)
+                        Text(bubble)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(NADATheme.ink)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(NADATheme.card.opacity(0.96), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: NADATheme.ink.opacity(0.08), radius: 8, y: 2)
+                    .padding(12)
+                }
+            }
+    }
+
+    private var messageField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "face.smiling")
+                .font(.system(size: 20, weight: .regular))
+                .foregroundStyle(NADATheme.secondaryInk)
+
+            TextField("Write a message...", text: $message, axis: .vertical)
+                .font(NADATheme.bodyFont)
+                .foregroundStyle(NADATheme.ink)
+                .lineLimit(1...3)
+                .focused($messageFocused)
+                .submitLabel(.done)
+                .onSubmit { messageFocused = false }
+
+            Button {
+                send()
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(NADATheme.onBrand)
+                    .frame(width: 32, height: 32)
+                    .background(NADATheme.brand, in: Circle())
+            }
+            .disabled(!canSend || isExiting)
+            .accessibilityLabel("Send")
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 8)
+        .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(NADATheme.hairline.opacity(0.7), lineWidth: 1)
+        }
+    }
+
+    private func send() {
+        guard canSend, !isExiting else { return }
+        let comment = trimmed.isEmpty ? nil : String(trimmed.prefix(DiscoverLike.maxCommentLength))
+        exit {
+            onSend(comment)
+        }
+    }
+
+    private func dismissAnimated() {
+        guard !isExiting, !isBusy else { return }
+        exit(onDismiss)
+    }
+
+    private func exit(_ finish: @escaping () -> Void) {
+        isExiting = true
+        messageFocused = false
+        withAnimation(.easeIn(duration: 0.26)) {
+            isVisible = false
+        }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            finish()
+        }
+    }
+}

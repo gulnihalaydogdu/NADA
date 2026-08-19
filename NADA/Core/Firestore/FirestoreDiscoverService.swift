@@ -371,6 +371,7 @@ final class FirestoreDiscoverService {
                 data["hangoutLookingFor"] as? String,
                 max: NADAUser.maxHangoutLookingForLength
             ),
+            zodiac: dateOfBirth.map { ZodiacSign.from(dateOfBirth: $0) },
             interestIds: InterestSelection.normalized(data["interestIds"] as? [String] ?? []),
             photos: photos,
             bits: bits,

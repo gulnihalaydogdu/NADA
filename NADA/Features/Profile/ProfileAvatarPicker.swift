@@ -76,9 +76,10 @@ struct ProfileAvatarPicker: View {
         .photosPicker(
             isPresented: $isLibraryPresented,
             selection: $libraryItem,
-            matching: .images,
+            matching: PickerImageLoader.stillPhotosFilter,
             photoLibrary: .shared()
         )
+        .nadaStillPhotosPickerChrome()
         .onChange(of: libraryItem) { _, item in
             Task { await presentEditor(with: item, clearing: { libraryItem = nil }) }
         }
@@ -108,7 +109,7 @@ struct ProfileAvatarPicker: View {
             }
 
             Circle()
-                .strokeBorder(NADATheme.paper, lineWidth: 4)
+                .strokeBorder(NADATheme.paper, lineWidth: 3)
                 .frame(width: size, height: size)
 
             VStack {
@@ -132,7 +133,7 @@ struct ProfileAvatarPicker: View {
             .foregroundStyle(NADATheme.onBrand)
             .frame(width: badgeSize, height: badgeSize)
             .background(NADATheme.brand, in: Circle())
-            .overlay(Circle().strokeBorder(NADATheme.paper, lineWidth: 3))
+            .overlay(Circle().strokeBorder(NADATheme.paper, lineWidth: 2.5))
     }
 
     @ViewBuilder
@@ -151,9 +152,10 @@ struct ProfileAvatarPicker: View {
             .photosPicker(
                 isPresented: $isReplacePresented,
                 selection: $replacementItem,
-                matching: .images,
+                matching: PickerImageLoader.stillPhotosFilter,
                 photoLibrary: .shared()
             )
+            .nadaStillPhotosPickerChrome()
             .onChange(of: replacementItem) { _, item in
                 Task { await replaceEditorImage(with: item) }
             }

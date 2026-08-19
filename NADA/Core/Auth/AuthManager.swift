@@ -29,6 +29,13 @@ final class AuthManager {
     private var didFinishDiscoverWarm = false
     private var didWarmLikeInbox = false
 
+    /// In-memory Discover deck for this signed-in session. Survives tab switches;
+    /// cleared on logout / process death. Skip and click still advance the card.
+    private(set) var discoverSessionQueue: [DiscoverCandidate] = []
+    private(set) var discoverSessionCursor: String?
+    private(set) var discoverSessionSkipped: [DiscoverCandidate] = []
+    private(set) var discoverSessionLoaded = false
+
     /// Wizard Back on the first step returns here without clearing saved basics.
     var isRevisitingBasicProfile = false
 
@@ -335,14 +342,26 @@ final class AuthManager {
     /// Next Discover page for the signed-in viewer (W3-01). Empty if the profile is incomplete.
     func fetchDiscoverFeed(
         extraExcludedUserIds: Set<String> = [],
-        cursor: String? = nil
+        cursor: String? = nil,
+        ignoreSession: Bool = false
     ) async -> DiscoverFeedPage {
-        if cursor == nil, extraExcludedUserIds.isEmpty {
+        if cursor == nil, extraExcludedUserIds.isEmpty, !ignoreSession {
             if let discoverWarmTask {
                 await discoverWarmTask.value
             }
+            if discoverSessionLoaded {
+                return DiscoverFeedPage(
+                    candidates: discoverSessionQueue,
+                    cursor: discoverSessionCursor
+                )
+            }
             if let warmed = warmedDiscoverPage {
                 warmedDiscoverPage = nil
+                rememberDiscoverSession(
+                    queue: warmed.candidates,
+                    cursor: warmed.cursor,
+                    skipped: []
+                )
                 return warmed
             }
         }
@@ -351,6 +370,25 @@ final class AuthManager {
             extraExcludedUserIds: extraExcludedUserIds,
             cursor: cursor
         )
+    }
+
+    func rememberDiscoverSession(
+        queue: [DiscoverCandidate],
+        cursor: String?,
+        skipped: [DiscoverCandidate]
+    ) {
+        discoverSessionQueue = queue
+        discoverSessionCursor = cursor
+        discoverSessionSkipped = skipped
+        discoverSessionLoaded = true
+    }
+
+    func clearDiscoverSession() {
+        discoverSessionQueue = []
+        discoverSessionCursor = nil
+        discoverSessionSkipped = []
+        discoverSessionLoaded = false
+        warmedDiscoverPage = nil
     }
 
     private static let discoverLaunchTimeoutSeconds: TimeInterval = 6
@@ -388,10 +426,13 @@ final class AuthManager {
 
     private func loadDiscoverWarm() async {
         defer { didFinishDiscoverWarm = true }
+        let viewerId = currentUser?.id
         let page = await fetchDiscoverFeedFromNetwork(
             extraExcludedUserIds: [],
             cursor: nil
         )
+        guard !Task.isCancelled, viewerId != nil, viewerId == currentUser?.id else { return }
+        rememberDiscoverSession(queue: page.candidates, cursor: page.cursor, skipped: [])
         warmedDiscoverPage = page
         guard let photo = page.candidates.first?.photos.first else { return }
 
@@ -883,6 +924,10 @@ final class AuthManager {
             return
         }
 
+        if currentUser?.id != authUser.id {
+            clearDiscoverSession()
+        }
+
         // Firebase Auth cannot tell us onboarding flags — wait for Firestore before routing.
         isResolvingProfile = true
         defer { isResolvingProfile = false }
@@ -1079,7 +1124,9 @@ final class AuthManager {
         cachedAnswersUserId = nil
         didLoadAnswers = false
         warmedDiscoverPage = nil
+        discoverWarmTask?.cancel()
         discoverWarmTask = nil
+        clearDiscoverSession()
         RemoteImageLoader.shared.invalidateAll()
     }
 

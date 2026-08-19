@@ -19,16 +19,8 @@ struct LikesInboxView: View {
     @State private var candidateCache: [String: DiscoverCandidate] = [:]
 
     private struct LikeBackDraft: Identifiable {
-        let userId: String
-        let displayName: String
-        let glowLikeId: String
-        let targetType: DiscoverLike.TargetType
-        let targetId: String
-        let title: String
-        let photoURL: String?
-        let photoThumbnailURL: String?
-
-        var id: String { "\(userId)|\(targetType.rawValue)|\(targetId)" }
+        let item: InboxLike
+        var id: String { item.id }
     }
 
     private struct InboxSection {
@@ -77,29 +69,28 @@ struct LikesInboxView: View {
                     content
                 }
             }
+
+            if let draft = likeBackDraft {
+                ClickBackConnectionView(
+                    name: draft.item.otherUser.displayName,
+                    target: draft.item.target,
+                    incomingComment: draft.item.like.comment,
+                    otherPhotoURL: draft.item.otherUser.photoURL,
+                    otherPhotoThumbnailURL: draft.item.otherUser.photoThumbnailURL,
+                    isBusy: isSendingLikeBack,
+                    onSend: { comment in
+                        Task { await sendLikeBack(draft: draft, comment: comment) }
+                    },
+                    onDismiss: { likeBackDraft = nil }
+                )
+                .zIndex(10)
+            }
         }
         .task(id: loadToken) {
             Task {
                 catalogInterests = (try? await FirestoreInterestService().fetchActiveInterests()) ?? catalogInterests
             }
             await loadInitial()
-        }
-        .sheet(item: $likeBackDraft) { draft in
-            DiscoverLikeCommentSheet(
-                title: draft.displayName,
-                subtitle: "Say hi — optional, hangout vibes only.",
-                placeholder: "Write a short note…",
-                sendTitle: "Click back",
-                navigationTitle: "Click back",
-                isBusy: isSendingLikeBack
-            ) { comment in
-                Task {
-                    await sendLikeBack(draft: draft, comment: comment)
-                }
-            }
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
-            .interactiveDismissDisabled(isSendingLikeBack)
         }
     }
 
@@ -366,43 +357,30 @@ struct LikesInboxView: View {
         RemoteImageLoader.shared.prefetchOrdered(ordered)
     }
 
-    private func presentLikeBack(
-        _ item: InboxLike,
-        targetType: DiscoverLike.TargetType = .profile,
-        targetId: String? = nil,
-        title: String? = nil
-    ) {
+    private func presentLikeBack(_ item: InboxLike) {
         let userId = item.otherUser.id
         guard !pendingUserIds.contains(userId) else { return }
-        likeBackDraft = LikeBackDraft(
-            userId: userId,
-            displayName: item.otherUser.displayName,
-            glowLikeId: item.id,
-            targetType: targetType,
-            targetId: targetId ?? userId,
-            title: title ?? item.otherUser.displayName,
-            photoURL: item.otherUser.photoURL,
-            photoThumbnailURL: item.otherUser.photoThumbnailURL
-        )
+        likeBackDraft = LikeBackDraft(item: item)
     }
 
     private func sendLikeBack(draft: LikeBackDraft, comment: String?) async {
-        guard !pendingUserIds.contains(draft.userId), !isSendingLikeBack else { return }
-        pendingUserIds.insert(draft.userId)
+        let userId = draft.item.otherUser.id
+        guard !pendingUserIds.contains(userId), !isSendingLikeBack else { return }
+        pendingUserIds.insert(userId)
         isSendingLikeBack = true
         localError = nil
         likeBackDraft = nil
         isSendingLikeBack = false
-        let removed = removeRows(userId: draft.userId)
+        let removed = removeRows(userId: userId)
         closeProfile()
 
         let created = await auth.likeDiscoverTarget(
-            toUserId: draft.userId,
-            targetType: draft.targetType,
-            targetId: draft.targetId,
+            toUserId: userId,
+            targetType: .profile,
+            targetId: userId,
             comment: comment
         )
-        pendingUserIds.remove(draft.userId)
+        pendingUserIds.remove(userId)
 
         guard created != nil else {
             restoreRows(removed)
@@ -416,8 +394,8 @@ struct LikesInboxView: View {
             MutualClickSnapshot(
                 viewerURL: auth.currentUser?.photoURL,
                 viewerThumb: auth.currentUser?.photoThumbnailURL,
-                otherURL: draft.photoURL,
-                otherThumb: draft.photoThumbnailURL
+                otherURL: draft.item.otherUser.photoURL,
+                otherThumb: draft.item.otherUser.photoThumbnailURL
             )
         )
     }
@@ -669,16 +647,16 @@ private struct LikeInboxProfileView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-                header
+                    header
                     .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                    .padding(.bottom, 10)
+                    .padding(.top, 6)
+                    .padding(.bottom, 12)
 
                 if let candidate {
                     profileScroll(candidate)
                 } else {
                     ScrollView {
-                        VStack(spacing: 14) {
+                        VStack(spacing: 16) {
                             likeContextCard
                             ProfilePreviewPhotoTile(
                                 urlString: item.otherUser.photoURL,
@@ -705,43 +683,40 @@ private struct LikeInboxProfileView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.otherUser.displayName)
-                    .font(NADATheme.displayFont)
+                    .font(.system(size: 26, weight: .semibold, design: .rounded))
                     .foregroundStyle(NADATheme.ink)
                     .lineLimit(1)
-                Text(contextSubtitle)
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.warmSecondaryInk)
-                    .lineLimit(1)
+                ProfileZodiacCaption(sign: candidate?.zodiac)
             }
-            Spacer(minLength: 8)
-            Button("All", action: onAll)
-                .font(.system(size: 16, weight: .semibold))
+            Spacer(minLength: 10)
+            Button(action: onAll) {
+                HStack(spacing: 5) {
+                    Image(systemName: "person.2")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("All")
+                }
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(NADATheme.ink)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(NADATheme.card, in: Capsule())
-                .overlay(Capsule().strokeBorder(NADATheme.hairline, lineWidth: 1))
-                .shadow(color: NADATheme.ink.opacity(0.05), radius: 6, y: 2)
-                .accessibilityLabel("All clicks")
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(NADATheme.hairline.opacity(0.55), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("All clicks")
+            .accessibilityHint("Returns to everyone who clicked you")
         }
-    }
-
-    private var contextSubtitle: String {
-        let thing: String
-        switch item.target.type {
-        case .photo: thing = "photo"
-        case .prompt: thing = "Bit"
-        case .profile: thing = "profile"
-        }
-        return "clicked your \(thing)"
     }
 
     private func profileScroll(_ candidate: DiscoverCandidate) -> some View {
         ScrollView {
-            VStack(spacing: 14) {
+            VStack(spacing: 16) {
                 likeContextCard
 
                 DiscoverCandidateStack(
@@ -782,10 +757,10 @@ private struct LikeInboxProfileView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(NADATheme.hairline.opacity(0.7), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(NADATheme.hairline.opacity(0.38), lineWidth: 1)
             }
         }
     }
@@ -798,7 +773,7 @@ private struct LikeInboxProfileView: View {
                     .foregroundStyle(NADATheme.brand)
                     .frame(width: 64, height: 64)
                     .background(NADATheme.paper, in: Circle())
-                    .shadow(color: NADATheme.ink.opacity(0.16), radius: 12, y: 4)
+                    .shadow(color: NADATheme.ink.opacity(0.12), radius: 10, y: 3)
             }
             .disabled(isPending)
             .accessibilityLabel("Pass")

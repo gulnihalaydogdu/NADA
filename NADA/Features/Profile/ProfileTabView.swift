@@ -27,7 +27,7 @@ struct ProfileTabView: View {
             NADAScreenBackground()
 
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     topBar
                     header
 
@@ -44,8 +44,8 @@ struct ProfileTabView: View {
                     signOutButton
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
+                .padding(.top, 6)
+                .padding(.bottom, 36)
             }
         }
         .sheet(item: $route) { route in
@@ -69,15 +69,16 @@ struct ProfileTabView: View {
                 route = .preview
             } label: {
                 Image(systemName: "person.crop.circle")
-                    .font(.system(size: 20, weight: .medium))
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(NADATheme.ink)
+                    .frame(width: 36, height: 36)
             }
             .accessibilityLabel("Preview profile")
 
             Spacer()
 
             Text("My Profile")
-                .font(NADATheme.headlineFont)
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(NADATheme.ink)
 
             Spacer()
@@ -86,47 +87,55 @@ struct ProfileTabView: View {
                 route = .settings
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 20, weight: .medium))
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(NADATheme.ink)
+                    .frame(width: 36, height: 36)
             }
             .accessibilityLabel("Settings")
         }
     }
 
     private var header: some View {
-        VStack(spacing: 14) {
-            ProfileAvatarPicker(size: 132)
+        VStack(spacing: 12) {
+            ProfileAvatarPicker(size: 120)
 
-            VStack(spacing: 4) {
+            VStack(spacing: 5) {
                 Text(auth.currentUser?.displayName ?? "Your name")
-                    .font(NADATheme.displayFont)
+                    .font(.system(size: 26, weight: .semibold, design: .rounded))
                     .foregroundStyle(NADATheme.ink)
 
                 if let city = auth.currentUser?.city, !city.isEmpty {
-                    Label(city, systemImage: "mappin.and.ellipse")
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.warmSecondaryInk)
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 12, weight: .medium))
+                        Text(city)
+                    }
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(NADATheme.warmSecondaryInk)
                 }
             }
 
             completionMeter
+                .padding(.top, 4)
+
             actionButtons
+                .padding(.top, 2)
         }
     }
 
     private var completionMeter: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline) {
                 Text("\(completion.percentComplete)% complete")
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(NADATheme.brandPressed)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(NADATheme.warmSecondaryInk)
 
                 Spacer()
 
                 Text(auth.isProfileComplete ? "Ready for Discover" : "Finish for Discover")
-                    .font(NADATheme.captionFont)
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(
-                        auth.isProfileComplete ? NADATheme.brandPressed : NADATheme.secondaryInk
+                        auth.isProfileComplete ? NADATheme.brand : NADATheme.secondaryInk
                     )
             }
 
@@ -136,31 +145,27 @@ struct ProfileTabView: View {
                         .fill(NADATheme.brandSoft)
 
                     Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [NADATheme.brand, NADATheme.brandPressed],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: proxy.size.width * (Double(completion.percentComplete) / 100))
+                        .fill(NADATheme.brand)
+                        .frame(width: max(6, proxy.size.width * (Double(completion.percentComplete) / 100)))
                 }
             }
-            .frame(height: 8)
-
-        
+            .frame(height: 5)
         }
         .animation(.easeOut(duration: 0.25), value: completion.percentComplete)
         .animation(.easeOut(duration: 0.25), value: auth.isProfileComplete)
-        .padding(.top, 4)
     }
 
     private var actionButtons: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Button {
                 route = .preview
             } label: {
-                Label("Preview profile", systemImage: "eye")
+                Label {
+                    Text("Preview profile")
+                } icon: {
+                    Image(systemName: "eye")
+                        .font(.system(size: 14, weight: .medium))
+                }
             }
             .buttonStyle(NADASoftCapsuleButtonStyle())
 
@@ -171,7 +176,7 @@ struct ProfileTabView: View {
                 Text("Edit")
             }
             .buttonStyle(NADADarkCapsuleButtonStyle())
-            .frame(maxWidth: 140)
+            .frame(maxWidth: 124)
         }
     }
 
@@ -179,121 +184,97 @@ struct ProfileTabView: View {
     private var suggestionsCard: some View {
         let suggestions = completion.suggestions
         if !suggestions.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Make your profile feel more like you")
-                    .font(NADATheme.headlineFont)
-                    .foregroundStyle(NADATheme.brandPressed)
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(suggestions.count == 1 ? "Next step" : "Next steps")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(NADATheme.warmSecondaryInk)
+                        .tracking(0.3)
 
-                ForEach(suggestions) { suggestion in
-                    Button {
-                        route = ProfileRoute(section: suggestion.section)
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: suggestion.section.systemImage)
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(NADATheme.warmSecondaryInk)
-                                .frame(width: 22)
+                    Text("Make your profile feel more like you")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(NADATheme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-                            Text(suggestion.title)
-                                .font(NADATheme.bodyFont)
-                                .foregroundStyle(NADATheme.ink)
-                                .multilineTextAlignment(.leading)
-
-                            Spacer(minLength: 8)
-
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(NADATheme.brand)
+                VStack(spacing: 8) {
+                    ForEach(suggestions) { suggestion in
+                        Button {
+                            route = ProfileRoute(section: suggestion.section)
+                        } label: {
+                            ProfileSuggestionRow(suggestion: suggestion)
                         }
-                        .contentShape(Rectangle())
+                        .buttonStyle(NADATactilePressStyle())
+                        .accessibilityLabel(suggestion.title)
+                        .accessibilityHint(suggestion.note)
                     }
-                    .buttonStyle(.plain)
                 }
             }
-            .padding(18)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .profileSurface()
         }
     }
 
     private var sectionsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("Your profile")
-                .font(NADATheme.headlineFont)
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(NADATheme.ink)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 4)
 
             VStack(spacing: 0) {
                 ForEach(Array(ProfileSection.allCases.enumerated()), id: \.element.id) { index, section in
                     Button {
                         route = ProfileRoute(section: section)
                     } label: {
-                        sectionRow(section)
+                        ProfileSectionRow(
+                            section: section,
+                            detail: completion.detail(for: section),
+                            isComplete: completion.progress(for: section) >= 1
+                        )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ProfileSectionRowStyle())
+                    .accessibilityLabel(section.title)
+                    .accessibilityValue(completion.detail(for: section) ?? (completion.progress(for: section) >= 1 ? "Complete" : "Can be improved"))
+                    .accessibilityHint("Opens the editor")
 
                     if index < ProfileSection.allCases.count - 1 {
                         Rectangle()
-                            .fill(NADATheme.hairline.opacity(0.6))
-                            .frame(height: 1)
-                            .padding(.leading, 52)
+                            .fill(NADATheme.hairline.opacity(0.32))
+                            .frame(height: 0.5)
+                            .padding(.leading, 64)
+                            .padding(.trailing, 16)
                     }
                 }
             }
-            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .padding(.bottom, 6)
         }
-    }
-
-    private func sectionRow(_ section: ProfileSection) -> some View {
-        let detail = completion.detail(for: section)
-        let isComplete = completion.progress(for: section) >= 1
-
-        return HStack(spacing: 12) {
-            Image(systemName: section.systemImage)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(NADATheme.warmSecondaryInk)
-                .frame(width: 24)
-
-            Text(section.title)
-                .font(NADATheme.bodyFont)
-                .foregroundStyle(NADATheme.ink)
-
-            Spacer(minLength: 8)
-
-            if let detail {
-                Text(detail)
-                    .font(NADATheme.captionFont)
-                    .foregroundStyle(isComplete ? NADATheme.secondaryInk : NADATheme.brand)
-            }
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(NADATheme.secondaryInk)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 15)
-        .contentShape(Rectangle())
+        .profileSurface()
     }
 
     private var missionCard: some View {
         VStack(spacing: 6) {
             Text("NADA is for real connections.")
-                .font(NADATheme.headlineFont)
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(NADATheme.ink)
 
             Text("We're building a safe, friendly space for people who just want to hang out.")
-                .font(NADATheme.captionFont)
+                .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(NADATheme.warmSecondaryInk)
                 .multilineTextAlignment(.center)
 
             Image("SketchWelcomeHangout")
                 .resizable()
                 .scaledToFit()
-                .frame(height: 96)
-                .padding(.top, 6)
+                .frame(height: 88)
+                .padding(.top, 4)
         }
-        .padding(20)
+        .padding(16)
         .frame(maxWidth: .infinity)
-        .background(NADATheme.brandSoft.opacity(0.7), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(NADATheme.brandSoft.opacity(0.55), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var signOutButton: some View {
@@ -303,13 +284,17 @@ struct ProfileTabView: View {
             HStack(spacing: 8) {
                 Text("Log out")
                 Image(systemName: "rectangle.portrait.and.arrow.right")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
             }
-            .font(NADATheme.headlineFont)
+            .font(.system(size: 16, weight: .semibold))
             .foregroundStyle(NADATheme.brandPressed)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(.vertical, 14)
+            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(NADATheme.hairline.opacity(0.38), lineWidth: 1)
+            }
         }
         .buttonStyle(.plain)
     }
@@ -385,7 +370,7 @@ struct ProfileTabView: View {
             photoCount = 1
         }
         if let avatarURL = auth.currentUser?.avatarURL {
-            RemoteImageLoader.shared.prefetch(urlStrings: [avatarURL], targetPointSize: 132)
+            RemoteImageLoader.shared.prefetch(urlStrings: [avatarURL], targetPointSize: 120)
         }
     }
 
@@ -398,4 +383,127 @@ struct ProfileTabView: View {
 #Preview {
     ProfileTabView()
         .environment(AuthManager())
+}
+
+private struct ProfileSuggestionRow: View {
+    let suggestion: ProfileSuggestion
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(NADATheme.brandSoft.opacity(0.85))
+                Image(systemName: suggestion.section.systemImage)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(NADATheme.brand)
+            }
+            .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(suggestion.title)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(NADATheme.ink)
+                    .multilineTextAlignment(.leading)
+
+                Text(suggestion.note)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(NADATheme.warmSecondaryInk)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(NADATheme.brand.opacity(0.85))
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            NADATheme.surface.opacity(0.55),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct ProfileSectionRow: View {
+    let section: ProfileSection
+    let detail: String?
+    let isComplete: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(isComplete ? NADATheme.surface.opacity(0.7) : NADATheme.brandSoft.opacity(0.8))
+                Image(systemName: section.systemImage)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(isComplete ? NADATheme.warmSecondaryInk.opacity(0.9) : NADATheme.brand)
+            }
+            .frame(width: 34, height: 34)
+
+            Text(section.title)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(NADATheme.ink)
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 6) {
+                if !isComplete {
+                    Circle()
+                        .fill(NADATheme.brand.opacity(0.9))
+                        .frame(width: 4.5, height: 4.5)
+                }
+
+                if let detail {
+                    Text(detail)
+                        .font(.system(size: 13, weight: isComplete ? .regular : .medium))
+                        .foregroundStyle(isComplete ? NADATheme.secondaryInk : NADATheme.brand)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .frame(minWidth: 36, alignment: .trailing)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(NADATheme.secondaryInk.opacity(0.42))
+                    .frame(width: 10)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+    }
+}
+
+private struct ProfileSectionRowStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? NADATheme.surface.opacity(0.55) : Color.clear)
+            .opacity(configuration.isPressed ? 0.94 : 1)
+            .animation(.easeOut(duration: 0.09), value: configuration.isPressed)
+    }
+}
+
+private struct ProfileSurface: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(NADATheme.hairline.opacity(0.38), lineWidth: 1)
+            }
+            .shadow(color: NADATheme.ink.opacity(0.035), radius: 8, y: 3)
+    }
+}
+
+private extension View {
+    func profileSurface() -> some View {
+        modifier(ProfileSurface())
+    }
 }

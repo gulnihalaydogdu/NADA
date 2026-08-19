@@ -14,7 +14,9 @@ struct DiscoverFeedView: View {
     @State private var hasLoadedOnce = false
     @State private var localError: String?
     @State private var skippedStack: [DiscoverCandidate] = []
-    @State private var likeDraft: LikeDraft?
+    @State private var commentDraft: CommentDraft?
+    @State private var commentText = ""
+    @FocusState private var commentFieldFocused: Bool
     @State private var catalogInterests: [Interest] = []
     @State private var likeGlow: LikeGlowTarget?
     @State private var skipBurst = false
@@ -43,42 +45,58 @@ struct DiscoverFeedView: View {
         case photo(String)
     }
 
-    private struct LikeDraft: Identifiable {
-        let id = UUID()
+    private struct CommentDraft: Equatable {
         let toUserId: String
         let targetType: DiscoverLike.TargetType
         let targetId: String
-        let title: String
+
+        var scrollId: String { "comment-\(targetType.rawValue)-\(targetId)" }
     }
 
     var body: some View {
-        ZStack {
-            NADAScreenBackground()
+        NavigationStack {
+            ZStack {
+                NADAScreenBackground()
 
-            if !auth.isProfileComplete && !auth.isResolvingProfile {
-                incompleteGate
-            } else {
-                feedContent
+                if !auth.isProfileComplete && !auth.isResolvingProfile {
+                    incompleteGate
+                } else {
+                    feedContent
+                }
             }
-        }
-        .task(id: reloadToken) {
-            guard !auth.isResolvingProfile else { return }
-            catalogInterests = (try? await FirestoreInterestService().fetchActiveInterests()) ?? []
-            guard auth.isProfileComplete else { return }
-            await reload()
-        }
-        .task(id: current?.id) {
-            guard let current else { return }
-            await auth.recordDiscoverSeen(userId: current.id)
+            .toolbar(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { commentFieldFocused = false }
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(NADATheme.brand)
+                }
+            }
+            .task(id: sessionToken) {
+                guard !auth.isResolvingProfile else { return }
+                catalogInterests = (try? await FirestoreInterestService().fetchActiveInterests()) ?? []
+                guard auth.isProfileComplete else { return }
+                if auth.discoverSessionLoaded {
+                    if !hasLoadedOnce || queue.isEmpty {
+                        restoreSession()
+                    }
+                    return
+                }
+                await reload()
+            }
+            .task(id: current?.id) {
+                guard let current else { return }
+                await auth.recordDiscoverSeen(userId: current.id)
+            }
         }
     }
 
-    private var reloadToken: String {
+    private var sessionToken: String {
         [
             auth.currentUser?.id ?? "",
             auth.isProfileComplete ? "1" : "0",
-            auth.isResolvingProfile ? "1" : "0",
-            auth.currentPreferences == nil ? "0" : "1"
+            auth.isResolvingProfile ? "1" : "0"
         ].joined(separator: "|")
     }
 
@@ -142,21 +160,17 @@ struct DiscoverFeedView: View {
                             glowingPromptId: promptGlowId,
                             glowingPhotoId: photoGlowId,
                             onLikeBit: { bit in
-                                likeDraft = LikeDraft(
-                                    toUserId: current.id,
-                                    targetType: .prompt,
-                                    targetId: bit.id,
-                                    title: bit.promptText
-                                )
+                                openComment(on: current, type: .prompt, targetId: bit.id)
                             },
                             onLikePhoto: { photo in
-                                likeDraft = LikeDraft(
-                                    toUserId: current.id,
-                                    targetType: .photo,
-                                    targetId: photo.id,
-                                    title: "This photo"
-                                )
-                            }
+                                openComment(on: current, type: .photo, targetId: photo.id)
+                            },
+                            commentingPhotoId: commentDraft?.targetType == .photo ? commentDraft?.targetId : nil,
+                            commentingPromptId: commentDraft?.targetType == .prompt ? commentDraft?.targetId : nil,
+                            commentText: $commentText,
+                            commentFocused: $commentFieldFocused,
+                            isSendingComment: isSendingLike,
+                            onSendComment: sendOpenComment
                         )
                         .id("discover-card")
                         .overlay { DiscoverSkipStamp(isActive: skipBurst) }
@@ -168,8 +182,18 @@ struct DiscoverFeedView: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 24)
                     }
+                    .scrollDismissesKeyboard(.immediately)
                     .onChange(of: current.id) { _, _ in
+                        clearCommentComposer()
                         proxy.scrollTo("discover-card", anchor: .top)
+                    }
+                    .onChange(of: commentDraft?.scrollId) { _, scrollId in
+                        guard let scrollId else { return }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                            withAnimation(.easeOut(duration: 0.22)) {
+                                proxy.scrollTo(scrollId, anchor: .bottom)
+                            }
+                        }
                     }
                 }
 
@@ -179,20 +203,6 @@ struct DiscoverFeedView: View {
             } else {
                 Spacer()
             }
-        }
-        .sheet(item: $likeDraft) { draft in
-            DiscoverLikeCommentSheet(title: draft.title, isBusy: isSendingLike) { comment in
-                Task {
-                    await sendLike(
-                        toUserId: draft.toUserId,
-                        targetType: draft.targetType,
-                        targetId: draft.targetId,
-                        comment: comment
-                    )
-                }
-            }
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
         }
     }
 
@@ -230,7 +240,7 @@ struct DiscoverFeedView: View {
                 .padding(.horizontal, 36)
 
             Button {
-                Task { await reload() }
+                Task { await reload(forceNetwork: true) }
             } label: {
                 Text("Refresh")
             }
@@ -282,12 +292,15 @@ struct DiscoverFeedView: View {
 
                 Button {
                     guard let current else { return }
-                    likeDraft = LikeDraft(
-                        toUserId: current.id,
-                        targetType: .profile,
-                        targetId: current.id,
-                        title: current.displayName
-                    )
+                    clearCommentComposer()
+                    Task {
+                        await sendLike(
+                            toUserId: current.id,
+                            targetType: .profile,
+                            targetId: current.id,
+                            comment: nil
+                        )
+                    }
                 } label: {
                     Image(systemName: "heart.fill")
                         .font(.system(size: 24, weight: .semibold))
@@ -328,7 +341,19 @@ struct DiscoverFeedView: View {
         }
     }
 
-    private func reload() async {
+    private func restoreSession() {
+        queue = auth.discoverSessionQueue
+        cursor = auth.discoverSessionCursor
+        skippedStack = auth.discoverSessionSkipped
+        hasLoadedOnce = true
+        prefetchUpcomingPhotos()
+    }
+
+    private func persistSession() {
+        auth.rememberDiscoverSession(queue: queue, cursor: cursor, skipped: skippedStack)
+    }
+
+    private func reload(forceNetwork: Bool = false) async {
         localError = nil
         auth.clearError()
         isLoading = true
@@ -337,18 +362,20 @@ struct DiscoverFeedView: View {
             hasLoadedOnce = true
         }
 
-        let page = await auth.fetchDiscoverFeed(cursor: nil)
+        let page = await auth.fetchDiscoverFeed(cursor: nil, ignoreSession: forceNetwork)
         if page.isEmpty, auth.errorMessage != nil {
             localError = auth.errorMessage
         }
         queue = page.candidates
         cursor = page.cursor
+        persistSession()
         prefetchUpcomingPhotos()
     }
 
     private func removeCurrentFromQueue() {
         guard !queue.isEmpty else { return }
         queue.removeFirst()
+        persistSession()
         prefetchUpcomingPhotos()
         if queue.count <= 3 {
             Task { await loadMoreIfNeeded() }
@@ -357,6 +384,7 @@ struct DiscoverFeedView: View {
 
     private func skipCurrent() {
         guard !isActionLocked, let current, !inFlightActionIds.contains(current.id) else { return }
+        clearCommentComposer()
         inFlightActionIds.insert(current.id)
         localError = nil
         skipBurst = true
@@ -388,6 +416,46 @@ struct DiscoverFeedView: View {
         if skippedStack.count > Self.undoCap {
             skippedStack.removeFirst(skippedStack.count - Self.undoCap)
         }
+        persistSession()
+    }
+
+    private func openComment(
+        on candidate: DiscoverCandidate,
+        type: DiscoverLike.TargetType,
+        targetId: String
+    ) {
+        if commentDraft?.toUserId == candidate.id,
+           commentDraft?.targetType == type,
+           commentDraft?.targetId == targetId {
+            clearCommentComposer()
+            return
+        }
+        commentDraft = CommentDraft(toUserId: candidate.id, targetType: type, targetId: targetId)
+        commentText = ""
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            commentFieldFocused = true
+        }
+    }
+
+    private func sendOpenComment() {
+        guard let commentDraft else { return }
+        let trimmed = commentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let comment = trimmed.isEmpty ? nil : String(trimmed.prefix(DiscoverLike.maxCommentLength))
+        Task {
+            await sendLike(
+                toUserId: commentDraft.toUserId,
+                targetType: commentDraft.targetType,
+                targetId: commentDraft.targetId,
+                comment: comment
+            )
+        }
+    }
+
+    private func clearCommentComposer() {
+        commentDraft = nil
+        commentText = ""
+        commentFieldFocused = false
     }
 
     private func sendLike(
@@ -400,7 +468,7 @@ struct DiscoverFeedView: View {
         isSendingLike = true
         inFlightActionIds.insert(toUserId)
         localError = nil
-        likeDraft = nil
+        clearCommentComposer()
         isSendingLike = false
 
         likeGlow = glowTarget(type: targetType, targetId: targetId)
@@ -460,6 +528,7 @@ struct DiscoverFeedView: View {
         localError = nil
         queue.removeAll { $0.id == restored.id }
         queue.insert(restored, at: 0)
+        persistSession()
         prefetchUpcomingPhotos()
 
         Task {
@@ -467,6 +536,7 @@ struct DiscoverFeedView: View {
             if !ok {
                 queue.removeAll { $0.id == restored.id }
                 skippedStack.append(restored)
+                persistSession()
                 prefetchUpcomingPhotos()
                 if auth.errorMessage == nil {
                     localError = "Nothing to undo."
@@ -478,6 +548,7 @@ struct DiscoverFeedView: View {
     /// Skip/like already advanced the card — don't yank the new profile if the write fails.
     private func recoverFailedRemoval(_ candidate: DiscoverCandidate) {
         guard !queue.contains(where: { $0.id == candidate.id }) else {
+            persistSession()
             prefetchUpcomingPhotos()
             return
         }
@@ -486,6 +557,7 @@ struct DiscoverFeedView: View {
         } else {
             queue.insert(candidate, at: 1)
         }
+        persistSession()
         prefetchUpcomingPhotos()
     }
 
@@ -501,6 +573,7 @@ struct DiscoverFeedView: View {
         let existing = Set(queue.map(\.id))
         queue.append(contentsOf: page.candidates.filter { !existing.contains($0.id) })
         self.cursor = page.cursor
+        persistSession()
         prefetchUpcomingPhotos()
     }
 
@@ -550,6 +623,12 @@ struct DiscoverCandidateStack: View {
     var glowingPhotoId: String? = nil
     var onLikeBit: ((DiscoverBit) -> Void)?
     var onLikePhoto: ((ProfilePhoto) -> Void)?
+    var commentingPhotoId: String? = nil
+    var commentingPromptId: String? = nil
+    var commentText: Binding<String> = .constant("")
+    var commentFocused: FocusState<Bool>.Binding? = nil
+    var isSendingComment = false
+    var onSendComment: (() -> Void)? = nil
     var highlightedPhotoId: String? = nil
     var highlightedPromptId: String? = nil
     var highlightLabel: String? = nil
@@ -574,24 +653,25 @@ struct DiscoverCandidateStack: View {
     private var firstBit: DiscoverBit? { candidate.bits.first }
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             if showsName {
-                Text(candidate.displayName)
-                    .font(NADATheme.displayFont)
-                    .foregroundStyle(NADATheme.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(candidate.displayName)
+                        .font(NADATheme.displayFont)
+                        .foregroundStyle(NADATheme.ink)
+                    ProfileZodiacCaption(sign: candidate.zodiac)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if let primary = candidate.photos.first {
-                photoCard(primary)
-                    .id("photo-\(primary.id)")
+                photoBlock(primary)
             } else {
                 ProfilePreviewPhotoTile(urlString: nil)
             }
 
             if let firstBit {
-                bitCard(firstBit)
-                    .id("prompt-\(firstBit.id)")
+                bitBlock(firstBit)
             }
 
             ProfileEssentialsCard(model: essentials)
@@ -602,27 +682,105 @@ struct DiscoverCandidateStack: View {
 
             let remainingPhotos = Array(candidate.photos.dropFirst())
             let remainingBits = Array(candidate.bits.dropFirst())
-            let count = max(remainingPhotos.count, remainingBits.count)
-            LazyVStack(spacing: 14) {
-                ForEach(0..<count, id: \.self) { index in
-                    if index < remainingPhotos.count {
-                        photoCard(remainingPhotos[index])
-                            .id("photo-\(remainingPhotos[index].id)")
-                    }
-                    if index < remainingBits.count {
-                        bitCard(remainingBits[index])
-                            .id("prompt-\(remainingBits[index].id)")
+            let tail = ProfileStackRhythm.tail(photos: remainingPhotos, bits: remainingBits)
+            LazyVStack(spacing: 16) {
+                ForEach(Array(tail.enumerated()), id: \.offset) { _, item in
+                    switch item {
+                    case .photo(let photo):
+                        photoBlock(photo)
+                    case .bit(let bit):
+                        bitBlock(bit)
                     }
                 }
             }
         }
     }
 
-    private func photoCard(_ photo: ProfilePhoto) -> some View {
+    private func photoBlock(_ photo: ProfilePhoto) -> some View {
+        let isCommenting = commentingPhotoId == photo.id
+        return VStack(spacing: isCommenting ? 12 : 0) {
+            photoCard(photo, framed: isCommenting)
+            if isCommenting {
+                inlineCommentBar
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 14)
+                    .id("comment-photo-\(photo.id)")
+            }
+        }
+        .padding(.top, isCommenting ? 12 : 0)
+        .padding(.horizontal, isCommenting ? 12 : 0)
+        .background {
+            if isCommenting {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(NADATheme.card)
+            }
+        }
+        .overlay {
+            if isCommenting {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(
+                        glowingPhotoId == photo.id
+                            ? NADATheme.brand.opacity(0.85)
+                            : NADATheme.hairline.opacity(0.38),
+                        lineWidth: glowingPhotoId == photo.id ? 3 : 1
+                    )
+            }
+        }
+        .id("photo-\(photo.id)")
+        .animation(.easeOut(duration: 0.2), value: commentingPhotoId)
+    }
+
+    private func bitBlock(_ bit: DiscoverBit) -> some View {
+        let isCommenting = commentingPromptId == bit.id
+        return VStack(alignment: .leading, spacing: isCommenting ? 12 : 0) {
+            bitCard(bit, showsChrome: !isCommenting)
+                .padding(.horizontal, isCommenting ? 20 : 0)
+                .padding(.top, isCommenting ? 20 : 0)
+            if isCommenting {
+                inlineCommentBar
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+                    .id("comment-prompt-\(bit.id)")
+            }
+        }
+        .background {
+            if isCommenting {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(NADATheme.card)
+            }
+        }
+        .overlay {
+            if isCommenting {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(
+                        glowingPromptId == bit.id
+                            ? NADATheme.brand.opacity(0.85)
+                            : NADATheme.hairline.opacity(0.38),
+                        lineWidth: glowingPromptId == bit.id ? 3 : 1
+                    )
+            }
+        }
+        .id("prompt-\(bit.id)")
+        .animation(.easeOut(duration: 0.2), value: commentingPromptId)
+    }
+
+    @ViewBuilder
+    private var inlineCommentBar: some View {
+        DiscoverInlineCommentBar(
+            text: commentText,
+            focused: commentFocused,
+            isBusy: isSendingComment,
+            onSend: { onSendComment?() }
+        )
+    }
+
+    private func photoCard(_ photo: ProfilePhoto, framed: Bool) -> some View {
         let isHighlighted = highlightedPhotoId == photo.id
+        let showStroke = !framed && (glowingPhotoId == photo.id || isHighlighted)
         return ProfilePreviewPhotoTile(
             urlString: photo.url,
-            thumbnailURLString: photo.thumbnailURL
+            thumbnailURLString: photo.thumbnailURL,
+            cornerRadius: framed ? 16 : 22
         )
         .overlay(alignment: .topLeading) {
             if isHighlighted, let highlightLabel {
@@ -630,7 +788,7 @@ struct DiscoverCandidateStack: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if onLikePhoto != nil {
+            if onLikePhoto != nil, !framed {
                 DiscoverLikeHeartButton(
                     isGlowing: glowingPhotoId == photo.id,
                     accessibilityLabel: "Click this photo"
@@ -638,31 +796,35 @@ struct DiscoverCandidateStack: View {
                     onLikePhoto?(photo)
                 }
                 .padding(12)
+                .transition(.opacity.combined(with: .scale(scale: 0.82)))
             }
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: framed ? 16 : 22, style: .continuous)
                 .strokeBorder(
-                    NADATheme.brand.opacity(
-                        glowingPhotoId == photo.id ? 0.85 : (isHighlighted ? 0.55 : 0)
-                    ),
-                    lineWidth: glowingPhotoId == photo.id || isHighlighted ? 3 : 0
+                    NADATheme.brand.opacity(showStroke ? (glowingPhotoId == photo.id ? 0.85 : 0.55) : 0),
+                    lineWidth: showStroke ? 3 : 0
                 )
-                .shadow(color: NADATheme.brand.opacity(glowingPhotoId == photo.id ? 0.55 : 0), radius: 18)
+                .shadow(color: NADATheme.brand.opacity(!framed && glowingPhotoId == photo.id ? 0.55 : 0), radius: 18)
                 .animation(.spring(response: 0.34, dampingFraction: 0.62), value: glowingPhotoId)
         }
     }
 
-    private func bitCard(_ bit: DiscoverBit) -> some View {
+    private func bitCard(_ bit: DiscoverBit, showsChrome: Bool) -> some View {
         let isHighlighted = highlightedPromptId == bit.id
-        return ProfilePreviewBitCard(prompt: bit.promptText, answer: bit.answerText)
+        let showStroke = showsChrome && (glowingPromptId == bit.id || isHighlighted)
+        return ProfilePreviewBitCard(
+            prompt: bit.promptText,
+            answer: bit.answerText,
+            showsChrome: showsChrome
+        )
             .overlay(alignment: .topLeading) {
                 if isHighlighted, let highlightLabel {
                     likeHighlightChip(highlightLabel)
                 }
             }
             .overlay(alignment: .bottomTrailing) {
-                if onLikeBit != nil {
+                if onLikeBit != nil, showsChrome {
                     DiscoverLikeHeartButton(
                         isGlowing: glowingPromptId == bit.id,
                         accessibilityLabel: "Click this Bit"
@@ -670,17 +832,16 @@ struct DiscoverCandidateStack: View {
                         onLikeBit?(bit)
                     }
                     .padding(12)
+                    .transition(.opacity.combined(with: .scale(scale: 0.82)))
                 }
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .strokeBorder(
-                        NADATheme.brand.opacity(
-                            glowingPromptId == bit.id ? 0.85 : (isHighlighted ? 0.55 : 0)
-                        ),
-                        lineWidth: glowingPromptId == bit.id || isHighlighted ? 3 : 0
+                        NADATheme.brand.opacity(showStroke ? (glowingPromptId == bit.id ? 0.85 : 0.55) : 0),
+                        lineWidth: showStroke ? 3 : 0
                     )
-                    .shadow(color: NADATheme.brand.opacity(glowingPromptId == bit.id ? 0.55 : 0), radius: 18)
+                    .shadow(color: NADATheme.brand.opacity(showsChrome && glowingPromptId == bit.id ? 0.55 : 0), radius: 18)
                     .animation(.spring(response: 0.34, dampingFraction: 0.62), value: glowingPromptId)
             }
     }
@@ -729,6 +890,54 @@ private struct DiscoverSkipStamp: View {
             .foregroundStyle(NADATheme.ink.opacity(isActive ? 0.42 : 0))
             .scaleEffect(isActive ? 1 : 0.45)
             .allowsHitTesting(false)
+    }
+}
+
+private struct DiscoverInlineCommentBar: View {
+    @Binding var text: String
+    var focused: FocusState<Bool>.Binding?
+    var isBusy: Bool
+    var onSend: () -> Void
+
+    private var canSend: Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count <= DiscoverLike.maxCommentLength
+            && !isBusy
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Group {
+                if let focused {
+                    field.focused(focused)
+                } else {
+                    field
+                }
+            }
+
+            Button(action: onSend) {
+                Text("Send click")
+            }
+            .buttonStyle(NADASoftCapsuleButtonStyle())
+            .disabled(!canSend)
+            .opacity(canSend ? 1 : 0.55)
+        }
+        .padding(.top, 0)
+    }
+
+    private var field: some View {
+        TextField("Add a comment", text: $text, axis: .vertical)
+            .font(NADATheme.bodyFont)
+            .foregroundStyle(NADATheme.ink)
+            .lineLimit(1...4)
+            .submitLabel(.done)
+            .onSubmit { focused?.wrappedValue = false }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(NADATheme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(NADATheme.hairline.opacity(0.8), lineWidth: 1)
+            }
     }
 }
 
