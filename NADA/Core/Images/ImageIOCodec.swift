@@ -74,15 +74,6 @@ enum ImageIOCodec {
         }
     }
 
-    /// Prefer WebP when ImageIO can encode it; JPEG otherwise.
-    static func encode(
-        _ image: UIImage,
-        maxPixelSize: CGFloat,
-        quality: CGFloat
-    ) -> EncodedImage? {
-        encodePrepared(downsample(image: image, maxPixelSize: maxPixelSize), quality: quality)
-    }
-
     /// Encodes an image that is already at its final pixel size.
     /// Only one codec runs — trying both and keeping the smaller doubled upload latency.
     static func encodePrepared(_ image: UIImage, quality: CGFloat) -> EncodedImage? {

@@ -15,6 +15,8 @@ struct ClickBackConnectionView: View {
     @FocusState private var messageFocused: Bool
     @State private var isVisible = false
     @State private var isExiting = false
+    @State private var dragOffset: CGFloat = 0
+    @State private var containerHeight: CGFloat = 0
 
     private var firstName: String {
         name.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? name
@@ -37,93 +39,97 @@ struct ClickBackConnectionView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                NADATheme.paper
-                    .opacity(isVisible ? 1 : 0)
-                    .ignoresSafeArea()
+        GeometryReader { geo in
+            let height = geo.size.height
+            NavigationStack {
+                ZStack {
+                    NADATheme.paper.ignoresSafeArea()
 
-                VStack(spacing: 0) {
-                    header
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
-                        .padding(.bottom, 4)
+                    VStack(spacing: 0) {
+                        header
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                            .padding(.bottom, 4)
 
-                    ScrollView {
-                        VStack(spacing: 18) {
-                            VStack(spacing: 8) {
-                                Text("New connection")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(NADATheme.brand)
+                        ScrollView {
+                            VStack(spacing: 18) {
+                                VStack(spacing: 8) {
+                                    Text("New connection")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(NADATheme.brand)
 
-                                Text(name)
-                                    .font(NADATheme.displayFont)
-                                    .foregroundStyle(NADATheme.ink)
-                                    .multilineTextAlignment(.center)
-
-                                Text(contextLine)
-                                    .font(.system(size: 15, weight: .medium))
-                                    .foregroundStyle(NADATheme.brand)
-
-                                if let incomingComment, !incomingComment.isEmpty {
-                                    Text(incomingComment)
-                                        .font(NADATheme.bodyFont)
-                                        .foregroundStyle(NADATheme.secondaryInk)
+                                    Text(name)
+                                        .font(NADATheme.displayFont)
+                                        .foregroundStyle(NADATheme.ink)
                                         .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 12)
+
+                                    Text(contextLine)
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundStyle(NADATheme.brand)
+
+                                    if let incomingComment, !incomingComment.isEmpty {
+                                        Text(incomingComment)
+                                            .font(NADATheme.bodyFont)
+                                            .foregroundStyle(NADATheme.secondaryInk)
+                                            .multilineTextAlignment(.center)
+                                            .padding(.horizontal, 12)
+                                    }
                                 }
-                            }
-                            .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity)
 
-                            featuredContent
+                                featuredContent
 
-                            messageField
+                                messageField
 
-                            Button {
-                                send()
-                            } label: {
-                                if isBusy {
-                                    ProgressView()
-                                        .tint(NADATheme.onBrand)
-                                        .frame(maxWidth: .infinity)
-                                } else {
-                                    Text("Say hi to \(firstName)")
+                                Button {
+                                    send()
+                                } label: {
+                                    if isBusy {
+                                        ProgressView()
+                                            .tint(NADATheme.onBrand)
+                                            .frame(maxWidth: .infinity)
+                                    } else {
+                                        Text("Say hi to \(firstName)")
+                                    }
                                 }
-                            }
-                            .nadaPrimaryCTA(enabled: canSend && !isExiting)
+                                .nadaPrimaryCTA(enabled: canSend && !isExiting)
 
-                            Button("Not now") { dismissAnimated() }
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(NADATheme.secondaryInk)
-                                .padding(.top, 2)
-                                .disabled(isBusy || isExiting)
+                                Button("Not now") { dismissAnimated() }
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(NADATheme.secondaryInk)
+                                    .padding(.top, 2)
+                                    .disabled(isBusy || isExiting)
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.top, 12)
+                            .padding(.bottom, 28)
                         }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 12)
-                        .padding(.bottom, 28)
+                        .scrollDismissesKeyboard(.immediately)
                     }
-                    .scrollDismissesKeyboard(.immediately)
                 }
-                .opacity(isVisible ? 1 : 0)
-                .offset(y: isVisible ? 0 : 36)
-                .scaleEffect(isVisible ? 1 : 0.97)
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { messageFocused = false }
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(NADATheme.brand)
+                .toolbar(.hidden, for: .navigationBar)
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") { messageFocused = false }
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(NADATheme.brand)
+                    }
                 }
             }
-        }
-        .onAppear {
-            guard !isVisible else { return }
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) {
-                isVisible = true
+            .offset(y: (isVisible ? 0 : height) + dragOffset)
+            .onAppear {
+                containerHeight = height
+                guard !isVisible, !isExiting else { return }
+                withAnimation(.smooth(duration: 0.42)) {
+                    isVisible = true
+                }
+            }
+            .onChange(of: height) { _, newHeight in
+                containerHeight = newHeight
             }
         }
+        .ignoresSafeArea(edges: .bottom)
     }
 
     private var header: some View {
@@ -138,6 +144,8 @@ struct ClickBackConnectionView: View {
             .accessibilityLabel("Close")
             Spacer()
         }
+        .contentShape(Rectangle())
+        .gesture(dismissDrag)
     }
 
     @ViewBuilder
@@ -195,9 +203,7 @@ struct ClickBackConnectionView: View {
                 .submitLabel(.done)
                 .onSubmit { messageFocused = false }
 
-            Button {
-                send()
-            } label: {
+            Button(action: send) {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(NADATheme.onBrand)
@@ -230,14 +236,37 @@ struct ClickBackConnectionView: View {
         exit(onDismiss)
     }
 
+    private var dismissDrag: some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onChanged { value in
+                guard !isExiting, !isBusy else { return }
+                if messageFocused { messageFocused = false }
+                dragOffset = max(0, value.translation.height)
+            }
+            .onEnded { value in
+                guard !isExiting, !isBusy else { return }
+                let height = max(containerHeight, 1)
+                let shouldDismiss = value.translation.height > height * 0.18
+                    || value.predictedEndTranslation.height > height * 0.4
+                if shouldDismiss {
+                    exit(onDismiss)
+                } else {
+                    withAnimation(.smooth(duration: 0.32)) {
+                        dragOffset = 0
+                    }
+                }
+            }
+    }
+
     private func exit(_ finish: @escaping () -> Void) {
         isExiting = true
         messageFocused = false
-        withAnimation(.easeIn(duration: 0.26)) {
+        withAnimation(.smooth(duration: 0.38)) {
             isVisible = false
+            dragOffset = 0
         }
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 260_000_000)
+            try? await Task.sleep(nanoseconds: 390_000_000)
             finish()
         }
     }

@@ -92,7 +92,6 @@ final class FirestorePreferencesService {
             "lookingForGenders": prefs.lookingForGenders.rawValue,
             "minAge": prefs.minAge,
             "maxAge": prefs.maxAge,
-            "buddyTypes": prefs.buddyTypes.map(\.rawValue),
             "notifyOnLikes": prefs.notifyOnLikes,
             "updatedAt": FieldValue.serverTimestamp()
         ]
@@ -101,9 +100,9 @@ final class FirestorePreferencesService {
             payload["city"] = city
         }
 
-        // Drop legacy single-value showMe when rewriting.
         if merge {
             payload["showMe"] = FieldValue.delete()
+            payload["buddyTypes"] = FieldValue.delete()
         }
 
         let document = database.collection(Self.collectionName).document(prefs.userId)
@@ -139,9 +138,6 @@ final class FirestorePreferencesService {
         let minAge = intValue(data["minAge"]) ?? UserPreferences.defaultMinAge
         let maxAge = intValue(data["maxAge"]) ?? UserPreferences.defaultMaxAge
 
-        let buddyRaw = data["buddyTypes"] as? [String] ?? []
-        let buddyTypes = buddyRaw.compactMap { UserPreferences.BuddyType(rawValue: $0) }
-
         return UserPreferences(
             userId: userId,
             city: data["city"] as? String,
@@ -150,7 +146,6 @@ final class FirestorePreferencesService {
             lookingForGenders: lookingFor,
             minAge: minAge,
             maxAge: maxAge,
-            buddyTypes: buddyTypes.isEmpty ? [.openToAll] : buddyTypes,
             notifyOnLikes: data["notifyOnLikes"] as? Bool ?? true,
             updatedAt: updatedAt
         )

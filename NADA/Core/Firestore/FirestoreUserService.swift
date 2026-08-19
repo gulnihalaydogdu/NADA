@@ -71,7 +71,6 @@ final class FirestoreUserService {
         gender: String?,
         city: String?,
         locale: String?,
-        photoURL: String? = nil,
         dateOfBirth: Date? = nil,
         jobTitle: String? = nil,
         university: String? = nil,
@@ -83,7 +82,6 @@ final class FirestoreUserService {
         if let gender { fields["gender"] = gender }
         if let city { fields["city"] = city }
         if let locale { fields["locale"] = locale }
-        if let photoURL { fields["photoURL"] = photoURL }
         if let dateOfBirth { fields["dateOfBirth"] = Timestamp(date: dateOfBirth) }
         if updateHangoutEssentials {
             fields["jobTitle"] = stringOrDelete(jobTitle, max: NADAUser.maxJobTitleLength)

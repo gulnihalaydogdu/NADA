@@ -12,8 +12,6 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
     var lookingForGenders: LookingForGender
     var minAge: Int
     var maxAge: Int
-    /// Hangout / friendship styles (multi-select; `openToAll` is exclusive).
-    var buddyTypes: [BuddyType]
     /// Like-push opt-out (W4-03). Missing in Firestore means true.
     var notifyOnLikes: Bool
     var updatedAt: Date?
@@ -38,26 +36,6 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
         }
     }
 
-    enum BuddyType: String, CaseIterable, Identifiable, Codable, Sendable {
-        case travelBuddy
-        case hangoutBuddy
-        case bestFriend
-        case gameBuddy
-        case openToAll
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .travelBuddy: return "Travel buddy"
-            case .hangoutBuddy: return "Hangout buddy"
-            case .bestFriend: return "Best friend"
-            case .gameBuddy: return "Game buddy"
-            case .openToAll: return "Open to all"
-            }
-        }
-    }
-
     static let absoluteMinAge = 18
     static let absoluteMaxAge = 99
     static let defaultMinAge = 18
@@ -71,7 +49,6 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
         lookingForGenders: LookingForGender = .everyone,
         minAge: Int = defaultMinAge,
         maxAge: Int = defaultMaxAge,
-        buddyTypes: [BuddyType] = [.openToAll],
         notifyOnLikes: Bool = true,
         updatedAt: Date? = nil
     ) {
@@ -83,7 +60,6 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
         let clamped = Self.clampAgeRange(min: minAge, max: maxAge)
         self.minAge = clamped.min
         self.maxAge = clamped.max
-        self.buddyTypes = Self.normalizedBuddyTypes(buddyTypes)
         self.notifyOnLikes = notifyOnLikes
         self.updatedAt = updatedAt
     }
@@ -112,13 +88,5 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
         var hi = Swift.min(Swift.max(max, absoluteMinAge), absoluteMaxAge)
         if lo > hi { swap(&lo, &hi) }
         return (lo, hi)
-    }
-
-    static func normalizedBuddyTypes(_ types: [BuddyType]) -> [BuddyType] {
-        let unique = Array(Set(types))
-        if unique.contains(.openToAll) || unique.isEmpty {
-            return [.openToAll]
-        }
-        return BuddyType.allCases.filter { unique.contains($0) && $0 != .openToAll }
     }
 }

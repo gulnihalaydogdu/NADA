@@ -111,10 +111,6 @@ struct NADAUser: Identifiable, Equatable, Sendable {
         Self.trimmed(hangoutLookingFor, max: Self.maxHangoutLookingForLength)
     }
 
-    var hasHangoutEssentials: Bool {
-        trimmedJobTitle != nil || trimmedUniversity != nil || trimmedHangoutLookingFor != nil
-    }
-
     static func trimmed(_ value: String?, max: Int) -> String? {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)

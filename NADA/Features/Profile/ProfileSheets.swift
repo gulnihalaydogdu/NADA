@@ -393,7 +393,6 @@ struct ProfilePreferencesSheet: View {
         prefs.lookingForGenders = lookingFor
         prefs.minAge = age.min
         prefs.maxAge = age.max
-        prefs.buddyTypes = [.openToAll]
 
         let ok = await auth.updatePreferences(prefs)
         if ok, let approxLatitude, let approxLongitude {
@@ -650,8 +649,7 @@ struct ProfilePreviewSheet: View {
             city: auth.currentUser?.city,
             jobTitle: auth.currentUser?.trimmedJobTitle,
             university: auth.currentUser?.trimmedUniversity,
-            hangoutLookingFor: auth.currentUser?.trimmedHangoutLookingFor,
-            openToGroups: nil
+            hangoutLookingFor: auth.currentUser?.trimmedHangoutLookingFor
         )
     }
 
@@ -961,8 +959,7 @@ struct ProfilePreviewBitCard: View {
                     city: "Istanbul",
                     jobTitle: "Student",
                     university: "Bilkent University",
-                    hangoutLookingFor: "Looking for a travel-buddy from Istanbul",
-                    openToGroups: nil
+                    hangoutLookingFor: "Looking for a travel-buddy from Istanbul"
                 )
             )
 

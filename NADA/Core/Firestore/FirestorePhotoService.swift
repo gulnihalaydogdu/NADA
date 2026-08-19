@@ -393,34 +393,6 @@ final class FirestorePhotoService {
         return photos
     }
 
-    func setPrimary(userId: String, photoId: String) async throws -> [ProfilePhoto] {
-        let collection = try photosCollection(userId: userId)
-        let snapshot = try await collection.getDocuments()
-        var photos = snapshot.documents.compactMap { mapPhoto(id: $0.documentID, data: $0.data()) }
-            .sorted { $0.sortOrder < $1.sortOrder }
-
-        guard let targetIndex = photos.firstIndex(where: { $0.id == photoId }) else {
-            throw AuthError.unknown("Photo not found.")
-        }
-
-        let batch = try requireDatabase().batch()
-        for index in photos.indices {
-            let isPrimary = index == targetIndex
-            photos[index].isPrimary = isPrimary
-            batch.updateData(
-                ["isPrimary": isPrimary],
-                forDocument: collection.document(photos[index].id)
-            )
-        }
-        try await batch.commit()
-        try await syncUserPhotoURL(
-            userId: userId,
-            url: photos[targetIndex].url,
-            thumbnailURL: photos[targetIndex].thumbnailURL
-        )
-        return photos
-    }
-
     /// Reorders photos. Index 0 is always primary and mirrored to `users/{uid}.photoURL`.
     func reorder(userId: String, orderedIds: [String]) async throws -> [ProfilePhoto] {
         let collection = try photosCollection(userId: userId)

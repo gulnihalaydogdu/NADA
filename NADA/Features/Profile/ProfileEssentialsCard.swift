@@ -9,7 +9,6 @@ struct ProfileEssentialsCard: View {
         var jobTitle: String?
         var university: String?
         var hangoutLookingFor: String?
-        var openToGroups: Bool?
     }
 
     let model: Model
@@ -57,7 +56,6 @@ struct ProfileEssentialsCard: View {
         !(model.jobTitle ?? "").isEmpty
             || !(model.university ?? "").isEmpty
             || !(model.hangoutLookingFor ?? "").isEmpty
-            || model.openToGroups == true
     }
 
     private var topRow: some View {
@@ -123,9 +121,6 @@ struct ProfileEssentialsCard: View {
         if let lookingFor = model.hangoutLookingFor, !lookingFor.isEmpty {
             rows.append(("magnifyingglass", lookingFor))
         }
-        if model.openToGroups == true {
-            rows.append(("person.2", "Open to including friends in groups"))
-        }
         return rows
     }
 
@@ -186,8 +181,7 @@ struct ProfileZodiacCaption: View {
             city: "Ankara",
             jobTitle: "Singer",
             university: "Istanbul Technical University",
-            hangoutLookingFor: "Looking for Guno",
-            openToGroups: nil
+            hangoutLookingFor: "Looking for Guno"
         )
     )
     .padding(24)

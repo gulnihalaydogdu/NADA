@@ -79,7 +79,6 @@ struct ProfileAvatarPicker: View {
             matching: PickerImageLoader.stillPhotosFilter,
             photoLibrary: .shared()
         )
-        .nadaStillPhotosPickerChrome()
         .onChange(of: libraryItem) { _, item in
             Task { await presentEditor(with: item, clearing: { libraryItem = nil }) }
         }
@@ -155,7 +154,6 @@ struct ProfileAvatarPicker: View {
                 matching: PickerImageLoader.stillPhotosFilter,
                 photoLibrary: .shared()
             )
-            .nadaStillPhotosPickerChrome()
             .onChange(of: replacementItem) { _, item in
                 Task { await replaceEditorImage(with: item) }
             }

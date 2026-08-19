@@ -23,8 +23,6 @@ final class AuthManager {
     /// Discover waits until the first card's primary photo is in cache (or a timeout).
     private(set) var isDiscoverLaunchReady = false
 
-    /// First feed page warmed during splash so Discover does not refetch on appear.
-    private var warmedDiscoverPage: DiscoverFeedPage?
     private var discoverWarmTask: Task<Void, Never>?
     private var didFinishDiscoverWarm = false
     private var didWarmLikeInbox = false
@@ -355,15 +353,6 @@ final class AuthManager {
                     cursor: discoverSessionCursor
                 )
             }
-            if let warmed = warmedDiscoverPage {
-                warmedDiscoverPage = nil
-                rememberDiscoverSession(
-                    queue: warmed.candidates,
-                    cursor: warmed.cursor,
-                    skipped: []
-                )
-                return warmed
-            }
         }
 
         return await fetchDiscoverFeedFromNetwork(
@@ -388,7 +377,6 @@ final class AuthManager {
         discoverSessionCursor = nil
         discoverSessionSkipped = []
         discoverSessionLoaded = false
-        warmedDiscoverPage = nil
     }
 
     private static let discoverLaunchTimeoutSeconds: TimeInterval = 6
@@ -433,7 +421,6 @@ final class AuthManager {
         )
         guard !Task.isCancelled, viewerId != nil, viewerId == currentUser?.id else { return }
         rememberDiscoverSession(queue: page.candidates, cursor: page.cursor, skipped: [])
-        warmedDiscoverPage = page
         guard let photo = page.candidates.first?.photos.first else { return }
 
         let size = ProfilePreviewPhotoTile.displayPointSize
@@ -539,10 +526,6 @@ final class AuthManager {
 
     func fetchIncomingLikes(cursor: String? = nil) async -> LikeInboxPage {
         await fetchLikeInbox(direction: .incoming, cursor: cursor)
-    }
-
-    func fetchSentLikes(cursor: String? = nil) async -> LikeInboxPage {
-        await fetchLikeInbox(direction: .sent, cursor: cursor)
     }
 
     func cachedLikeInbox(direction: LikeInboxDirection) -> LikeInboxPage? {
@@ -696,19 +679,6 @@ final class AuthManager {
     }
 
     @discardableResult
-    func addPhoto(_ image: UIImage, at index: Int? = nil) async -> [ProfilePhoto]? {
-        guard let userId = currentUser?.id else { return nil }
-        var result: [ProfilePhoto]?
-        await perform {
-            let list = try await self.photoService.addPhoto(userId: userId, image: image, at: index)
-            self.applyPhotoMutation(list, userId: userId)
-            try await self.syncProfileCompleteness(photoCount: list.count)
-            result = list
-        }
-        return result
-    }
-
-    @discardableResult
     func addPhotos(_ images: [UIImage], startingAt index: Int? = nil) async -> [ProfilePhoto]? {
         guard let userId = currentUser?.id, !images.isEmpty else { return nil }
         var result: [ProfilePhoto]?
@@ -750,18 +720,6 @@ final class AuthManager {
             let list = try await self.photoService.deletePhoto(userId: userId, photoId: id)
             self.applyPhotoMutation(list, userId: userId)
             try await self.syncProfileCompleteness(photoCount: list.count)
-            result = list
-        }
-        return result
-    }
-
-    @discardableResult
-    func setPrimaryPhoto(id: String) async -> [ProfilePhoto]? {
-        guard let userId = currentUser?.id else { return nil }
-        var result: [ProfilePhoto]?
-        await perform {
-            let list = try await self.photoService.setPrimary(userId: userId, photoId: id)
-            self.applyPhotoMutation(list, userId: userId)
             result = list
         }
         return result
@@ -875,7 +833,6 @@ final class AuthManager {
                 errorMessage = nil
                 isRevisitingBasicProfile = false
                 isDiscoverLaunchReady = true
-                warmedDiscoverPage = nil
                 clearSessionCaches()
             } catch {
                 errorMessage = error.localizedDescription
@@ -918,7 +875,6 @@ final class AuthManager {
             isResolvingProfile = false
             isRevisitingBasicProfile = false
             isDiscoverLaunchReady = true
-            warmedDiscoverPage = nil
             DevicePushRegistrar.shared.forgetUser()
             clearSessionCaches()
             return
@@ -1123,7 +1079,6 @@ final class AuthManager {
         cachedAnswers = []
         cachedAnswersUserId = nil
         didLoadAnswers = false
-        warmedDiscoverPage = nil
         discoverWarmTask?.cancel()
         discoverWarmTask = nil
         clearDiscoverSession()

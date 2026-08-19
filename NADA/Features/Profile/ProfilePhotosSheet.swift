@@ -112,7 +112,6 @@ struct ProfilePhotosEditor: View {
             matching: PickerImageLoader.stillPhotosFilter,
             photoLibrary: .shared()
         )
-        .nadaStillPhotosPickerChrome()
         .onChange(of: libraryItems) { _, items in
             guard !items.isEmpty else { return }
             Task { await enqueuePickedItems(items) }
@@ -141,7 +140,6 @@ struct ProfilePhotosEditor: View {
                     matching: PickerImageLoader.stillPhotosFilter,
                     photoLibrary: .shared()
                 )
-                .nadaStillPhotosPickerChrome()
                 .onChange(of: replacementItem) { _, item in
                     Task { await replaceRecropSource(with: item) }
                 }

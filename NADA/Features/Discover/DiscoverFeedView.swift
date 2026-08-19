@@ -178,7 +178,7 @@ struct DiscoverFeedView: View {
                         .rotationEffect(.degrees(skipBurst ? -7 : 0))
                         .opacity(skipBurst ? 0.55 : 1)
                         .allowsHitTesting(!skipBurst)
-                        .animation(.spring(response: 0.34, dampingFraction: 0.72), value: skipBurst)
+                        .animation(.spring(response: 0.22, dampingFraction: 0.78), value: skipBurst)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 24)
                     }
@@ -189,8 +189,8 @@ struct DiscoverFeedView: View {
                     }
                     .onChange(of: commentDraft?.scrollId) { _, scrollId in
                         guard let scrollId else { return }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-                            withAnimation(.easeOut(duration: 0.22)) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                            withAnimation(.easeOut(duration: 0.16)) {
                                 proxy.scrollTo(scrollId, anchor: .bottom)
                             }
                         }
@@ -287,7 +287,7 @@ struct DiscoverFeedView: View {
                         .scaleEffect(skipBurst ? 1.12 : 1)
                 }
                 .disabled(current == nil || isActionLocked)
-                .animation(.spring(response: 0.34, dampingFraction: 0.62), value: skipBurst)
+                .animation(.spring(response: 0.22, dampingFraction: 0.72), value: skipBurst)
                 .accessibilityLabel("Skip")
 
                 Button {
@@ -319,7 +319,7 @@ struct DiscoverFeedView: View {
                 }
                 .disabled(current == nil || isActionLocked)
                 .buttonStyle(NADATactilePressStyle())
-                .animation(.spring(response: 0.34, dampingFraction: 0.62), value: likeGlow)
+                .animation(.spring(response: 0.22, dampingFraction: 0.72), value: likeGlow)
                 .accessibilityLabel("Click profile")
             }
 
@@ -392,7 +392,7 @@ struct DiscoverFeedView: View {
 
         Task {
             let write = Task { await auth.skipDiscoverUser(current.id) }
-            try? await Task.sleep(nanoseconds: 380_000_000)
+            try? await Task.sleep(nanoseconds: 240_000_000)
             skipBurst = false
             if queue.first?.id == current.id {
                 removeCurrentFromQueue()
@@ -433,7 +433,7 @@ struct DiscoverFeedView: View {
         commentDraft = CommentDraft(toUserId: candidate.id, targetType: type, targetId: targetId)
         commentText = ""
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 60_000_000)
+            try? await Task.sleep(nanoseconds: 16_000_000)
             commentFieldFocused = true
         }
     }
@@ -480,7 +480,7 @@ struct DiscoverFeedView: View {
                 comment: comment
             )
         }
-        try? await Task.sleep(nanoseconds: 420_000_000)
+        try? await Task.sleep(nanoseconds: 260_000_000)
         likeGlow = nil
 
         var removed: DiscoverCandidate?
@@ -727,7 +727,7 @@ struct DiscoverCandidateStack: View {
             }
         }
         .id("photo-\(photo.id)")
-        .animation(.easeOut(duration: 0.2), value: commentingPhotoId)
+        .animation(.easeOut(duration: 0.14), value: commentingPhotoId)
     }
 
     private func bitBlock(_ bit: DiscoverBit) -> some View {
@@ -761,7 +761,7 @@ struct DiscoverCandidateStack: View {
             }
         }
         .id("prompt-\(bit.id)")
-        .animation(.easeOut(duration: 0.2), value: commentingPromptId)
+        .animation(.easeOut(duration: 0.14), value: commentingPromptId)
     }
 
     @ViewBuilder
@@ -806,7 +806,7 @@ struct DiscoverCandidateStack: View {
                     lineWidth: showStroke ? 3 : 0
                 )
                 .shadow(color: NADATheme.brand.opacity(!framed && glowingPhotoId == photo.id ? 0.55 : 0), radius: 18)
-                .animation(.spring(response: 0.34, dampingFraction: 0.62), value: glowingPhotoId)
+                .animation(.spring(response: 0.22, dampingFraction: 0.72), value: glowingPhotoId)
         }
     }
 
@@ -842,7 +842,7 @@ struct DiscoverCandidateStack: View {
                         lineWidth: showStroke ? 3 : 0
                     )
                     .shadow(color: NADATheme.brand.opacity(showsChrome && glowingPromptId == bit.id ? 0.55 : 0), radius: 18)
-                    .animation(.spring(response: 0.34, dampingFraction: 0.62), value: glowingPromptId)
+                    .animation(.spring(response: 0.22, dampingFraction: 0.72), value: glowingPromptId)
             }
     }
 
@@ -964,7 +964,7 @@ private struct DiscoverLikeHeartButton: View {
                 .scaleEffect(isGlowing ? 1.18 : 1)
         }
         .buttonStyle(NADATactilePressStyle())
-        .animation(.spring(response: 0.34, dampingFraction: 0.62), value: isGlowing)
+        .animation(.spring(response: 0.22, dampingFraction: 0.72), value: isGlowing)
         .accessibilityLabel(accessibilityLabel)
     }
 }

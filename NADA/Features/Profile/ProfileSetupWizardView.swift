@@ -501,7 +501,6 @@ struct ProfileSetupWizardView: View {
         prefs.lookingForGenders = lookingFor
         prefs.minAge = age.min
         prefs.maxAge = age.max
-        prefs.buddyTypes = [.openToAll]
 
         let prefsOK = await auth.updatePreferences(prefs)
         if !prefsOK {
