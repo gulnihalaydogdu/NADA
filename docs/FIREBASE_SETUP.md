@@ -279,6 +279,29 @@ Detay: [`docs/FIRESTORE_LIKES.md`](FIRESTORE_LIKES.md)
 
 ---
 
+## 8f. Matches API (W4-02)
+
+Detay: [`docs/FIRESTORE_MATCHES.md`](FIRESTORE_MATCHES.md)
+
+1. Firestore → **Rules** → `firebase/firestore.rules` yapıştır → **Publish** (`matches` bloğu)
+2. Indexes: `likes` `fromUserId` + `toUserId`; `matches` `userIds` (Arrays) + `createdAt`
+3. A, B’yi beğensin → henüz match yok
+4. B, A’yı beğensin → `matches/{küçükUid_büyükUid}` tek doküman
+5. `AuthManager.fetchMatches()` diğer kişiyi dönmeli
+
+---
+
+## 8g. Like + match push (W4-03)
+
+Detay: [`docs/FIRESTORE_PUSH.md`](FIRESTORE_PUSH.md)
+
+1. Blaze plan + `cd firebase/functions && npm install`
+2. `firebase deploy --only functions` (project `nada-app-33`)
+3. APNs `.p8` hâlâ Firebase Cloud Messaging’de yoksa gönderim loglanır, telefon sessiz kalır
+4. A, B’yi beğensin → B **New click**; B click-back → ikisine **You're mutuals**
+
+---
+
 ## 9. Notlar
 
 - Project ID: `nada-app-33`

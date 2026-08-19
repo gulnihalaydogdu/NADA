@@ -7,8 +7,8 @@ struct DiscoverLikeCommentSheet: View {
     let title: String
     var subtitle: String = "Add a short note (optional) — hangout vibes only."
     var placeholder: String = "Say why you’re down to hang…"
-    var sendTitle: String = "Send like"
-    var navigationTitle: String = "Like"
+    var sendTitle: String = "Send click"
+    var navigationTitle: String = "Click"
     var isBusy = false
     let onSend: (String?) -> Void
 

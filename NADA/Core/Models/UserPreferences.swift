@@ -14,6 +14,8 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
     var maxAge: Int
     /// Hangout / friendship styles (multi-select; `openToAll` is exclusive).
     var buddyTypes: [BuddyType]
+    /// Like-push opt-out (W4-03). Missing in Firestore means true.
+    var notifyOnLikes: Bool
     var updatedAt: Date?
 
     var id: String { userId }
@@ -70,6 +72,7 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
         minAge: Int = defaultMinAge,
         maxAge: Int = defaultMaxAge,
         buddyTypes: [BuddyType] = [.openToAll],
+        notifyOnLikes: Bool = true,
         updatedAt: Date? = nil
     ) {
         self.userId = userId
@@ -81,6 +84,7 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
         self.minAge = clamped.min
         self.maxAge = clamped.max
         self.buddyTypes = Self.normalizedBuddyTypes(buddyTypes)
+        self.notifyOnLikes = notifyOnLikes
         self.updatedAt = updatedAt
     }
 

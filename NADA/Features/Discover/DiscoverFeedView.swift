@@ -3,6 +3,7 @@ import SwiftUI
 /// One-at-a-time Discover feed — loads candidates from W3-01.
 struct DiscoverFeedView: View {
     @Environment(AuthManager.self) private var auth
+    @Environment(\.presentMutualClickMoment) private var presentMutualClickMoment
 
     @State private var queue: [DiscoverCandidate] = []
     @State private var cursor: String?
@@ -304,11 +305,12 @@ struct DiscoverFeedView: View {
                         .scaleEffect(likeGlow == .profile ? 1.12 : 1)
                 }
                 .disabled(current == nil || isActionLocked)
+                .buttonStyle(NADATactilePressStyle())
                 .animation(.spring(response: 0.34, dampingFraction: 0.62), value: likeGlow)
-                .accessibilityLabel("Like profile")
+                .accessibilityLabel("Click profile")
             }
 
-            Text("Like a photo, a Bit, or the whole profile. Skip to pass — Undo brings them back.")
+            Text("Click a photo, a Bit, or the whole profile. Skip to pass — Undo brings them back.")
                 .font(NADATheme.captionFont)
                 .foregroundStyle(NADATheme.secondaryInk)
                 .multilineTextAlignment(.center)
@@ -427,8 +429,21 @@ struct DiscoverFeedView: View {
                 recoverFailedRemoval(removed)
             }
             if auth.errorMessage == nil {
-                localError = "Couldn't send that like."
+                localError = "Couldn't send that click."
             }
+            return
+        }
+
+        if liked?.match != nil, let other = removed ?? queue.first(where: { $0.id == toUserId }) {
+            let photo = other.photos.first
+            await presentMutualClickMoment(
+                MutualClickSnapshot(
+                    viewerURL: auth.currentUser?.photoURL,
+                    viewerThumb: auth.currentUser?.photoThumbnailURL,
+                    otherURL: photo?.url,
+                    otherThumb: photo?.thumbnailURL
+                )
+            )
         }
     }
 
@@ -618,7 +633,7 @@ struct DiscoverCandidateStack: View {
             if onLikePhoto != nil {
                 DiscoverLikeHeartButton(
                     isGlowing: glowingPhotoId == photo.id,
-                    accessibilityLabel: "Like this photo"
+                    accessibilityLabel: "Click this photo"
                 ) {
                     onLikePhoto?(photo)
                 }
@@ -650,7 +665,7 @@ struct DiscoverCandidateStack: View {
                 if onLikeBit != nil {
                     DiscoverLikeHeartButton(
                         isGlowing: glowingPromptId == bit.id,
-                        accessibilityLabel: "Like this Bit"
+                        accessibilityLabel: "Click this Bit"
                     ) {
                         onLikeBit?(bit)
                     }
@@ -739,7 +754,7 @@ private struct DiscoverLikeHeartButton: View {
                 )
                 .scaleEffect(isGlowing ? 1.18 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NADATactilePressStyle())
         .animation(.spring(response: 0.34, dampingFraction: 0.62), value: isGlowing)
         .accessibilityLabel(accessibilityLabel)
     }

@@ -71,8 +71,13 @@ struct NADAPrimaryButtonStyle: ButtonStyle {
                 radius: isEnabled ? 10 : 0,
                 y: isEnabled ? 4 : 0
             )
-            .scaleEffect(pressed ? 0.985 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(pressed ? 0.96 : 1)
+            .animation(
+                configuration.isPressed
+                    ? .easeOut(duration: 0.09)
+                    : .spring(response: 0.22, dampingFraction: 0.86),
+                value: configuration.isPressed
+            )
     }
 }
 

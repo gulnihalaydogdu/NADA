@@ -93,6 +93,7 @@ final class FirestorePreferencesService {
             "minAge": prefs.minAge,
             "maxAge": prefs.maxAge,
             "buddyTypes": prefs.buddyTypes.map(\.rawValue),
+            "notifyOnLikes": prefs.notifyOnLikes,
             "updatedAt": FieldValue.serverTimestamp()
         ]
 
@@ -150,6 +151,7 @@ final class FirestorePreferencesService {
             minAge: minAge,
             maxAge: maxAge,
             buddyTypes: buddyTypes.isEmpty ? [.openToAll] : buddyTypes,
+            notifyOnLikes: data["notifyOnLikes"] as? Bool ?? true,
             updatedAt: updatedAt
         )
     }

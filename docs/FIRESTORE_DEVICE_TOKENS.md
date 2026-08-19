@@ -1,6 +1,6 @@
 # Firestore — device tokens (W3-05 / W3-09)
 
-FCM registration tokens for APNs. Week 4 sends like / match pushes to these docs.
+FCM registration tokens for APNs. Like / match sends are W4-03 ([`FIRESTORE_PUSH.md`](FIRESTORE_PUSH.md)).
 
 **Code:** `FirestoreDeviceTokenService`, `DevicePushRegistrar`, `NADAAppDelegate`  
 **Rules:** `firebase/firestore.rules` — **Publish** the `deviceTokens` block.

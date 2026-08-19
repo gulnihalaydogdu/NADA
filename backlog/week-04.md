@@ -27,14 +27,18 @@
 
 ### W4-02 — Match creation on mutual like
 - **P0 · 1.5d** — When both like, create a Match; idempotent.
-- [ ] Detect mutual like reliably
-- [ ] One Match per pair; store createdAt
-- [ ] Expose match list
+- [x] Detect mutual like reliably
+- [x] One Match per pair; store createdAt
+- [x] Expose match list
+
+**Ship notes:** `matches/{minUid_maxUid}` with `userAId` / `userBId` / `userIds` / `createdAt`. Written from `likeDiscoverTarget` (returns `DiscoverLikeOutcome.match`) and from `onLikeCreated` if the client misses it. Sign-in backfills older mutual likes. Blocks are skipped. `fetchMatches` is the list API; Matches tab UI is W4-07. Docs: [`docs/FIRESTORE_MATCHES.md`](../docs/FIRESTORE_MATCHES.md).
 
 ### W4-03 — Match + likes notifications
 - **P0 · 1d** — Push on new match and (optionally) new like via APNs.
-- [ ] Match push to both users
-- [ ] New-like push (respect quiet settings)
+- [x] Match push to both users
+- [x] New-like push (respect quiet settings)
+
+**Ship notes:** Cloud Functions `onLikeCreated` / `onMatchCreated` in `firebase/functions`. Like-back skips the like banner (match push covers it). `preferences.notifyOnLikes` (default true) mutes like pushes only. Live APNs still needs the paid `.p8` in Firebase. Docs: [`docs/FIRESTORE_PUSH.md`](../docs/FIRESTORE_PUSH.md). W4-08 handles tap → screen.
 
 ### W4-04 — Unmatch endpoint (prep for Week 5)
 - **P1 · 0.5d** — Unmatch hides match + chat.
@@ -54,13 +58,17 @@
 
 ### W4-06 — Sent likes view
 - **P1 · 0.5d** — See outgoing likes and their status.
-- [x] Sent tab in the Likes segment with "Waiting to hear back" status
+- [x] **Dropped** — outgoing likes stay private. No waiting/rejected state, no name after you like. Like-back lands in Matches.
+
+**Ship notes:** Sent segment removed from Likes. `fetchSentLikes` remains as an API if needed later; the UI does not call it.
 
 ### W4-07 — Match screen + Matches list
 - **P0 · 1.5d** — Celebratory match screen; Matches tab list.
-- [ ] Match animation (success color)
-- [ ] Matches list sorted by recent
+- [x] Match animation (success color)
+- [x] Matches list sorted by recent
 - [ ] Entry point to chat (chat itself in Week 5)
+
+**Ship notes:** `MatchesListView` lists `fetchMatches` (name + avatar + time). Click-back from Clicks plays a small inline “It’s mutual.” moment, then opens this tab. Chat entry is Week 5.
 
 ### W4-08 — Push handling
 - **P0 · 1d** — Handle match/like pushes; deep-link to Likes/Matches.
@@ -85,9 +93,9 @@
 
 ## Ship gate
 - [x] Incoming likes visible with context
-- [ ] Mutual like creates exactly one Match
+- [x] Mutual like creates exactly one Match
 - [ ] Match + like pushes delivered and deep-link correctly
-- [ ] Matches list populated
+- [x] Matches list populated
 
 ## Spillover to Week 5
 - [ ] …

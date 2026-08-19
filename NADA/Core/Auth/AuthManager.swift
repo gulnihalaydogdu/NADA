@@ -41,6 +41,7 @@ final class AuthManager {
     private let discoverService: FirestoreDiscoverService
     private let likeService: FirestoreLikeService
     private let skipService: FirestoreSkipService
+    private let matchService: FirestoreMatchService
     private var authStateHandle: AuthStateHandle?
 
     private var cachedPhotos: [ProfilePhoto] = []
@@ -60,6 +61,7 @@ final class AuthManager {
         self.discoverService = FirestoreDiscoverService()
         self.likeService = FirestoreLikeService()
         self.skipService = FirestoreSkipService()
+        self.matchService = FirestoreMatchService()
     }
 
     var hasCompletedFriendsIntent: Bool {
@@ -440,11 +442,11 @@ final class AuthManager {
         targetType: DiscoverLike.TargetType,
         targetId: String,
         comment: String? = nil
-    ) async -> DiscoverLike? {
+    ) async -> DiscoverLikeOutcome? {
         guard let fromUserId = currentUser?.id else { return nil }
-        var result: DiscoverLike?
+        var like: DiscoverLike?
         await perform {
-            result = try await self.likeService.createLike(
+            like = try await self.likeService.createLike(
                 fromUserId: fromUserId,
                 toUserId: toUserId,
                 targetType: targetType,
@@ -452,9 +454,46 @@ final class AuthManager {
                 comment: comment
             )
         }
+        guard let like else { return nil }
+
+        var match: NADAMatch?
+        do {
+            match = try await ensureMatchIfMutual(fromUserId: fromUserId, toUserId: toUserId)
+        } catch {
+            // Like already landed. Cloud Function / repairMutualMatches can create the doc.
+        }
         await likeService.refreshIncomingLikerCount()
         dropCachedInboxUser(toUserId)
-        return result
+        return DiscoverLikeOutcome(like: like, match: match)
+    }
+
+    /// Active matches for the signed-in user, newest first (W4-02). UI is W4-07.
+    func fetchMatches(cursor: String? = nil) async throws -> MatchListPage {
+        guard let userId = currentUser?.id else { return .empty }
+        return try await matchService.fetchMatches(viewerId: userId, cursor: cursor)
+    }
+
+    private func ensureMatchIfMutual(fromUserId: String, toUserId: String) async throws -> NADAMatch? {
+        if await matchService.isBlockedPair(userId: fromUserId, otherUserId: toUserId) {
+            return nil
+        }
+        let theyLikedBack = try await likeService.hasLike(fromUserId: toUserId, toUserId: fromUserId)
+        guard theyLikedBack else { return nil }
+        return try await matchService.ensureMatch(userId: fromUserId, otherUserId: toUserId)
+    }
+
+    /// Fills in matches for pairs that liked each other before W4-02 shipped.
+    func repairMutualMatches() async {
+        guard let userId = currentUser?.id else { return }
+        do {
+            async let outgoing = likeService.fetchLikedUserIds(fromUserId: userId)
+            async let incoming = likeService.fetchIncomingFromUserIds(toUserId: userId)
+            let mutual = try await outgoing.intersection(incoming)
+            guard !mutual.isEmpty else { return }
+            try await matchService.ensureMatches(viewerId: userId, otherIds: mutual)
+        } catch {
+            // Index / rules not published yet — like still works; match list stays empty.
+        }
     }
 
     func fetchIncomingLikes(cursor: String? = nil) async -> LikeInboxPage {
@@ -486,6 +525,7 @@ final class AuthManager {
         if let firstId = page.items.first?.otherUser.id {
             Task { _ = await fetchInboxProfile(userId: firstId) }
         }
+        await repairMutualMatches()
     }
 
     func fetchInboxProfile(userId: String) async -> DiscoverCandidate? {
@@ -512,13 +552,18 @@ final class AuthManager {
         let photos = cachedPhotosUserId == userId ? cachedPhotos : []
         let answers = cachedAnswersUserId == userId ? cachedAnswers : []
         do {
-            return try await likeService.fetchInbox(
+            let page = try await likeService.fetchInbox(
                 direction: direction,
                 viewerId: userId,
                 cursor: cursor,
                 viewerPhotos: photos,
                 viewerAnswers: answers
             )
+            if errorMessage?.contains("Can't read clicks") == true
+                || errorMessage?.contains("Can't load clicks") == true {
+                errorMessage = nil
+            }
+            return page
         } catch {
             errorMessage = Self.likesInboxErrorMessage(error)
             return .empty
@@ -970,10 +1015,24 @@ final class AuthManager {
         }
         let text = error.localizedDescription.lowercased()
         if text.contains("requires an index") || text.contains("failed-precondition") {
-            return "Can't load likes yet. Create the Firestore composite index for likes (toUserId/fromUserId + createdAt) from firebase/firestore.indexes.json."
+            return "Can't load clicks yet. Create the Firestore composite index for likes (toUserId/fromUserId + createdAt) from firebase/firestore.indexes.json."
         }
         if text.contains("permission") || text.contains("missing or insufficient") {
-            return "Can't read likes yet. Publish firebase/firestore.rules so you can list likes sent to or from you."
+            return "Can't read clicks yet. Publish firebase/firestore.rules so you can list clicks sent to or from you."
+        }
+        return error.localizedDescription
+    }
+
+    static func matchesListErrorMessage(_ error: Error) -> String {
+        if let authError = error as? AuthError, let text = authError.errorDescription {
+            return text
+        }
+        let text = error.localizedDescription.lowercased()
+        if text.contains("requires an index") || text.contains("failed-precondition") {
+            return "Can't load mutuals yet. Create the Firestore index for matches (userIds + createdAt) from firebase/firestore.indexes.json."
+        }
+        if text.contains("permission") || text.contains("missing or insufficient") {
+            return "Can't read mutuals yet. Publish firebase/firestore.rules (the matches block) in Firebase Console."
         }
         return error.localizedDescription
     }

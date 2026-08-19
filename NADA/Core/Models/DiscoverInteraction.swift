@@ -39,3 +39,9 @@ struct DiscoverSkip: Identifiable, Equatable, Sendable {
         "\(fromUserId)_\(toUserId)"
     }
 }
+
+/// Like write plus a Match when this like completed the pair (W4-02).
+struct DiscoverLikeOutcome: Equatable, Sendable {
+    let like: DiscoverLike
+    let match: NADAMatch?
+}

@@ -144,5 +144,39 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if isBlocker();
     }
+
+    // Mutual like (W4-02). One doc per pair; id is minUid_maxUid.
+    // List queries `userIds array-contains me` — rules must use `in userIds`,
+    // not userAId/userBId, or Firestore denies the query.
+    match /matches/{matchId} {
+      function isMatchParticipant() {
+        return isSignedIn() && request.auth.uid in resource.data.userIds;
+      }
+
+      function isMatchParticipantCreate() {
+        return isSignedIn()
+               && (request.auth.uid == request.resource.data.userAId
+                   || request.auth.uid == request.resource.data.userBId);
+      }
+
+      function validMatchCreate() {
+        return request.resource.data.keys().hasOnly(['userAId', 'userBId', 'userIds', 'createdAt'])
+               && request.resource.data.userAId is string
+               && request.resource.data.userBId is string
+               && request.resource.data.userAId < request.resource.data.userBId
+               && matchId == request.resource.data.userAId + '_' + request.resource.data.userBId
+               && request.resource.data.userIds is list
+               && request.resource.data.userIds.size() == 2
+               && request.resource.data.userIds.hasAll([
+                    request.resource.data.userAId,
+                    request.resource.data.userBId
+                  ])
+               && request.resource.data.createdAt == request.time;
+      }
+
+      allow get, list: if isMatchParticipant();
+      allow create: if isMatchParticipantCreate() && validMatchCreate();
+      allow update, delete: if false;
+    }
   }
 }
