@@ -148,9 +148,7 @@ struct ProfileTabView: View {
             }
             .frame(height: 8)
 
-            Text("Job, school, hangout looking-for, and interests add the last 10%.")
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.warmSecondaryInk)
+        
         }
         .animation(.easeOut(duration: 0.25), value: completion.percentComplete)
         .animation(.easeOut(duration: 0.25), value: auth.isProfileComplete)
