@@ -1,6 +1,6 @@
 import Foundation
 
-/// Mutual like (W4-02). One doc per pair; `unmatchedAt` is W4-04.
+/// Mutual like (W4-02). One doc per pair; `unmatchedAt` hides it for both (W4-04).
 struct NADAMatch: Identifiable, Equatable, Sendable {
     let id: String
     var userAId: String

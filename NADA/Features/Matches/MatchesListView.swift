@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Mutuals list (W4-02). Chat unlock is Week 5.
+/// Mutuals list (W4-02). Long-press to unmatch (W4-04). Chat unlock is Week 5.
 struct MatchesListView: View {
     @Environment(AuthManager.self) private var auth
 
@@ -10,6 +10,9 @@ struct MatchesListView: View {
     @State private var isLoading = false
     @State private var isPaging = false
     @State private var localError: String?
+    @State private var pendingUnmatch: MatchListItem?
+    @State private var showUnmatchConfirm = false
+    @State private var isUnmatching = false
 
     var body: some View {
         ZStack {
@@ -38,6 +41,23 @@ struct MatchesListView: View {
         .onAppear {
             guard hasLoaded else { return }
             Task { await reload() }
+        }
+        .confirmationDialog(
+            "Remove from Mutuals?",
+            isPresented: $showUnmatchConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) {
+                guard let item = pendingUnmatch else { return }
+                Task { await confirmUnmatch(item) }
+            }
+            Button("Keep", role: .cancel) {}
+        } message: {
+            if let name = pendingUnmatch?.otherUser.displayName {
+                Text("You and \(name) will both lose this connection.")
+            } else {
+                Text("You’ll both lose this connection.")
+            }
         }
     }
 
@@ -71,6 +91,12 @@ struct MatchesListView: View {
                 LazyVStack(spacing: 14) {
                     ForEach(items) { item in
                         MatchesListRow(item: item)
+                            .contextMenu {
+                                Button("Remove from Mutuals", role: .destructive) {
+                                    pendingUnmatch = item
+                                    showUnmatchConfirm = true
+                                }
+                            }
                     }
 
                     if cursor != nil {
@@ -173,6 +199,21 @@ struct MatchesListView: View {
             return (url, size)
         }
         RemoteImageLoader.shared.prefetchOrdered(Array(ordered))
+    }
+
+    private func confirmUnmatch(_ item: MatchListItem) async {
+        guard !isUnmatching else { return }
+        isUnmatching = true
+        pendingUnmatch = nil
+        showUnmatchConfirm = false
+        localError = nil
+        let ok = await auth.unmatch(matchId: item.match.id)
+        if ok {
+            items.removeAll { $0.id == item.id }
+        } else {
+            localError = auth.errorMessage ?? "Couldn't remove that mutual. Try again."
+        }
+        isUnmatching = false
     }
 }
 

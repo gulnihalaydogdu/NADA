@@ -288,6 +288,7 @@ Detay: [`docs/FIRESTORE_MATCHES.md`](FIRESTORE_MATCHES.md)
 3. A, B’yi beğensin → henüz match yok
 4. B, A’yı beğensin → `matches/{küçükUid_büyükUid}` tek doküman
 5. `AuthManager.fetchMatches()` diğer kişiyi dönmeli
+6. Mutuals’ta satıra basılı tut → Remove. `unmatchedAt` yazılır; iki tarafta da listeden düşer (W4-04 — rules’ı yeniden Publish)
 
 ---
 
@@ -299,6 +300,7 @@ Detay: [`docs/FIRESTORE_PUSH.md`](FIRESTORE_PUSH.md)
 2. `firebase deploy --only functions` (project `nada-app-33`)
 3. APNs `.p8` hâlâ Firebase Cloud Messaging’de yoksa gönderim loglanır, telefon sessiz kalır
 4. A, B’yi beğensin → B **New click**; B click-back → ikisine **You're mutuals**
+5. Banner’a basınca **New click** → Clicks, **You're mutuals** → Mutuals (uygulama açıkken ve kapalıyken)
 
 ---
 

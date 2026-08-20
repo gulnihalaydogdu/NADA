@@ -105,7 +105,11 @@ enum ZodiacSign: String, Equatable, Sendable {
 }
 
 extension NADAUser {
+    /// Gate into the photos wizard. The stepped basics flow sets `basicProfileSetupCompleted`.
+    /// Older accounts that filled name + gender + age + city on one screen still count.
     var hasCompletedBasicProfile: Bool {
+        if basicProfileSetupCompleted { return true }
+
         let name = displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let city = city?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let gender = gender?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

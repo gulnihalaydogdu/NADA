@@ -174,9 +174,19 @@ service cloud.firestore {
                && request.resource.data.createdAt == request.time;
       }
 
+      function validUnmatchUpdate() {
+        return isMatchParticipant()
+               && !('unmatchedAt' in resource.data)
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unmatchedAt'])
+               && request.resource.data.unmatchedAt is timestamp
+               && request.resource.data.unmatchedAt == request.time;
+      }
+
       allow get, list: if isMatchParticipant();
       allow create: if isMatchParticipantCreate() && validMatchCreate();
-      allow update, delete: if false;
+      // W4-04: a participant may stamp unmatchedAt once. No other edits, no delete.
+      allow update: if validUnmatchUpdate();
+      allow delete: if false;
     }
   }
 }

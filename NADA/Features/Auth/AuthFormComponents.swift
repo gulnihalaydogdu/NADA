@@ -1,11 +1,13 @@
 import SwiftUI
+import UIKit
 
 struct NADAOnboardingHeader: View {
     let title: String
     let subtitle: String
+    var titleToSubtitle: CGFloat = NADATheme.Layout.titleToSubtitle
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NADATheme.Layout.titleToSubtitle) {
+        VStack(alignment: .leading, spacing: titleToSubtitle) {
             Text(title)
                 .font(NADATheme.displayFont)
                 .foregroundStyle(NADATheme.ink)
@@ -235,6 +237,37 @@ struct NADAOnboardingNavBar: View {
     }
 }
 
+/// Shared 9-step meter from name through hangout preferences.
+struct NADAOnboardingProgressBar: View {
+    let currentIndex: Int
+
+    private var total: Int { OnboardingSetupProgress.totalCount }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text("\(currentIndex + 1) of \(total)")
+                .font(NADATheme.captionFont)
+                .foregroundStyle(NADATheme.secondaryInk)
+
+            HStack(spacing: 6) {
+                ForEach(0..<total, id: \.self) { index in
+                    Capsule()
+                        .fill(index <= currentIndex ? NADATheme.brand : NADATheme.brandSoft)
+                        .frame(height: NADATheme.Layout.progressHeight)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Step \(currentIndex + 1) of \(total)")
+    }
+}
+
+enum OnboardingSetupProgress {
+    static let basicsCount = 4
+    static let totalCount = 9
+}
+
 extension View {
     /// Replaces the system back button with the coral NADA one and keeps the
     /// paper background visible behind the navigation bar.
@@ -282,5 +315,18 @@ enum AuthAppleSignIn {
         } catch {
             auth.presentError((error as? AuthError)?.errorDescription ?? error.localizedDescription)
         }
+    }
+}
+
+enum NADAKeyboard {
+    static func resign() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+}
+
+extension View {
+    func nadaDismissKeyboardOnTap() -> some View {
+        contentShape(Rectangle())
+            .onTapGesture { NADAKeyboard.resign() }
     }
 }

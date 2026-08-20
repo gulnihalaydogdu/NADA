@@ -30,6 +30,8 @@ struct NADAUser: Identifiable, Equatable, Sendable {
     var locale: String?
     var createdAt: Date?
     var friendsIntentCompleted: Bool
+    /// Finished the post-signup name / gender / age / city steps (Skip allowed after name).
+    var basicProfileSetupCompleted: Bool
     /// Soft profile setup shell (Photos → Bits → Discover card → Interests → Preferences). Skip allowed.
     var profileWizardCompleted: Bool
     /// Discover gate (W2-06): photos≥1, bits≥3, gender, city.
@@ -60,6 +62,7 @@ struct NADAUser: Identifiable, Equatable, Sendable {
         locale: String? = nil,
         createdAt: Date? = nil,
         friendsIntentCompleted: Bool = false,
+        basicProfileSetupCompleted: Bool = false,
         profileWizardCompleted: Bool = false,
         isProfileComplete: Bool = false,
         interestIds: [String] = []
@@ -82,6 +85,7 @@ struct NADAUser: Identifiable, Equatable, Sendable {
         self.locale = locale
         self.createdAt = createdAt
         self.friendsIntentCompleted = friendsIntentCompleted
+        self.basicProfileSetupCompleted = basicProfileSetupCompleted
         self.profileWizardCompleted = profileWizardCompleted
         self.isProfileComplete = isProfileComplete
         self.interestIds = InterestSelection.normalized(interestIds)

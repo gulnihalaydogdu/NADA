@@ -146,22 +146,80 @@ final class AuthManager {
         }
     }
 
-    /// Skip remaining setup and enter the app. Discover stays gated on `isProfileComplete`.
+    /// Writes the name (required) plus any gender / city / birthday already chosen.
+    /// Empty optional fields are left unchanged so Skip can leave them for later.
     @discardableResult
-    func skipRemainingOnboarding() async -> Bool {
+    func completeBasicProfileOnboarding(
+        displayName: String,
+        gender: ProfileGender?,
+        city: String,
+        dateOfBirth: Date?
+    ) async -> Bool {
         guard let userId = currentUser?.id else { return false }
+
+        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            errorMessage = "Name is required."
+            return false
+        }
+
+        if let dateOfBirth, !ProfileAge.isAtLeastMinimumAge(dateOfBirth) {
+            errorMessage = "You must be \(ProfileAge.minimumAge) or older to use NADA."
+            return false
+        }
+
+        let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cityToSave = trimmedCity.isEmpty ? nil : trimmedCity
+
         var didSucceed = false
         await perform {
-            var updated = self.currentUser
-            if updated?.friendsIntentCompleted != true {
-                updated = try await self.userService.setFriendsIntentCompleted(
+            let updated = try await self.userService.updateProfile(
+                userId: userId,
+                displayName: trimmedName,
+                gender: gender?.rawValue,
+                city: cityToSave,
+                locale: nil,
+                dateOfBirth: dateOfBirth,
+                markBasicProfileSetupCompleted: true
+            )
+            self.currentUser = updated
+            if let cityToSave {
+                self.currentPreferences = try await self.preferencesService.syncCity(
                     userId: userId,
-                    isCompleted: true
+                    city: cityToSave,
+                    seedFrom: updated
                 )
             }
-            updated = try await self.userService.setProfileWizardCompleted(userId: userId)
-            self.currentUser = updated
+            try await self.syncProfileCompleteness()
             self.isRevisitingBasicProfile = false
+            didSucceed = true
+        }
+        return didSucceed
+    }
+
+    /// Job / university / hangout looking-for on the Discover card. Does not require city or gender.
+    @discardableResult
+    func updateHangoutEssentials(
+        jobTitle: String,
+        university: String,
+        hangoutLookingFor: String
+    ) async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+
+        var didSucceed = false
+        await perform {
+            let updated = try await self.userService.updateProfile(
+                userId: userId,
+                displayName: nil,
+                gender: nil,
+                city: nil,
+                locale: nil,
+                jobTitle: jobTitle,
+                university: university,
+                hangoutLookingFor: hangoutLookingFor,
+                updateHangoutEssentials: true
+            )
+            self.currentUser = updated
             didSucceed = true
         }
         return didSucceed
@@ -507,7 +565,20 @@ final class AuthManager {
         }
         let theyLikedBack = try await likeService.hasLike(fromUserId: toUserId, toUserId: fromUserId)
         guard theyLikedBack else { return nil }
-        return try await matchService.ensureMatch(userId: fromUserId, otherUserId: toUserId)
+        let match = try await matchService.ensureMatch(userId: fromUserId, otherUserId: toUserId)
+        return match.isActive ? match : nil
+    }
+
+    /// Hides a mutual for both people (W4-04). Chat hide lands with Week 5.
+    @discardableResult
+    func unmatch(matchId: String) async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+        var ok = false
+        await perform {
+            _ = try await self.matchService.unmatch(viewerId: userId, matchId: matchId)
+            ok = true
+        }
+        return ok
     }
 
     /// Fills in matches for pairs that liked each other before W4-02 shipped.
@@ -1033,7 +1104,7 @@ final class AuthManager {
             return "Can't load mutuals yet. Create the Firestore index for matches (userIds + createdAt) from firebase/firestore.indexes.json."
         }
         if text.contains("permission") || text.contains("missing or insufficient") {
-            return "Can't read mutuals yet. Publish firebase/firestore.rules (the matches block) in Firebase Console."
+            return "Can't update mutuals yet. Publish firebase/firestore.rules (the matches block, including unmatch) in Firebase Console."
         }
         return error.localizedDescription
     }

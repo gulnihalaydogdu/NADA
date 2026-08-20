@@ -14,6 +14,7 @@ final class FirestoreMatchService {
     }
 
     /// Creates `matches/{minUid_maxUid}` if missing. Same pair always maps to one doc.
+    /// Does not clear `unmatchedAt` — rematch is Week 5.
     @discardableResult
     func ensureMatch(userId: String, otherUserId: String) async throws -> NADAMatch {
         guard let database else { throw AuthError.notConfigured }
@@ -26,6 +27,11 @@ final class FirestoreMatchService {
         let userBId = ids[1]
         let docId = NADAMatch.documentId(userId: userId, otherUserId: otherUserId)
         let document = database.collection(Self.collectionName).document(docId)
+
+        let existing = try await document.getDocument()
+        if existing.exists, let data = existing.data() {
+            return mapMatch(id: docId, data: data)
+        }
 
         let payload: [String: Any] = [
             "userAId": userAId,
@@ -44,12 +50,58 @@ final class FirestoreMatchService {
                 unmatchedAt: nil
             )
         } catch {
-            let existing = try await document.getDocument()
-            if existing.exists, let data = existing.data() {
+            let raced = try await document.getDocument()
+            if raced.exists, let data = raced.data() {
                 return mapMatch(id: docId, data: data)
             }
             throw error
         }
+    }
+
+    /// Hides the match for both people (W4-04). Idempotent if already unmatched.
+    @discardableResult
+    func unmatch(viewerId: String, matchId: String) async throws -> NADAMatch {
+        guard let database else { throw AuthError.notConfigured }
+        guard !viewerId.isEmpty, !matchId.isEmpty else {
+            throw AuthError.unknown("Couldn't find that mutual.")
+        }
+
+        let document = database.collection(Self.collectionName).document(matchId)
+        let snapshot = try await document.getDocument()
+        guard snapshot.exists, let data = snapshot.data() else {
+            throw AuthError.unknown("Couldn't find that mutual.")
+        }
+
+        var match = mapMatch(id: matchId, data: data)
+        let userIds = data["userIds"] as? [String] ?? [match.userAId, match.userBId]
+        guard userIds.contains(viewerId) else {
+            throw AuthError.unknown("You can only remove your own mutuals.")
+        }
+        if match.unmatchedAt != nil {
+            return match
+        }
+
+        do {
+            try await document.updateData([
+                "unmatchedAt": FieldValue.serverTimestamp()
+            ])
+        } catch {
+            let raced = try await document.getDocument()
+            if raced.exists, let racedData = raced.data() {
+                let racedMatch = mapMatch(id: matchId, data: racedData)
+                if racedMatch.unmatchedAt != nil {
+                    return racedMatch
+                }
+            }
+            throw error
+        }
+
+        let updated = try await document.getDocument()
+        if let updatedData = updated.data() {
+            return mapMatch(id: matchId, data: updatedData)
+        }
+        match.unmatchedAt = Date()
+        return match
     }
 
     /// Creates any missing matches for people who already liked each other (pre-W4-02 likes).

@@ -42,7 +42,9 @@
 
 ### W4-04 — Unmatch endpoint (prep for Week 5)
 - **P1 · 0.5d** — Unmatch hides match + chat.
-- [ ] Sets unmatchedAt; hidden from both
+- [x] Sets unmatchedAt; hidden from both
+
+**Ship notes:** `AuthManager.unmatch(matchId:)` stamps `matches/{id}.unmatchedAt`. Rules allow that one field, once, from a participant. `fetchMatches` already drops unmatched rows; a second like does not revive the doc. Mutuals: long-press → Remove from Mutuals. Chat hide is Week 5 (W5-09 also adds unmatch from profile/chat). Docs: [`docs/FIRESTORE_MATCHES.md`](../docs/FIRESTORE_MATCHES.md). Publish the updated `matches` rules.
 
 ---
 
@@ -72,8 +74,10 @@
 
 ### W4-08 — Push handling
 - **P0 · 1d** — Handle match/like pushes; deep-link to Likes/Matches.
-- [ ] Foreground + background handling
-- [ ] Tapping opens right screen
+- [x] Foreground + background handling
+- [x] Tapping opens right screen
+
+**Ship notes:** Tap routes through `PushRouter`. `type: like` → Clicks, `type: match` → Mutuals. Foreground still shows a banner (`willPresent`); only the tap switches tabs. A tap during splash / login is held until `MainTabView` appears. Live delivery still needs the APNs `.p8`. Chat deep-link is Week 5.
 
 ---
 

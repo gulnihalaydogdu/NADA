@@ -5,7 +5,7 @@ FCM to stored device tokens when someone likes you, or when a Match is created.
 **Code:** `firebase/functions/index.js`  
 **Tokens:** [`FIRESTORE_DEVICE_TOKENS.md`](FIRESTORE_DEVICE_TOKENS.md)  
 **Match docs:** [`FIRESTORE_MATCHES.md`](FIRESTORE_MATCHES.md)  
-**iOS handling / deep links:** W4-08
+**iOS handling / deep links:** `NADAAppDelegate` + `PushRouter` (W4-08) — tap **New click** → Clicks tab, tap **You're mutuals** → Mutuals tab. Foreground still shows a banner; only a tap switches tabs. Pending tap waits through splash / login.
 
 Live banners still need a paid Apple APNs `.p8` in Firebase Cloud Messaging (same gate as Sign in with Apple). Functions can be deployed before that; sends will fail until the key is uploaded.
 
@@ -48,4 +48,5 @@ Blaze (pay-as-you-go) is required for Cloud Functions.
 2. A likes B (B has not liked A) → B gets **New click** (after APNs key).
 3. B sets `notifyOnLikes: false` → A's next like does not notify B.
 4. B likes A → both get **You're mutuals**; no extra click banner for the click-back.
-5. Until the APNs `.p8` is in Firebase, Functions logs show send attempts but the phone stays quiet.
+5. Tap **New click** → Clicks tab. Tap **You're mutuals** → Mutuals tab (foreground banner tap and cold-start tap).
+6. Until the APNs `.p8` is in Firebase, Functions logs show send attempts but the phone stays quiet.
