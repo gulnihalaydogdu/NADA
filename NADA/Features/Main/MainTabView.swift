@@ -7,6 +7,7 @@ private enum MainTab: Hashable {
 struct MainTabView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(SplashController.self) private var splash
+    @Environment(PushRouter.self) private var pushRouter
     @State private var showsPushPrompt = false
     @State private var selectedTab: MainTab = .discover
     @State private var mutualMoment: MutualClickSnapshot?
@@ -45,6 +46,10 @@ struct MainTabView: View {
             selectedTab = .matches
         }
         .environment(\.presentMutualClickMoment, presentMutualClickMoment)
+        .onAppear(perform: applyPendingPushRoute)
+        .onChange(of: pushRouter.pending) { _, _ in
+            applyPendingPushRoute()
+        }
         .task(id: pushRegistrationToken) {
             guard !splash.isShowingSplash, auth.isDiscoverLaunchReady else { return }
             showsPushPrompt = await auth.shouldOfferPushPrompt()
@@ -78,6 +83,16 @@ struct MainTabView: View {
         try? await Task.sleep(nanoseconds: 180_000_000)
         mutualMoment = nil
     }
+
+    private func applyPendingPushRoute() {
+        guard let route = pushRouter.consumeIfPresent() else { return }
+        switch route {
+        case .likes:
+            selectedTab = .likes
+        case .matches:
+            selectedTab = .matches
+        }
+    }
 }
 
 private struct OpenMatchesTabKey: EnvironmentKey {
@@ -104,4 +119,5 @@ private struct PresentMutualClickMomentKey: EnvironmentKey {
     MainTabView()
         .environment(AuthManager())
         .environment(SplashController())
+        .environment(PushRouter.shared)
 }

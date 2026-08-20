@@ -92,6 +92,10 @@ struct LikesInboxView: View {
             }
             await loadInitial()
         }
+        .onAppear {
+            guard incoming.hasLoaded else { return }
+            Task { await reload() }
+        }
     }
 
     private var loadToken: String {
