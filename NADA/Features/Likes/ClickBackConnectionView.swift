@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Click-back screen from Clicks — full page, not a bottom sheet.
 struct ClickBackConnectionView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let name: String
     let target: LikeTargetPreview
     let incomingComment: String?
@@ -117,11 +119,14 @@ struct ClickBackConnectionView: View {
                     }
                 }
             }
-            .offset(y: (isVisible ? 0 : height) + dragOffset)
+            .compositingGroup()
+            .opacity(surfaceOpacity)
+            .offset(y: surfaceOffset)
+            .scaleEffect(surfaceScale)
             .onAppear {
                 containerHeight = height
                 guard !isVisible, !isExiting else { return }
-                withAnimation(.smooth(duration: 0.42)) {
+                withAnimation(appearAnimation) {
                     isVisible = true
                 }
             }
@@ -236,6 +241,39 @@ struct ClickBackConnectionView: View {
         exit(onDismiss)
     }
 
+    private var appearAnimation: Animation {
+        reduceMotion
+            ? .easeOut(duration: 0.18)
+            : .spring(response: 0.48, dampingFraction: 0.92)
+    }
+
+    private var dismissAnimation: Animation {
+        reduceMotion
+            ? .easeIn(duration: 0.16)
+            : .spring(response: 0.36, dampingFraction: 0.94)
+    }
+
+    private var dragProgress: CGFloat {
+        let height = max(containerHeight, 1)
+        return min(1, max(0, dragOffset / (height * 0.42)))
+    }
+
+    private var surfaceOpacity: Double {
+        let base: Double = isVisible ? 1 : 0
+        return base * Double(1 - dragProgress * 0.28)
+    }
+
+    private var surfaceOffset: CGFloat {
+        let rest: CGFloat = isVisible ? 0 : (reduceMotion ? 0 : 22)
+        return rest + dragOffset
+    }
+
+    private var surfaceScale: CGFloat {
+        if reduceMotion { return 1 }
+        let rest: CGFloat = isVisible ? 1 : 0.975
+        return rest - dragProgress * 0.015
+    }
+
     private var dismissDrag: some Gesture {
         DragGesture(minimumDistance: 10)
             .onChanged { value in
@@ -251,7 +289,7 @@ struct ClickBackConnectionView: View {
                 if shouldDismiss {
                     exit(onDismiss)
                 } else {
-                    withAnimation(.smooth(duration: 0.32)) {
+                    withAnimation(dismissAnimation) {
                         dragOffset = 0
                     }
                 }
@@ -261,12 +299,12 @@ struct ClickBackConnectionView: View {
     private func exit(_ finish: @escaping () -> Void) {
         isExiting = true
         messageFocused = false
-        withAnimation(.smooth(duration: 0.38)) {
+        withAnimation(dismissAnimation) {
             isVisible = false
             dragOffset = 0
         }
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 390_000_000)
+            try? await Task.sleep(nanoseconds: reduceMotion ? 180_000_000 : 380_000_000)
             finish()
         }
     }

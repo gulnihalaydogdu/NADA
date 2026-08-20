@@ -360,7 +360,25 @@ struct LikesInboxView: View {
     private func presentLikeBack(_ item: InboxLike) {
         let userId = item.otherUser.id
         guard !pendingUserIds.contains(userId) else { return }
+        prefetchConnectionPhoto(item)
         likeBackDraft = LikeBackDraft(item: item)
+    }
+
+    private func prefetchConnectionPhoto(_ item: InboxLike) {
+        let featured = item.target.type == .photo
+            ? (item.target.photoURL ?? item.otherUser.photoURL)
+            : item.otherUser.photoURL
+        let thumb = item.target.type == .photo
+            ? (item.target.photoThumbnailURL ?? item.otherUser.photoThumbnailURL)
+            : item.otherUser.photoThumbnailURL
+        var ordered: [(urlString: String, targetPointSize: CGFloat)] = []
+        if let thumb, !thumb.isEmpty {
+            ordered.append((thumb, RemoteImageView.thumbnailPointSize))
+        }
+        if let featured, !featured.isEmpty {
+            ordered.append((featured, ProfilePreviewPhotoTile.displayPointSize))
+        }
+        RemoteImageLoader.shared.prefetchOrdered(ordered)
     }
 
     private func sendLikeBack(draft: LikeBackDraft, comment: String?) async {
