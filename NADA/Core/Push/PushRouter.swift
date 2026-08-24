@@ -46,9 +46,13 @@ final class PushRouter {
 
     private init() {}
 
+    func handle(_ route: PushRoute) {
+        pending = route
+    }
+
     func handleNotificationTap(userInfo: [AnyHashable: Any]) {
         guard let route = PushRoute.fromNotificationUserInfo(userInfo) else { return }
-        pending = route
+        handle(route)
     }
 
     func consumeIfPresent() -> PushRoute? {

@@ -572,7 +572,9 @@ private struct BitEmptyPickCard: View {
 }
 
 private enum BitSlotDrag {
-    static let utType = UTType(exportedAs: "app.nada.bit-slot")
+    /// In-process reorder payload. `UTType.data` so the answer TextField
+    /// does not treat the drop as pasted text (and no custom UTI in Info.plist).
+    static let utType = UTType.data
 
     static func isSlotID(_ text: String, in slots: [BitSlot]) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

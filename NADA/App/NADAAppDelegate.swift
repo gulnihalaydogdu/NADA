@@ -47,11 +47,13 @@ final class NADAAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let userInfo = response.notification.request.content.userInfo
         let tappedBanner = response.actionIdentifier == UNNotificationDefaultActionIdentifier
+        let route = tappedBanner
+            ? PushRoute.fromNotificationUserInfo(response.notification.request.content.userInfo)
+            : nil
         Task { @MainActor in
-            if tappedBanner {
-                PushRouter.shared.handleNotificationTap(userInfo: userInfo)
+            if let route {
+                PushRouter.shared.handle(route)
             }
             completionHandler()
         }

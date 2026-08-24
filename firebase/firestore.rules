@@ -182,7 +182,11 @@ service cloud.firestore {
                && request.resource.data.unmatchedAt == request.time;
       }
 
-      allow get, list: if isMatchParticipant();
+      allow get: if isSignedIn() && (
+                   resource == null
+                   || request.auth.uid in resource.data.userIds
+                 );
+      allow list: if isMatchParticipant();
       allow create: if isMatchParticipantCreate() && validMatchCreate();
       // W4-04: a participant may stamp unmatchedAt once. No other edits, no delete.
       allow update: if validUnmatchUpdate();

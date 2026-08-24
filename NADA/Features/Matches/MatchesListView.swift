@@ -163,6 +163,7 @@ struct MatchesListView: View {
         guard auth.currentUser != nil else { return }
         localError = nil
         do {
+            await auth.repairMutualMatches()
             let page = try await auth.fetchMatches()
             items = page.items
             cursor = page.cursor

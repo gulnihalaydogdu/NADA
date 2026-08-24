@@ -412,6 +412,8 @@ struct LikesInboxView: View {
             return
         }
 
+        guard created?.match != nil else { return }
+
         await presentMutualClickMoment(
             MutualClickSnapshot(
                 viewerURL: auth.currentUser?.photoURL,

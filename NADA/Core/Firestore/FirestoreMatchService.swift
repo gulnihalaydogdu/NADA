@@ -28,11 +28,6 @@ final class FirestoreMatchService {
         let docId = NADAMatch.documentId(userId: userId, otherUserId: otherUserId)
         let document = database.collection(Self.collectionName).document(docId)
 
-        let existing = try await document.getDocument()
-        if existing.exists, let data = existing.data() {
-            return mapMatch(id: docId, data: data)
-        }
-
         let payload: [String: Any] = [
             "userAId": userAId,
             "userBId": userBId,
@@ -40,6 +35,8 @@ final class FirestoreMatchService {
             "createdAt": FieldValue.serverTimestamp()
         ]
 
+        // Create first. A get on a missing `matches` doc is denied (rules need
+        // `resource.data.userIds`), so read-before-write never reaches setData.
         do {
             try await document.setData(payload)
             return NADAMatch(
@@ -50,8 +47,8 @@ final class FirestoreMatchService {
                 unmatchedAt: nil
             )
         } catch {
-            let raced = try await document.getDocument()
-            if raced.exists, let data = raced.data() {
+            let existing = try await document.getDocument()
+            if existing.exists, let data = existing.data() {
                 return mapMatch(id: docId, data: data)
             }
             throw error
