@@ -89,7 +89,7 @@ struct MainTabView: View {
         switch route {
         case .likes:
             selectedTab = .likes
-        case .matches:
+        case .matches, .chat:
             selectedTab = .matches
         }
     }

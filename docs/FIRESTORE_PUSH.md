@@ -1,11 +1,12 @@
-# Firestore — like & match push (W4-03)
+# Firestore — like, match & chat push (W4-03 / W5-02)
 
-FCM to stored device tokens when someone likes you, or when a Match is created.
+FCM to stored device tokens when someone likes you, a Match is created, or a chat message lands.
 
 **Code:** `firebase/functions/index.js`  
 **Tokens:** [`FIRESTORE_DEVICE_TOKENS.md`](FIRESTORE_DEVICE_TOKENS.md)  
 **Match docs:** [`FIRESTORE_MATCHES.md`](FIRESTORE_MATCHES.md)  
-**iOS handling / deep links:** `NADAAppDelegate` + `PushRouter` (W4-08) — tap **New click** → Clicks tab, tap **You're mutuals** → Mutuals tab. Foreground still shows a banner; only a tap switches tabs. Pending tap waits through splash / login.
+**Messages:** [`FIRESTORE_MESSAGES.md`](FIRESTORE_MESSAGES.md)  
+**iOS handling / deep links:** `NADAAppDelegate` + `PushRouter` — tap **New click** → Clicks tab, tap **You're mutuals** → Mutuals tab, tap a chat banner → that thread. Foreground still shows a banner; only a tap routes. Pending tap waits through splash / login.
 
 Live banners still need a paid Apple APNs `.p8` in Firebase Cloud Messaging (same gate as Sign in with Apple). Functions can be deployed before that; sends will fail until the key is uploaded.
 
@@ -17,15 +18,18 @@ Live banners still need a paid Apple APNs `.p8` in Firebase Cloud Messaging (sam
 |-------|------------|------|
 | `likes/{id}` created | `toUserId` | Reverse like already exists (function writes the match; match push covers it). `preferences.notifyOnLikes == false`. No device tokens. |
 | `matches/{id}` created | both `userAId` and `userBId` | No device tokens |
+| `matches/{matchId}/messages/{id}` created | the other participant | Sender. `opening_*` (match push already fired). `unmatchedAt`. Blocked pair. `preferences.notifyOnMessages == false`. No device tokens. |
 
 Like payload: title **New click**, body `{name} clicked you`, data `{ type: like, fromUserId }`.  
-Match payload: title **You're mutuals**, body `You and {name} clicked`, data `{ type: match, matchId }`.
+Match payload: title **You're mutuals**, body `You and {name} clicked`, data `{ type: match, matchId }`.  
+Message payload: title `{sender name}`, body truncated text, data `{ type: message, matchId, senderId }`.
 
 ---
 
 ## Quiet settings
 
-`preferences/{uid}.notifyOnLikes` (bool, default **true** if missing). Turns off **like** pushes only. Match pushes still send if the device has a token. Skipping the iOS permission prompt means no token → no push.
+`preferences/{uid}.notifyOnLikes` (bool, default **true** if missing). Turns off **like** pushes only.  
+`preferences/{uid}.notifyOnMessages` (bool, default **true** if missing). Turns off **chat** pushes only. Match pushes still send if the device has a token. Skipping the iOS permission prompt means no token → no push.
 
 ---
 
@@ -48,5 +52,7 @@ Blaze (pay-as-you-go) is required for Cloud Functions.
 2. A likes B (B has not liked A) → B gets **New click** (after APNs key).
 3. B sets `notifyOnLikes: false` → A's next like does not notify B.
 4. B likes A → both get **You're mutuals**; no extra click banner for the click-back.
-5. Tap **New click** → Clicks tab. Tap **You're mutuals** → Mutuals tab (foreground banner tap and cold-start tap).
-6. Until the APNs `.p8` is in Firebase, Functions logs show send attempts but the phone stays quiet.
+5. A sends a chat line → B gets a banner with A's name and the text. Tap opens that thread.
+6. B sets `notifyOnMessages: false` → A's next chat line does not notify B.
+7. Tap **New click** → Clicks tab. Tap **You're mutuals** → Mutuals tab (foreground banner tap and cold-start tap).
+8. Until the APNs `.p8` is in Firebase, Functions logs show send attempts but the phone stays quiet.

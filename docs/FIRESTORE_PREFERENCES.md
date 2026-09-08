@@ -22,6 +22,7 @@ City + `radiusKm` are also mirrored on `users/{uid}`. Preferences is the discove
 | `minAge` | number | yes | 18…99; default **18** |
 | `maxAge` | number | yes | 18…99; default **45** |
 | `notifyOnLikes` | boolean | yes | Missing in Firestore means true |
+| `notifyOnMessages` | boolean | yes | Missing in Firestore means true (W5-02) |
 | `updatedAt` | timestamp | yes | Server timestamp on write |
 
 † Required when calling `updatePreferences`.

@@ -73,7 +73,61 @@ exports.onMatchCreated = onDocumentCreated("matches/{matchId}", async (event) =>
       data: { type: "match", matchId: String(matchId) }
     })
   ]);
+
+  await seedOpeningMessages(matchId, userAId, userBId);
 });
+
+// New chat message — notify the other participant (W5-02).
+exports.onMessageCreated = onDocumentCreated(
+  "matches/{matchId}/messages/{messageId}",
+  async (event) => {
+    const messageId = event.params.messageId;
+    if (typeof messageId === "string" && messageId.startsWith("opening_")) {
+      return;
+    }
+
+    const data = event.data?.data();
+    if (!data) return;
+
+    const senderId = data.senderId;
+    const body = typeof data.body === "string" ? data.body : "";
+    if (!senderId || !body.trim()) return;
+
+    const matchId = event.params.matchId;
+    const matchSnap = await db.doc(`matches/${matchId}`).get();
+    if (!matchSnap.exists || matchSnap.get("unmatchedAt")) return;
+
+    const userIds = matchSnap.get("userIds");
+    if (!Array.isArray(userIds) || !userIds.includes(senderId)) return;
+    const recipientId = userIds.find((id) => id && id !== senderId);
+    if (!recipientId) return;
+
+    if (await isBlocked(senderId, recipientId)) return;
+
+    const prefs = await db.doc(`preferences/${recipientId}`).get();
+    if (prefs.exists && prefs.get("notifyOnMessages") === false) {
+      return;
+    }
+
+    const name = await displayName(senderId);
+    await sendToUser(recipientId, {
+      title: name,
+      body: previewMessage(body),
+      data: {
+        type: "message",
+        matchId: String(matchId),
+        senderId: String(senderId)
+      }
+    });
+  }
+);
+
+function previewMessage(body) {
+  const oneLine = String(body).replace(/\s+/g, " ").trim();
+  if (!oneLine) return "New message";
+  if (oneLine.length <= 80) return oneLine;
+  return `${oneLine.slice(0, 79)}…`;
+}
 
 async function displayName(userId) {
   const snap = await db.doc(`users/${userId}`).get();
@@ -88,6 +142,37 @@ async function isBlocked(userA, userB) {
     db.doc(`blocks/${userB}_${userA}`).get()
   ]);
   return ab.exists || ba.exists;
+}
+
+async function seedOpeningMessages(matchId, userAId, userBId) {
+  const [ab, ba] = await Promise.all([
+    db.collection("likes")
+      .where("fromUserId", "==", userAId)
+      .where("toUserId", "==", userBId)
+      .get(),
+    db.collection("likes")
+      .where("fromUserId", "==", userBId)
+      .where("toUserId", "==", userAId)
+      .get()
+  ]);
+
+  for (const doc of [...ab.docs, ...ba.docs]) {
+    const comment = doc.get("comment");
+    if (typeof comment !== "string" || !comment.trim()) continue;
+    const senderId = doc.get("fromUserId");
+    if (typeof senderId !== "string" || !senderId) continue;
+
+    const body = comment.trim().slice(0, 1000);
+    const createdAt = doc.get("createdAt") || FieldValue.serverTimestamp();
+    const ref = db.doc(`matches/${matchId}/messages/opening_${doc.id}`);
+    try {
+      await ref.create({ senderId, body, createdAt });
+    } catch (error) {
+      if (error.code !== 6 && error.code !== "already-exists") {
+        throw error;
+      }
+    }
+  }
 }
 
 async function ensureMatch(fromUserId, toUserId) {

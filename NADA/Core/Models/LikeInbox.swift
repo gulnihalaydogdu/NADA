@@ -1,7 +1,7 @@
 import Foundation
 
 /// Other person on an incoming like. Never includes email.
-struct LikePartySummary: Identifiable, Equatable, Sendable {
+struct LikePartySummary: Identifiable, Equatable, Hashable, Sendable {
     let id: String
     let displayName: String
     let photoURL: String?

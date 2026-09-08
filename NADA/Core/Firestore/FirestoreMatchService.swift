@@ -159,6 +159,37 @@ final class FirestoreMatchService {
         return MatchListPage(items: items, cursor: cursorOut)
     }
 
+    func fetchMatch(matchId: String, viewerId: String) async throws -> NADAMatch {
+        guard let database else { throw AuthError.notConfigured }
+        guard !matchId.isEmpty else {
+            throw AuthError.unknown("Couldn't find that mutual.")
+        }
+        let snapshot = try await database.collection(Self.collectionName)
+            .document(matchId)
+            .getDocument()
+        guard snapshot.exists, let data = snapshot.data() else {
+            throw AuthError.unknown("Couldn't find that mutual.")
+        }
+        let match = mapMatch(id: matchId, data: data)
+        let userIds = data["userIds"] as? [String] ?? [match.userAId, match.userBId]
+        guard userIds.contains(viewerId) else {
+            throw AuthError.unknown("That's not your chat.")
+        }
+        return match
+    }
+
+    func fetchMatchItem(matchId: String, viewerId: String) async throws -> MatchListItem? {
+        let match = try await fetchMatch(matchId: matchId, viewerId: viewerId)
+        guard match.isActive else { return nil }
+        let otherId = match.otherUserId(viewerId: viewerId)
+        if await isBlockedPair(userId: viewerId, otherUserId: otherId) {
+            return nil
+        }
+        let parties = await loadParties(userIds: [otherId])
+        guard let other = parties[otherId] else { return nil }
+        return MatchListItem(match: match, otherUser: other)
+    }
+
     private func loadParties(userIds: [String]) async -> [String: LikePartySummary] {
         guard let database else { return [:] }
         let unique = Array(Set(userIds.filter { !$0.isEmpty }))

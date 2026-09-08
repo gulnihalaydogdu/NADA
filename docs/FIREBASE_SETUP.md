@@ -304,6 +304,26 @@ Detay: [`docs/FIRESTORE_PUSH.md`](FIRESTORE_PUSH.md)
 
 ---
 
+## 8h. Chat messages (W5-01)
+
+Detay: [`docs/FIRESTORE_MESSAGES.md`](FIRESTORE_MESSAGES.md)
+
+1. Firestore → **Rules** → `firebase/firestore.rules` yapıştır → **Publish** (`matches/{id}/messages`)
+2. Mutuals’ta bir satıra tap → chat. Mesaj yaz; diğer hesapta görünsün
+3. Karşı taraf thread’i açınca son kendi balonunda **Seen**
+
+---
+
+## 8i. Chat message push (W5-02)
+
+Detay: [`docs/FIRESTORE_PUSH.md`](FIRESTORE_PUSH.md)
+
+1. `firebase deploy --only functions` (project `nada-app-33`)
+2. A sohbette bir satır yazsın → B banner (APNs `.p8` varsa). Tap → o thread
+3. `preferences.notifyOnMessages: false` → B mesaj push’u almaz
+
+---
+
 ## 9. Notlar
 
 - Project ID: `nada-app-33`

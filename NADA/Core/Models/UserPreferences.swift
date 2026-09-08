@@ -14,6 +14,8 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
     var maxAge: Int
     /// Like-push opt-out (W4-03). Missing in Firestore means true.
     var notifyOnLikes: Bool
+    /// Chat-push opt-out (W5-02). Missing in Firestore means true.
+    var notifyOnMessages: Bool
     var updatedAt: Date?
 
     var id: String { userId }
@@ -50,6 +52,7 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
         minAge: Int = defaultMinAge,
         maxAge: Int = defaultMaxAge,
         notifyOnLikes: Bool = true,
+        notifyOnMessages: Bool = true,
         updatedAt: Date? = nil
     ) {
         self.userId = userId
@@ -61,6 +64,7 @@ struct UserPreferences: Identifiable, Equatable, Sendable {
         self.minAge = clamped.min
         self.maxAge = clamped.max
         self.notifyOnLikes = notifyOnLikes
+        self.notifyOnMessages = notifyOnMessages
         self.updatedAt = updatedAt
     }
 

@@ -191,6 +191,42 @@ service cloud.firestore {
       // W4-04: a participant may stamp unmatchedAt once. No other edits, no delete.
       allow update: if validUnmatchUpdate();
       allow delete: if false;
+
+      match /messages/{messageId} {
+        function parentMatch() {
+          return get(/databases/$(database)/documents/matches/$(matchId)).data;
+        }
+
+        function isChatParticipant() {
+          return isSignedIn() && request.auth.uid in parentMatch().userIds;
+        }
+
+        function chatIsActive() {
+          return !('unmatchedAt' in parentMatch());
+        }
+
+        function validMessageCreate() {
+          return request.resource.data.keys().hasOnly(['senderId', 'body', 'createdAt'])
+                 && request.resource.data.senderId == request.auth.uid
+                 && request.resource.data.body is string
+                 && request.resource.data.body.size() > 0
+                 && request.resource.data.body.size() <= 1000
+                 && request.resource.data.createdAt == request.time;
+        }
+
+        function validReadReceipt() {
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+                 && resource.data.senderId != request.auth.uid
+                 && !('readAt' in resource.data)
+                 && request.resource.data.readAt is timestamp
+                 && request.resource.data.readAt == request.time;
+        }
+
+        allow get, list: if isChatParticipant();
+        allow create: if isChatParticipant() && chatIsActive() && validMessageCreate();
+        allow update: if isChatParticipant() && validReadReceipt();
+        allow delete: if false;
+      }
     }
   }
 }

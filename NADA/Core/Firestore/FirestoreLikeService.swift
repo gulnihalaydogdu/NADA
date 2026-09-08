@@ -75,6 +75,18 @@ final class FirestoreLikeService {
         )
     }
 
+    func fetchLikes(fromUserId: String, toUserId: String) async throws -> [DiscoverLike] {
+        guard let database else { throw AuthError.notConfigured }
+        guard !fromUserId.isEmpty, !toUserId.isEmpty else { return [] }
+        let snapshot = try await database.collection(Self.collectionName)
+            .whereField("fromUserId", isEqualTo: fromUserId)
+            .whereField("toUserId", isEqualTo: toUserId)
+            .getDocuments()
+        return snapshot.documents
+            .map { mapLike(id: $0.documentID, data: $0.data()) }
+            .sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+    }
+
     /// True if `fromUserId` has liked `toUserId` on any target (profile / Bit / photo).
     func hasLike(fromUserId: String, toUserId: String) async throws -> Bool {
         guard let database else { throw AuthError.notConfigured }

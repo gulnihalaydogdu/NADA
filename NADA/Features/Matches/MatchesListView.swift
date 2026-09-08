@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Mutuals list (W4-02). Long-press to unmatch (W4-04). Chat unlock is Week 5.
+/// Mutuals list (W4-02). Tap opens chat (W5-06). Long-press to unmatch (W4-04).
 struct MatchesListView: View {
     @Environment(AuthManager.self) private var auth
+    @Environment(PushRouter.self) private var pushRouter
 
     @State private var items: [MatchListItem] = []
     @State private var cursor: String?
@@ -13,34 +14,47 @@ struct MatchesListView: View {
     @State private var pendingUnmatch: MatchListItem?
     @State private var showUnmatchConfirm = false
     @State private var isUnmatching = false
+    @State private var selectedChat: MatchListItem?
 
     var body: some View {
-        ZStack {
-            NADAScreenBackground(showBottomBlob: false)
+        NavigationStack {
+            ZStack {
+                NADAScreenBackground(showBottomBlob: false)
 
-            VStack(spacing: 0) {
-                header
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-
-                if let message = localError {
-                    Text(message)
-                        .font(NADATheme.captionFont)
-                        .foregroundStyle(NADATheme.danger)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
+                VStack(spacing: 0) {
+                    header
+                        .padding(.horizontal, 20)
                         .padding(.top, 8)
-                }
 
-                content
+                    if let message = localError {
+                        Text(message)
+                            .font(NADATheme.captionFont)
+                            .foregroundStyle(NADATheme.danger)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 8)
+                    }
+
+                    content
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(item: $selectedChat) { item in
+                ChatThreadView(item: item)
             }
         }
         .task(id: auth.currentUser?.id) {
             await loadInitial()
+            await openPendingChatFromPush()
         }
         .onAppear {
             guard hasLoaded else { return }
             Task { await reload() }
+            Task { await openPendingChatFromPush() }
+        }
+        .onChange(of: pushRouter.chatMatchId) { _, _ in
+            Task { await openPendingChatFromPush() }
         }
         .confirmationDialog(
             "Remove from Mutuals?",
@@ -90,13 +104,18 @@ struct MatchesListView: View {
             ScrollView {
                 LazyVStack(spacing: 14) {
                     ForEach(items) { item in
-                        MatchesListRow(item: item)
-                            .contextMenu {
-                                Button("Remove from Mutuals", role: .destructive) {
-                                    pendingUnmatch = item
-                                    showUnmatchConfirm = true
-                                }
+                        Button {
+                            selectedChat = item
+                        } label: {
+                            MatchesListRow(item: item)
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button("Remove from Mutuals", role: .destructive) {
+                                pendingUnmatch = item
+                                showUnmatchConfirm = true
                             }
+                        }
                     }
 
                     if cursor != nil {
@@ -132,7 +151,7 @@ struct MatchesListView: View {
                 .font(NADATheme.displayFont)
                 .foregroundStyle(NADATheme.ink)
 
-            Text("When you click someone back, they land here — not in Clicks.")
+            Text("When you click someone back, they land here. Tap to start chatting.")
                 .font(NADATheme.bodyFont)
                 .foregroundStyle(NADATheme.secondaryInk)
                 .multilineTextAlignment(.center)
@@ -202,6 +221,17 @@ struct MatchesListView: View {
         RemoteImageLoader.shared.prefetchOrdered(Array(ordered))
     }
 
+    private func openPendingChatFromPush() async {
+        guard let matchId = pushRouter.consumeChatMatchId(), !matchId.isEmpty else { return }
+        if let item = items.first(where: { $0.match.id == matchId }) {
+            selectedChat = item
+            return
+        }
+        if let item = await auth.fetchMatchListItem(matchId: matchId) {
+            selectedChat = item
+        }
+    }
+
     private func confirmUnmatch(_ item: MatchListItem) async {
         guard !isUnmatching else { return }
         isUnmatching = true
@@ -253,7 +283,7 @@ private struct MatchesListRow: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(NADATheme.ink)
                     .lineLimit(1)
-                Text("You're mutuals")
+                Text("Tap to chat")
                     .font(NADATheme.captionFont)
                     .foregroundStyle(NADATheme.warmSecondaryInk)
             }

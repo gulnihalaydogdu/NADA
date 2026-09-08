@@ -47,6 +47,7 @@ final class AuthManager {
     private let likeService: FirestoreLikeService
     private let skipService: FirestoreSkipService
     private let matchService: FirestoreMatchService
+    private let chatService: FirestoreChatService
     private var authStateHandle: AuthStateHandle?
 
     private var cachedPhotos: [ProfilePhoto] = []
@@ -67,6 +68,7 @@ final class AuthManager {
         self.likeService = FirestoreLikeService()
         self.skipService = FirestoreSkipService()
         self.matchService = FirestoreMatchService()
+        self.chatService = FirestoreChatService()
     }
 
     var hasCompletedFriendsIntent: Bool {
@@ -548,6 +550,16 @@ final class AuthManager {
         } catch {
             // Like already landed. Cloud Function / repairMutualMatches can create the doc.
         }
+        if match == nil,
+           like.comment?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            match = try? await matchService.fetchMatch(
+                matchId: NADAMatch.documentId(userId: fromUserId, otherUserId: toUserId),
+                viewerId: fromUserId
+            )
+        }
+        if let match, match.isActive {
+            await seedOpeningChatMessage(like: like, matchId: match.id)
+        }
         await likeService.refreshIncomingLikerCount()
         dropCachedInboxUser(toUserId)
         return DiscoverLikeOutcome(like: like, match: match)
@@ -557,6 +569,11 @@ final class AuthManager {
     func fetchMatches(cursor: String? = nil) async throws -> MatchListPage {
         guard let userId = currentUser?.id else { return .empty }
         return try await matchService.fetchMatches(viewerId: userId, cursor: cursor)
+    }
+
+    func fetchMatchListItem(matchId: String) async -> MatchListItem? {
+        guard let userId = currentUser?.id, !matchId.isEmpty else { return nil }
+        return try? await matchService.fetchMatchItem(matchId: matchId, viewerId: userId)
     }
 
     private func ensureMatchIfMutual(fromUserId: String, toUserId: String) async throws -> NADAMatch? {
@@ -579,6 +596,74 @@ final class AuthManager {
             ok = true
         }
         return ok
+    }
+
+    func sendChatMessage(matchId: String, body: String) async -> ChatMessage? {
+        guard let userId = currentUser?.id else { return nil }
+        var sent: ChatMessage?
+        await perform {
+            let match = try await self.matchService.fetchMatch(matchId: matchId, viewerId: userId)
+            guard match.isActive else {
+                throw AuthError.unknown("This chat is closed.")
+            }
+            sent = try await self.chatService.sendMessage(
+                matchId: matchId,
+                senderId: userId,
+                body: body
+            )
+        }
+        return sent
+    }
+
+    /// Copies this person's like comments into a thread that has no regular messages yet.
+    func seedOpeningChatMessages(matchId: String, otherUserId: String) async {
+        guard let userId = currentUser?.id else { return }
+        let existing = (try? await chatService.fetchMessages(matchId: matchId))?.messages ?? []
+        let hasRegularChat = existing.contains { !$0.id.hasPrefix("opening_") }
+        guard !hasRegularChat else { return }
+        let likes = (try? await likeService.fetchLikes(fromUserId: userId, toUserId: otherUserId)) ?? []
+        for like in likes {
+            await seedOpeningChatMessage(like: like, matchId: matchId)
+        }
+    }
+
+    private func seedOpeningChatMessage(like: DiscoverLike, matchId: String) async {
+        let body = like.comment?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !body.isEmpty else { return }
+        _ = try? await chatService.sendMessage(
+            matchId: matchId,
+            senderId: like.fromUserId,
+            body: String(body.prefix(ChatMessage.maxTextLength)),
+            messageId: ChatMessage.openingMessageId(likeId: like.id)
+        )
+    }
+
+    func fetchChatMessages(matchId: String, cursor: String? = nil) async throws -> ChatMessagePage {
+        guard currentUser?.id != nil else { return .empty }
+        return try await chatService.fetchMessages(matchId: matchId, cursor: cursor)
+    }
+
+    func listenChatMessages(
+        matchId: String,
+        onChange: @escaping @MainActor ([ChatMessage]) -> Void
+    ) -> (() -> Void)? {
+        return chatService.listenMessages(matchId: matchId, onChange: onChange)
+    }
+
+    func markChatRead(matchId: String, messages: [ChatMessage]) async {
+        guard let userId = currentUser?.id else { return }
+        try? await chatService.markRead(matchId: matchId, viewerId: userId, messages: messages)
+    }
+
+    static func chatErrorMessage(_ error: Error) -> String {
+        if let authError = error as? AuthError, let text = authError.errorDescription {
+            return text
+        }
+        let text = error.localizedDescription.lowercased()
+        if text.contains("permission") || text.contains("missing or insufficient") {
+            return "Can't open chat yet. Publish firebase/firestore.rules (the matches/messages block) in Firebase Console."
+        }
+        return error.localizedDescription
     }
 
     /// Fills in matches for pairs that liked each other before W4-02 shipped.

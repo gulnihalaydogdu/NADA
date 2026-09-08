@@ -2,7 +2,7 @@ import FirebaseMessaging
 import UIKit
 import UserNotifications
 
-/// APNs + FCM glue (W3-05 / W3-09) and tap routing to Clicks / Mutuals (W4-08).
+/// APNs + FCM glue (W3-05 / W3-09) and tap routing to Clicks / Mutuals / chat (W4-08 / W5-07).
 final class NADAAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     func application(
         _ application: UIApplication,

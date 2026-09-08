@@ -1,6 +1,6 @@
 {
   "name": "nada-functions",
-  "description": "NADA Cloud Functions — like and match FCM (W4-03)",
+  "description": "NADA Cloud Functions — like, match, and chat FCM",
   "engines": {
     "node": "20"
   },

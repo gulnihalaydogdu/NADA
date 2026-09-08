@@ -93,6 +93,7 @@ final class FirestorePreferencesService {
             "minAge": prefs.minAge,
             "maxAge": prefs.maxAge,
             "notifyOnLikes": prefs.notifyOnLikes,
+            "notifyOnMessages": prefs.notifyOnMessages,
             "updatedAt": FieldValue.serverTimestamp()
         ]
 
@@ -147,6 +148,7 @@ final class FirestorePreferencesService {
             minAge: minAge,
             maxAge: maxAge,
             notifyOnLikes: data["notifyOnLikes"] as? Bool ?? true,
+            notifyOnMessages: data["notifyOnMessages"] as? Bool ?? true,
             updatedAt: updatedAt
         )
     }
