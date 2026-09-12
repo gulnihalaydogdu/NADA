@@ -12,7 +12,7 @@ struct ProfileSetupWizardView: View {
     @State private var bitsLoadError: String?
     @State private var isLoadingBits = false
     @State private var selectedCategory: Prompt.Category?
-    @State private var editorTarget: BitEditorTarget?
+    @State private var bitsComposer = BitsComposer()
     @State private var radiusKm: Double = Double(ProfileLocation.defaultRadiusKm)
     @State private var city = ""
     @State private var lookingFor: UserPreferences.LookingForGender = .everyone
@@ -81,16 +81,8 @@ struct ProfileSetupWizardView: View {
         photoCount >= ProfilePhoto.maxCount && !photosNeedReplacement
     }
 
-    private var answeredPromptIds: Set<String> {
-        Set(answers.map(\.promptId))
-    }
-
-    private var canAddMoreBits: Bool {
-        answers.count < PromptAnswer.maxCount
-    }
-
     private var hasRequiredBits: Bool {
-        answers.count >= PromptAnswer.maxCount
+        bitsComposer.answeredCount >= PromptAnswer.maxCount
     }
 
     private var hasRequiredPreferences: Bool {
@@ -103,42 +95,33 @@ struct ProfileSetupWizardView: View {
         }
     }
 
-    private var filteredCatalog: [Prompt] {
-        let base: [Prompt]
-        if let selectedCategory {
-            base = catalogBits.filter { $0.category == selectedCategory }
-        } else {
-            base = catalogBits
-        }
-        return base.filter { !answeredPromptIds.contains($0.id) }
-    }
-
     private var promptById: [String: Prompt] {
         Dictionary(uniqueKeysWithValues: catalogBits.map { ($0.id, $0) })
     }
 
     var body: some View {
-        ZStack {
-            NADAScreenBackground()
+        NavigationStack {
+            ZStack {
+                NADAScreenBackground()
 
-            VStack(spacing: 0) {
-                header
-                    .padding(.horizontal, 24)
-                    .padding(.top, 16)
-                    .padding(.bottom, 8)
+                VStack(spacing: 0) {
+                    header
+                        .padding(.horizontal, 24)
+                        .padding(.top, 12)
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: NADATheme.Layout.headerToContent) {
                         VStack(alignment: .leading, spacing: NADATheme.Layout.titleToSubtitle) {
-                            Text(step.headline)
+                            Text(visibleHeadline)
                                 .font(NADATheme.displayFont)
                                 .foregroundStyle(NADATheme.ink)
-                            Text(step.subtitle)
+                            Text(visibleSubtitle)
                                 .font(NADATheme.bodyFont)
                                 .foregroundStyle(NADATheme.warmSecondaryInk)
                                 .lineSpacing(3)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
+                        .nadaDismissKeyboardOnTap()
 
                         stepContent
 
@@ -151,11 +134,16 @@ struct ProfileSetupWizardView: View {
                     .padding(.bottom, 24)
                 }
                 .scrollDismissesKeyboard(.interactively)
+                .scrollBounceBehavior(.always)
                 .scrollIndicators(.hidden)
 
-                footer
+                if !(step == .bits && bitsComposer.isPicking) {
+                    footer
+                }
             }
         }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .task(id: step) {
             if step == .bits {
                 await loadBitsStep()
@@ -170,42 +158,38 @@ struct ProfileSetupWizardView: View {
                 hydratePreferencesStep()
             }
         }
-        .sheet(item: $editorTarget) { target in
-            BitAnswerEditorSheet(
-                catalog: catalogBits,
-                answeredPromptIds: answeredPromptIds,
-                initialPromptId: target.promptId,
-                initialText: target.initialText,
-                isEditing: target.isEditing
-            ) { promptId, text in
-                await saveBit(target: target, promptId: promptId, text: text)
-            }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
         }
     }
 
+    private var visibleHeadline: String {
+        if step == .bits, bitsComposer.isPicking {
+            return "Choose a Bit"
+        }
+        return step.headline
+    }
+
+    private var visibleSubtitle: String {
+        if step == .bits, bitsComposer.isPicking {
+            return "Filter by vibe, then pick a question friends will see."
+        }
+        return step.subtitle
+    }
+
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 0) {
             NADAOnboardingNavBar(
-                showsSkip: step != .preferences,
+                showsSkip: step != .preferences && !(step == .bits && bitsComposer.isPicking),
                 isBusy: auth.isBusy,
                 onBack: goBack,
                 onSkip: skipCurrentStep
             )
 
-            Text("\(step.rawValue + 1) of \(Step.allCases.count)")
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.secondaryInk)
-                .frame(maxWidth: .infinity)
-
-            HStack(spacing: 6) {
-                ForEach(Step.allCases, id: \.rawValue) { item in
-                    Capsule()
-                        .fill(item.rawValue <= step.rawValue ? NADATheme.brand : NADATheme.brandSoft)
-                        .frame(height: NADATheme.Layout.progressHeight)
-                }
-            }
+            NADAOnboardingProgressBar(
+                currentIndex: OnboardingSetupProgress.basicsCount + step.rawValue
+            )
+            .padding(.top, 4)
+            .padding(.bottom, 8)
+            .nadaDismissKeyboardOnTap()
         }
     }
 
@@ -240,23 +224,20 @@ struct ProfileSetupWizardView: View {
     private var bitsStep: some View {
         BitsAnswersWorkspace(
             catalog: catalogBits,
-            answers: $answers,
+            composer: bitsComposer,
             selectedCategory: $selectedCategory,
             availableCategories: availableCategories,
-            filteredCatalog: filteredCatalog,
             promptById: promptById,
             isLoading: isLoadingBits,
             errorMessage: bitsLoadError,
-            canAddMore: canAddMoreBits,
-            onSelectCatalog: { prompt in
-                guard canAddMoreBits else { return }
-                editorTarget = .compose(prompt)
-            },
-            onEditAnswer: { answer in
-                editorTarget = .edit(answer, promptById[answer.promptId])
+            onSaveSlot: { slot, sortOrder in
+                await saveBitSlot(slot, sortOrder: sortOrder)
             },
             onDeleteAnswer: { answer in
-                Task { await deleteBitAnswer(answer) }
+                await deleteBitAnswer(answer)
+            },
+            onChangePrompt: { fromPromptId, toPromptId, text in
+                await changeBitPrompt(fromPromptId: fromPromptId, toPromptId: toPromptId, text: text)
             },
             onReorder: { orderedIds in
                 Task { await persistBitOrder(orderedIds) }
@@ -309,22 +290,15 @@ struct ProfileSetupWizardView: View {
     private func saveEssentials() async -> Bool {
         localError = nil
         auth.clearError()
-        guard let user = auth.currentUser,
-              let gender = ProfileGender.fromStored(user.gender),
-              let dateOfBirth = user.dateOfBirth else {
+        guard auth.currentUser != nil else {
             localError = "Finish the basics first, then add these."
             return false
         }
 
-        let ok = await auth.updateBasicProfile(
-            displayName: user.displayName ?? "",
-            gender: gender,
-            city: user.city ?? "",
-            dateOfBirth: dateOfBirth,
+        let ok = await auth.updateHangoutEssentials(
             jobTitle: jobTitle,
             university: university,
-            hangoutLookingFor: hangoutLookingFor,
-            updateHangoutEssentials: true
+            hangoutLookingFor: hangoutLookingFor
         )
         if !ok, auth.errorMessage == nil {
             localError = "Couldn't save your Discover card details. Try again."
@@ -436,9 +410,16 @@ struct ProfileSetupWizardView: View {
     private func goBack() {
         localError = nil
         auth.clearError()
+        if step == .bits, bitsComposer.isPicking {
+            bitsComposer.cancelPicking()
+            return
+        }
         if step == .photos {
             auth.isRevisitingBasicProfile = true
             return
+        }
+        if step == .bits {
+            Task { await commitBitSlots() }
         }
         guard let previous = Step(rawValue: step.rawValue - 1) else { return }
         step = previous
@@ -447,6 +428,9 @@ struct ProfileSetupWizardView: View {
     private func skipCurrentStep() {
         localError = nil
         auth.clearError()
+        if step == .bits {
+            Task { await commitBitSlots() }
+        }
         guard step != .preferences, let next = Step(rawValue: step.rawValue + 1) else { return }
         step = next
     }
@@ -462,6 +446,10 @@ struct ProfileSetupWizardView: View {
         if step == .bits, !hasRequiredBits {
             localError = "Answer \(PromptAnswer.maxCount) Bits to continue."
             return
+        }
+        if step == .bits {
+            let saved = await commitBitSlots()
+            if !saved { return }
         }
         if step == .essentials {
             let saved = await saveEssentials()
@@ -501,7 +489,6 @@ struct ProfileSetupWizardView: View {
         prefs.lookingForGenders = lookingFor
         prefs.minAge = age.min
         prefs.maxAge = age.max
-        prefs.buddyTypes = [.openToAll]
 
         let prefsOK = await auth.updatePreferences(prefs)
         if !prefsOK {
@@ -538,51 +525,89 @@ struct ProfileSetupWizardView: View {
             async let catalogTask = promptService.fetchActivePrompts(locale: "en")
             answers = await auth.fetchBitAnswers()
             catalogBits = try await catalogTask
+            bitsComposer.hydrate(from: answers)
         } catch {
             bitsLoadError = "Couldn't load bits. Check Firestore rules and seed."
             catalogBits = []
         }
     }
 
-    private func saveBit(target: BitEditorTarget, promptId: String, text: String) async -> Bool {
+    private func commitBitSlots() async -> Bool {
+        var ok = true
+        let prompted = bitsComposer.slots.filter(\.hasPrompt)
+        for (index, slot) in prompted.enumerated() {
+            guard slot.hasAnswer else { continue }
+            if let saved = slot.saved,
+               saved.promptId == slot.promptId,
+               saved.answerText == slot.trimmedText {
+                continue
+            }
+
+            if let saved = slot.saved, saved.promptId != slot.promptId, let promptId = slot.promptId {
+                if await changeBitPrompt(
+                    fromPromptId: saved.promptId,
+                    toPromptId: promptId,
+                    text: slot.trimmedText
+                ) == nil {
+                    ok = false
+                }
+                continue
+            }
+
+            if await saveBitSlot(slot, sortOrder: index) == nil {
+                ok = false
+            }
+        }
+        if !ok, localError == nil, auth.errorMessage == nil {
+            localError = "Couldn't save that Bit."
+        }
+        return ok
+    }
+
+    private func saveBitSlot(_ slot: BitSlot, sortOrder: Int) async -> PromptAnswer? {
+        guard let promptId = slot.promptId, slot.hasAnswer else { return slot.saved }
         localError = nil
         auth.clearError()
 
-        switch target {
-        case .compose:
-            if let saved = await auth.saveBitAnswer(
-                promptId: promptId,
-                answerText: text,
-                sortOrder: answers.count
-            ) {
+        if let saved = await auth.saveBitAnswer(
+            promptId: promptId,
+            answerText: slot.trimmedText,
+            sortOrder: slot.saved?.sortOrder ?? sortOrder
+        ) {
+            if let index = answers.firstIndex(where: { $0.promptId == saved.promptId }) {
+                answers[index] = saved
+            } else {
                 answers.append(saved)
                 answers.sort { $0.sortOrder < $1.sortOrder }
-                return true
             }
-        case .edit(let answer, _):
-            if promptId == answer.promptId {
-                if let saved = await auth.saveBitAnswer(
-                    promptId: promptId,
-                    answerText: text,
-                    sortOrder: answer.sortOrder
-                ) {
-                    if let index = answers.firstIndex(where: { $0.promptId == saved.promptId }) {
-                        answers[index] = saved
-                    }
-                    return true
-                }
-            } else if await auth.changeBitAnswerPrompt(
-                fromPromptId: answer.promptId,
-                toPromptId: promptId,
-                answerText: text
-            ) != nil {
-                answers = await auth.fetchBitAnswers()
-                return true
+            if let slotIndex = bitsComposer.slots.firstIndex(where: { $0.id == slot.id }) {
+                bitsComposer.slots[slotIndex].saved = saved
+                bitsComposer.slots[slotIndex].text = saved.answerText
             }
+            return saved
         }
 
         localError = auth.errorMessage ?? "Couldn't save that Bit."
-        return false
+        return nil
+    }
+
+    private func changeBitPrompt(
+        fromPromptId: String,
+        toPromptId: String,
+        text: String
+    ) async -> PromptAnswer? {
+        localError = nil
+        auth.clearError()
+        if let saved = await auth.changeBitAnswerPrompt(
+            fromPromptId: fromPromptId,
+            toPromptId: toPromptId,
+            answerText: text
+        ) {
+            answers = await auth.fetchBitAnswers()
+            return saved
+        }
+        localError = auth.errorMessage ?? "Couldn't change that Bit."
+        return nil
     }
 
     private func deleteBitAnswer(_ answer: PromptAnswer) async {

@@ -71,8 +71,13 @@ struct NADAPrimaryButtonStyle: ButtonStyle {
                 radius: isEnabled ? 10 : 0,
                 y: isEnabled ? 4 : 0
             )
-            .scaleEffect(pressed ? 0.985 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(pressed ? 0.96 : 1)
+            .animation(
+                configuration.isPressed
+                    ? .easeOut(duration: 0.09)
+                    : .spring(response: 0.22, dampingFraction: 0.86),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -125,12 +130,14 @@ struct LaunchSplashView: View {
 struct NADASoftCapsuleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(NADATheme.headlineFont)
+            .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(NADATheme.ink)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 48)
             .background(configuration.isPressed ? NADATheme.hairline : NADATheme.brandSoft)
             .clipShape(Capsule())
+            .opacity(configuration.isPressed ? 0.94 : 1)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(.easeOut(duration: 0.09), value: configuration.isPressed)
     }
 }
 
@@ -138,12 +145,13 @@ struct NADASoftCapsuleButtonStyle: ButtonStyle {
 struct NADADarkCapsuleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(NADATheme.headlineFont)
+            .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(NADATheme.paper)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(NADATheme.ink.opacity(configuration.isPressed ? 0.85 : 1))
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(NADATheme.ink.opacity(configuration.isPressed ? 0.86 : 1))
             .clipShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(.easeOut(duration: 0.09), value: configuration.isPressed)
     }
 }
 

@@ -109,7 +109,7 @@ struct ProfilePhotosEditor: View {
             isPresented: $isLibraryPresented,
             selection: $libraryItems,
             maxSelectionCount: max(remainingSlots, 1),
-            matching: .images,
+            matching: PickerImageLoader.stillPhotosFilter,
             photoLibrary: .shared()
         )
         .onChange(of: libraryItems) { _, items in
@@ -137,7 +137,7 @@ struct ProfilePhotosEditor: View {
                 .photosPicker(
                     isPresented: $isReplacePresented,
                     selection: $replacementItem,
-                    matching: .images,
+                    matching: PickerImageLoader.stillPhotosFilter,
                     photoLibrary: .shared()
                 )
                 .onChange(of: replacementItem) { _, item in

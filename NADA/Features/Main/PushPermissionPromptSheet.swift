@@ -17,12 +17,12 @@ struct PushPermissionPromptSheet: View {
                 .padding(.top, 8)
 
             VStack(spacing: 10) {
-                Text("Hear when someone likes you")
+                Text("Hear when someone clicks you")
                     .font(NADATheme.displayFont)
                     .foregroundStyle(NADATheme.ink)
                     .multilineTextAlignment(.center)
 
-                Text("We’ll ping you when a hangout like lands. Skip anytime — we won’t keep asking.")
+                Text("We’ll ping you when a hangout click lands. Skip anytime — we won’t keep asking.")
                     .font(NADATheme.bodyFont)
                     .foregroundStyle(NADATheme.secondaryInk)
                     .multilineTextAlignment(.center)

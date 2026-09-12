@@ -144,5 +144,89 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if isBlocker();
     }
+
+    // Mutual like (W4-02). One doc per pair; id is minUid_maxUid.
+    // List queries `userIds array-contains me` — rules must use `in userIds`,
+    // not userAId/userBId, or Firestore denies the query.
+    match /matches/{matchId} {
+      function isMatchParticipant() {
+        return isSignedIn() && request.auth.uid in resource.data.userIds;
+      }
+
+      function isMatchParticipantCreate() {
+        return isSignedIn()
+               && (request.auth.uid == request.resource.data.userAId
+                   || request.auth.uid == request.resource.data.userBId);
+      }
+
+      function validMatchCreate() {
+        return request.resource.data.keys().hasOnly(['userAId', 'userBId', 'userIds', 'createdAt'])
+               && request.resource.data.userAId is string
+               && request.resource.data.userBId is string
+               && request.resource.data.userAId < request.resource.data.userBId
+               && matchId == request.resource.data.userAId + '_' + request.resource.data.userBId
+               && request.resource.data.userIds is list
+               && request.resource.data.userIds.size() == 2
+               && request.resource.data.userIds.hasAll([
+                    request.resource.data.userAId,
+                    request.resource.data.userBId
+                  ])
+               && request.resource.data.createdAt == request.time;
+      }
+
+      function validUnmatchUpdate() {
+        return isMatchParticipant()
+               && !('unmatchedAt' in resource.data)
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unmatchedAt'])
+               && request.resource.data.unmatchedAt is timestamp
+               && request.resource.data.unmatchedAt == request.time;
+      }
+
+      allow get: if isSignedIn() && (
+                   resource == null
+                   || request.auth.uid in resource.data.userIds
+                 );
+      allow list: if isMatchParticipant();
+      allow create: if isMatchParticipantCreate() && validMatchCreate();
+      // W4-04: a participant may stamp unmatchedAt once. No other edits, no delete.
+      allow update: if validUnmatchUpdate();
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        function parentMatch() {
+          return get(/databases/$(database)/documents/matches/$(matchId)).data;
+        }
+
+        function isChatParticipant() {
+          return isSignedIn() && request.auth.uid in parentMatch().userIds;
+        }
+
+        function chatIsActive() {
+          return !('unmatchedAt' in parentMatch());
+        }
+
+        function validMessageCreate() {
+          return request.resource.data.keys().hasOnly(['senderId', 'body', 'createdAt'])
+                 && request.resource.data.senderId == request.auth.uid
+                 && request.resource.data.body is string
+                 && request.resource.data.body.size() > 0
+                 && request.resource.data.body.size() <= 1000
+                 && request.resource.data.createdAt == request.time;
+        }
+
+        function validReadReceipt() {
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+                 && resource.data.senderId != request.auth.uid
+                 && !('readAt' in resource.data)
+                 && request.resource.data.readAt is timestamp
+                 && request.resource.data.readAt == request.time;
+        }
+
+        allow get, list: if isChatParticipant();
+        allow create: if isChatParticipant() && chatIsActive() && validMessageCreate();
+        allow update: if isChatParticipant() && validReadReceipt();
+        allow delete: if false;
+      }
+    }
   }
 }

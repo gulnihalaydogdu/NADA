@@ -71,20 +71,22 @@ final class FirestoreUserService {
         gender: String?,
         city: String?,
         locale: String?,
-        photoURL: String? = nil,
         dateOfBirth: Date? = nil,
         jobTitle: String? = nil,
         university: String? = nil,
         hangoutLookingFor: String? = nil,
-        updateHangoutEssentials: Bool = false
+        updateHangoutEssentials: Bool = false,
+        markBasicProfileSetupCompleted: Bool = false
     ) async throws -> NADAUser {
         var fields: [String: Any] = [:]
         if let displayName { fields["displayName"] = displayName }
         if let gender { fields["gender"] = gender }
         if let city { fields["city"] = city }
         if let locale { fields["locale"] = locale }
-        if let photoURL { fields["photoURL"] = photoURL }
         if let dateOfBirth { fields["dateOfBirth"] = Timestamp(date: dateOfBirth) }
+        if markBasicProfileSetupCompleted {
+            fields["basicProfileSetupCompleted"] = true
+        }
         if updateHangoutEssentials {
             fields["jobTitle"] = stringOrDelete(jobTitle, max: NADAUser.maxJobTitleLength)
             fields["university"] = stringOrDelete(university, max: NADAUser.maxUniversityLength)
@@ -152,6 +154,7 @@ final class FirestoreUserService {
         var data: [String: Any] = [
             "intent": NADAUser.UserIntent.friendsOnly.rawValue,
             "friendsIntentCompleted": false,
+            "basicProfileSetupCompleted": false,
             "profileWizardCompleted": false,
             "isProfileComplete": false,
             "locale": user.locale ?? Locale.current.identifier,
@@ -204,6 +207,7 @@ final class FirestoreUserService {
             locale: data["locale"] as? String ?? fallback.locale,
             createdAt: createdAt,
             friendsIntentCompleted: data["friendsIntentCompleted"] as? Bool ?? false,
+            basicProfileSetupCompleted: data["basicProfileSetupCompleted"] as? Bool ?? false,
             profileWizardCompleted: data["profileWizardCompleted"] as? Bool ?? false,
             isProfileComplete: data["isProfileComplete"] as? Bool ?? false,
             interestIds: data["interestIds"] as? [String] ?? []

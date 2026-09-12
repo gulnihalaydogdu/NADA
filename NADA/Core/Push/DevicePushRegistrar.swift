@@ -99,11 +99,13 @@ final class DevicePushRegistrar {
         }
         userId = nil
         lastUploadedToken = nil
+        PushRouter.shared.clear()
     }
 
     func forgetUser() {
         userId = nil
         lastUploadedToken = nil
+        PushRouter.shared.clear()
     }
 
     private func registerForRemoteNotifications() async {

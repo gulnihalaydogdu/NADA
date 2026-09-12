@@ -23,11 +23,16 @@ final class AuthManager {
     /// Discover waits until the first card's primary photo is in cache (or a timeout).
     private(set) var isDiscoverLaunchReady = false
 
-    /// First feed page warmed during splash so Discover does not refetch on appear.
-    private var warmedDiscoverPage: DiscoverFeedPage?
     private var discoverWarmTask: Task<Void, Never>?
     private var didFinishDiscoverWarm = false
     private var didWarmLikeInbox = false
+
+    /// In-memory Discover deck for this signed-in session. Survives tab switches;
+    /// cleared on logout / process death. Skip and click still advance the card.
+    private(set) var discoverSessionQueue: [DiscoverCandidate] = []
+    private(set) var discoverSessionCursor: String?
+    private(set) var discoverSessionSkipped: [DiscoverCandidate] = []
+    private(set) var discoverSessionLoaded = false
 
     /// Wizard Back on the first step returns here without clearing saved basics.
     var isRevisitingBasicProfile = false
@@ -41,6 +46,8 @@ final class AuthManager {
     private let discoverService: FirestoreDiscoverService
     private let likeService: FirestoreLikeService
     private let skipService: FirestoreSkipService
+    private let matchService: FirestoreMatchService
+    private let chatService: FirestoreChatService
     private var authStateHandle: AuthStateHandle?
 
     private var cachedPhotos: [ProfilePhoto] = []
@@ -60,6 +67,8 @@ final class AuthManager {
         self.discoverService = FirestoreDiscoverService()
         self.likeService = FirestoreLikeService()
         self.skipService = FirestoreSkipService()
+        self.matchService = FirestoreMatchService()
+        self.chatService = FirestoreChatService()
     }
 
     var hasCompletedFriendsIntent: Bool {
@@ -139,22 +148,80 @@ final class AuthManager {
         }
     }
 
-    /// Skip remaining setup and enter the app. Discover stays gated on `isProfileComplete`.
+    /// Writes the name (required) plus any gender / city / birthday already chosen.
+    /// Empty optional fields are left unchanged so Skip can leave them for later.
     @discardableResult
-    func skipRemainingOnboarding() async -> Bool {
+    func completeBasicProfileOnboarding(
+        displayName: String,
+        gender: ProfileGender?,
+        city: String,
+        dateOfBirth: Date?
+    ) async -> Bool {
         guard let userId = currentUser?.id else { return false }
+
+        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            errorMessage = "Name is required."
+            return false
+        }
+
+        if let dateOfBirth, !ProfileAge.isAtLeastMinimumAge(dateOfBirth) {
+            errorMessage = "You must be \(ProfileAge.minimumAge) or older to use NADA."
+            return false
+        }
+
+        let trimmedCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cityToSave = trimmedCity.isEmpty ? nil : trimmedCity
+
         var didSucceed = false
         await perform {
-            var updated = self.currentUser
-            if updated?.friendsIntentCompleted != true {
-                updated = try await self.userService.setFriendsIntentCompleted(
+            let updated = try await self.userService.updateProfile(
+                userId: userId,
+                displayName: trimmedName,
+                gender: gender?.rawValue,
+                city: cityToSave,
+                locale: nil,
+                dateOfBirth: dateOfBirth,
+                markBasicProfileSetupCompleted: true
+            )
+            self.currentUser = updated
+            if let cityToSave {
+                self.currentPreferences = try await self.preferencesService.syncCity(
                     userId: userId,
-                    isCompleted: true
+                    city: cityToSave,
+                    seedFrom: updated
                 )
             }
-            updated = try await self.userService.setProfileWizardCompleted(userId: userId)
-            self.currentUser = updated
+            try await self.syncProfileCompleteness()
             self.isRevisitingBasicProfile = false
+            didSucceed = true
+        }
+        return didSucceed
+    }
+
+    /// Job / university / hangout looking-for on the Discover card. Does not require city or gender.
+    @discardableResult
+    func updateHangoutEssentials(
+        jobTitle: String,
+        university: String,
+        hangoutLookingFor: String
+    ) async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+
+        var didSucceed = false
+        await perform {
+            let updated = try await self.userService.updateProfile(
+                userId: userId,
+                displayName: nil,
+                gender: nil,
+                city: nil,
+                locale: nil,
+                jobTitle: jobTitle,
+                university: university,
+                hangoutLookingFor: hangoutLookingFor,
+                updateHangoutEssentials: true
+            )
+            self.currentUser = updated
             didSucceed = true
         }
         return didSucceed
@@ -333,15 +400,18 @@ final class AuthManager {
     /// Next Discover page for the signed-in viewer (W3-01). Empty if the profile is incomplete.
     func fetchDiscoverFeed(
         extraExcludedUserIds: Set<String> = [],
-        cursor: String? = nil
+        cursor: String? = nil,
+        ignoreSession: Bool = false
     ) async -> DiscoverFeedPage {
-        if cursor == nil, extraExcludedUserIds.isEmpty {
+        if cursor == nil, extraExcludedUserIds.isEmpty, !ignoreSession {
             if let discoverWarmTask {
                 await discoverWarmTask.value
             }
-            if let warmed = warmedDiscoverPage {
-                warmedDiscoverPage = nil
-                return warmed
+            if discoverSessionLoaded {
+                return DiscoverFeedPage(
+                    candidates: discoverSessionQueue,
+                    cursor: discoverSessionCursor
+                )
             }
         }
 
@@ -349,6 +419,24 @@ final class AuthManager {
             extraExcludedUserIds: extraExcludedUserIds,
             cursor: cursor
         )
+    }
+
+    func rememberDiscoverSession(
+        queue: [DiscoverCandidate],
+        cursor: String?,
+        skipped: [DiscoverCandidate]
+    ) {
+        discoverSessionQueue = queue
+        discoverSessionCursor = cursor
+        discoverSessionSkipped = skipped
+        discoverSessionLoaded = true
+    }
+
+    func clearDiscoverSession() {
+        discoverSessionQueue = []
+        discoverSessionCursor = nil
+        discoverSessionSkipped = []
+        discoverSessionLoaded = false
     }
 
     private static let discoverLaunchTimeoutSeconds: TimeInterval = 6
@@ -386,11 +474,13 @@ final class AuthManager {
 
     private func loadDiscoverWarm() async {
         defer { didFinishDiscoverWarm = true }
+        let viewerId = currentUser?.id
         let page = await fetchDiscoverFeedFromNetwork(
             extraExcludedUserIds: [],
             cursor: nil
         )
-        warmedDiscoverPage = page
+        guard !Task.isCancelled, viewerId != nil, viewerId == currentUser?.id else { return }
+        rememberDiscoverSession(queue: page.candidates, cursor: page.cursor, skipped: [])
         guard let photo = page.candidates.first?.photos.first else { return }
 
         let size = ProfilePreviewPhotoTile.displayPointSize
@@ -440,11 +530,11 @@ final class AuthManager {
         targetType: DiscoverLike.TargetType,
         targetId: String,
         comment: String? = nil
-    ) async -> DiscoverLike? {
+    ) async -> DiscoverLikeOutcome? {
         guard let fromUserId = currentUser?.id else { return nil }
-        var result: DiscoverLike?
+        var like: DiscoverLike?
         await perform {
-            result = try await self.likeService.createLike(
+            like = try await self.likeService.createLike(
                 fromUserId: fromUserId,
                 toUserId: toUserId,
                 targetType: targetType,
@@ -452,17 +542,146 @@ final class AuthManager {
                 comment: comment
             )
         }
+        guard let like else { return nil }
+
+        var match: NADAMatch?
+        do {
+            match = try await ensureMatchIfMutual(fromUserId: fromUserId, toUserId: toUserId)
+        } catch {
+            // Like already landed. Cloud Function / repairMutualMatches can create the doc.
+        }
+        if match == nil,
+           like.comment?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            match = try? await matchService.fetchMatch(
+                matchId: NADAMatch.documentId(userId: fromUserId, otherUserId: toUserId),
+                viewerId: fromUserId
+            )
+        }
+        if let match, match.isActive {
+            await seedOpeningChatMessage(like: like, matchId: match.id)
+        }
         await likeService.refreshIncomingLikerCount()
         dropCachedInboxUser(toUserId)
-        return result
+        return DiscoverLikeOutcome(like: like, match: match)
+    }
+
+    /// Active matches for the signed-in user, newest first (W4-02). UI is W4-07.
+    func fetchMatches(cursor: String? = nil) async throws -> MatchListPage {
+        guard let userId = currentUser?.id else { return .empty }
+        return try await matchService.fetchMatches(viewerId: userId, cursor: cursor)
+    }
+
+    func fetchMatchListItem(matchId: String) async -> MatchListItem? {
+        guard let userId = currentUser?.id, !matchId.isEmpty else { return nil }
+        return try? await matchService.fetchMatchItem(matchId: matchId, viewerId: userId)
+    }
+
+    private func ensureMatchIfMutual(fromUserId: String, toUserId: String) async throws -> NADAMatch? {
+        if await matchService.isBlockedPair(userId: fromUserId, otherUserId: toUserId) {
+            return nil
+        }
+        let theyLikedBack = try await likeService.hasLike(fromUserId: toUserId, toUserId: fromUserId)
+        guard theyLikedBack else { return nil }
+        let match = try await matchService.ensureMatch(userId: fromUserId, otherUserId: toUserId)
+        return match.isActive ? match : nil
+    }
+
+    /// Hides a mutual for both people (W4-04). Chat hide lands with Week 5.
+    @discardableResult
+    func unmatch(matchId: String) async -> Bool {
+        guard let userId = currentUser?.id else { return false }
+        var ok = false
+        await perform {
+            _ = try await self.matchService.unmatch(viewerId: userId, matchId: matchId)
+            ok = true
+        }
+        return ok
+    }
+
+    func sendChatMessage(matchId: String, body: String) async -> ChatMessage? {
+        guard let userId = currentUser?.id else { return nil }
+        var sent: ChatMessage?
+        await perform {
+            let match = try await self.matchService.fetchMatch(matchId: matchId, viewerId: userId)
+            guard match.isActive else {
+                throw AuthError.unknown("This chat is closed.")
+            }
+            sent = try await self.chatService.sendMessage(
+                matchId: matchId,
+                senderId: userId,
+                body: body
+            )
+        }
+        return sent
+    }
+
+    /// Copies this person's like comments into a thread that has no regular messages yet.
+    func seedOpeningChatMessages(matchId: String, otherUserId: String) async {
+        guard let userId = currentUser?.id else { return }
+        let existing = (try? await chatService.fetchMessages(matchId: matchId))?.messages ?? []
+        let hasRegularChat = existing.contains { !$0.id.hasPrefix("opening_") }
+        guard !hasRegularChat else { return }
+        let likes = (try? await likeService.fetchLikes(fromUserId: userId, toUserId: otherUserId)) ?? []
+        for like in likes {
+            await seedOpeningChatMessage(like: like, matchId: matchId)
+        }
+    }
+
+    private func seedOpeningChatMessage(like: DiscoverLike, matchId: String) async {
+        let body = like.comment?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !body.isEmpty else { return }
+        _ = try? await chatService.sendMessage(
+            matchId: matchId,
+            senderId: like.fromUserId,
+            body: String(body.prefix(ChatMessage.maxTextLength)),
+            messageId: ChatMessage.openingMessageId(likeId: like.id)
+        )
+    }
+
+    func fetchChatMessages(matchId: String, cursor: String? = nil) async throws -> ChatMessagePage {
+        guard currentUser?.id != nil else { return .empty }
+        return try await chatService.fetchMessages(matchId: matchId, cursor: cursor)
+    }
+
+    func listenChatMessages(
+        matchId: String,
+        onChange: @escaping @MainActor ([ChatMessage]) -> Void
+    ) -> (() -> Void)? {
+        return chatService.listenMessages(matchId: matchId, onChange: onChange)
+    }
+
+    func markChatRead(matchId: String, messages: [ChatMessage]) async {
+        guard let userId = currentUser?.id else { return }
+        try? await chatService.markRead(matchId: matchId, viewerId: userId, messages: messages)
+    }
+
+    static func chatErrorMessage(_ error: Error) -> String {
+        if let authError = error as? AuthError, let text = authError.errorDescription {
+            return text
+        }
+        let text = error.localizedDescription.lowercased()
+        if text.contains("permission") || text.contains("missing or insufficient") {
+            return "Can't open chat yet. Publish firebase/firestore.rules (the matches/messages block) in Firebase Console."
+        }
+        return error.localizedDescription
+    }
+
+    /// Fills in matches for pairs that liked each other before W4-02 shipped.
+    func repairMutualMatches() async {
+        guard let userId = currentUser?.id else { return }
+        do {
+            async let outgoing = likeService.fetchLikedUserIds(fromUserId: userId)
+            async let incoming = likeService.fetchIncomingFromUserIds(toUserId: userId)
+            let mutual = try await outgoing.intersection(incoming)
+            guard !mutual.isEmpty else { return }
+            try await matchService.ensureMatches(viewerId: userId, otherIds: mutual)
+        } catch {
+            // Index / rules not published yet — like still works; match list stays empty.
+        }
     }
 
     func fetchIncomingLikes(cursor: String? = nil) async -> LikeInboxPage {
         await fetchLikeInbox(direction: .incoming, cursor: cursor)
-    }
-
-    func fetchSentLikes(cursor: String? = nil) async -> LikeInboxPage {
-        await fetchLikeInbox(direction: .sent, cursor: cursor)
     }
 
     func cachedLikeInbox(direction: LikeInboxDirection) -> LikeInboxPage? {
@@ -486,6 +705,7 @@ final class AuthManager {
         if let firstId = page.items.first?.otherUser.id {
             Task { _ = await fetchInboxProfile(userId: firstId) }
         }
+        await repairMutualMatches()
     }
 
     func fetchInboxProfile(userId: String) async -> DiscoverCandidate? {
@@ -512,13 +732,18 @@ final class AuthManager {
         let photos = cachedPhotosUserId == userId ? cachedPhotos : []
         let answers = cachedAnswersUserId == userId ? cachedAnswers : []
         do {
-            return try await likeService.fetchInbox(
+            let page = try await likeService.fetchInbox(
                 direction: direction,
                 viewerId: userId,
                 cursor: cursor,
                 viewerPhotos: photos,
                 viewerAnswers: answers
             )
+            if errorMessage?.contains("Can't read clicks") == true
+                || errorMessage?.contains("Can't load clicks") == true {
+                errorMessage = nil
+            }
+            return page
         } catch {
             errorMessage = Self.likesInboxErrorMessage(error)
             return .empty
@@ -610,19 +835,6 @@ final class AuthManager {
     }
 
     @discardableResult
-    func addPhoto(_ image: UIImage, at index: Int? = nil) async -> [ProfilePhoto]? {
-        guard let userId = currentUser?.id else { return nil }
-        var result: [ProfilePhoto]?
-        await perform {
-            let list = try await self.photoService.addPhoto(userId: userId, image: image, at: index)
-            self.applyPhotoMutation(list, userId: userId)
-            try await self.syncProfileCompleteness(photoCount: list.count)
-            result = list
-        }
-        return result
-    }
-
-    @discardableResult
     func addPhotos(_ images: [UIImage], startingAt index: Int? = nil) async -> [ProfilePhoto]? {
         guard let userId = currentUser?.id, !images.isEmpty else { return nil }
         var result: [ProfilePhoto]?
@@ -664,18 +876,6 @@ final class AuthManager {
             let list = try await self.photoService.deletePhoto(userId: userId, photoId: id)
             self.applyPhotoMutation(list, userId: userId)
             try await self.syncProfileCompleteness(photoCount: list.count)
-            result = list
-        }
-        return result
-    }
-
-    @discardableResult
-    func setPrimaryPhoto(id: String) async -> [ProfilePhoto]? {
-        guard let userId = currentUser?.id else { return nil }
-        var result: [ProfilePhoto]?
-        await perform {
-            let list = try await self.photoService.setPrimary(userId: userId, photoId: id)
-            self.applyPhotoMutation(list, userId: userId)
             result = list
         }
         return result
@@ -789,7 +989,6 @@ final class AuthManager {
                 errorMessage = nil
                 isRevisitingBasicProfile = false
                 isDiscoverLaunchReady = true
-                warmedDiscoverPage = nil
                 clearSessionCaches()
             } catch {
                 errorMessage = error.localizedDescription
@@ -832,10 +1031,13 @@ final class AuthManager {
             isResolvingProfile = false
             isRevisitingBasicProfile = false
             isDiscoverLaunchReady = true
-            warmedDiscoverPage = nil
             DevicePushRegistrar.shared.forgetUser()
             clearSessionCaches()
             return
+        }
+
+        if currentUser?.id != authUser.id {
+            clearDiscoverSession()
         }
 
         // Firebase Auth cannot tell us onboarding flags — wait for Firestore before routing.
@@ -970,10 +1172,24 @@ final class AuthManager {
         }
         let text = error.localizedDescription.lowercased()
         if text.contains("requires an index") || text.contains("failed-precondition") {
-            return "Can't load likes yet. Create the Firestore composite index for likes (toUserId/fromUserId + createdAt) from firebase/firestore.indexes.json."
+            return "Can't load clicks yet. Create the Firestore composite index for likes (toUserId/fromUserId + createdAt) from firebase/firestore.indexes.json."
         }
         if text.contains("permission") || text.contains("missing or insufficient") {
-            return "Can't read likes yet. Publish firebase/firestore.rules so you can list likes sent to or from you."
+            return "Can't read clicks yet. Publish firebase/firestore.rules so you can list clicks sent to or from you."
+        }
+        return error.localizedDescription
+    }
+
+    static func matchesListErrorMessage(_ error: Error) -> String {
+        if let authError = error as? AuthError, let text = authError.errorDescription {
+            return text
+        }
+        let text = error.localizedDescription.lowercased()
+        if text.contains("requires an index") || text.contains("failed-precondition") {
+            return "Can't load mutuals yet. Create the Firestore index for matches (userIds + createdAt) from firebase/firestore.indexes.json."
+        }
+        if text.contains("permission") || text.contains("missing or insufficient") {
+            return "Can't update mutuals yet. Publish firebase/firestore.rules (the matches block, including unmatch) in Firebase Console."
         }
         return error.localizedDescription
     }
@@ -1019,8 +1235,9 @@ final class AuthManager {
         cachedAnswers = []
         cachedAnswersUserId = nil
         didLoadAnswers = false
-        warmedDiscoverPage = nil
+        discoverWarmTask?.cancel()
         discoverWarmTask = nil
+        clearDiscoverSession()
         RemoteImageLoader.shared.invalidateAll()
     }
 

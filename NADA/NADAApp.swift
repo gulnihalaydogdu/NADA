@@ -7,6 +7,7 @@ struct NADAApp: App {
     @UIApplicationDelegateAdaptor(NADAAppDelegate.self) private var appDelegate
     @State private var authManager = AuthManager()
     @State private var splashController = SplashController()
+    @State private var pushRouter = PushRouter.shared
 
     init() {
         FirebaseAuthService.configureAtLaunch()
@@ -29,6 +30,7 @@ struct NADAApp: App {
             RootView()
                 .environment(authManager)
                 .environment(splashController)
+                .environment(pushRouter)
         }
     }
 }

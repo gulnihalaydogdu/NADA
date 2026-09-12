@@ -1,7 +1,15 @@
 import SwiftUI
+import UIKit
 
 /// Shared name / gender / birthday / city form used by the onboarding gate and Edit Profile sheet.
 /// Hangout essentials (job, university, looking-for) are collected after signup, not on this gate.
+enum ProfileBasicsField: Hashable {
+    case displayName
+    case gender
+    case age
+    case city
+}
+
 struct ProfileBasicsForm: View {
     @Binding var displayName: String
     @Binding var city: String
@@ -11,41 +19,54 @@ struct ProfileBasicsForm: View {
     var university: Binding<String>? = nil
     var hangoutLookingFor: Binding<String>? = nil
     var errorMessage: String?
+    /// Defaults to the full form (Edit Profile). Onboarding shows one field at a time.
+    var visibleFields: [ProfileBasicsField] = [.displayName, .gender, .age, .city]
+    var autofocusDisplayName = false
+    var onDisplayNameSubmit: (() -> Void)? = nil
+    var autofocusCity = false
+    var onCitySubmit: (() -> Void)? = nil
 
     @State private var isBirthdayPickerPresented = false
     @State private var pickerDraftDate: Date?
 
+    private func shows(_ field: ProfileBasicsField) -> Bool {
+        visibleFields.contains(field)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: NADATheme.Layout.fieldSpacing) {
-            ProfileLimitedTextField(
-                title: "Display name",
-                text: $displayName,
-                placeholder: "What should friends call you?"
-            )
-
-            comboField(title: "Gender") {
-                Menu {
-                    ForEach(ProfileGender.allCases) { option in
-                        Button(option.title) {
-                            gender = option
-                        }
-                    }
-                } label: {
-                    comboLabel(
-                        text: gender?.title,
-                        placeholder: "Select gender"
-                    )
-                }
+            if shows(.displayName) {
+                ProfileLimitedTextField(
+                    title: "Display name",
+                    text: $displayName,
+                    placeholder: "What should friends call you?",
+                    autofocus: autofocusDisplayName,
+                    submitLabel: onDisplayNameSubmit == nil ? nil : .continue,
+                    textContentType: .name,
+                    onSubmit: onDisplayNameSubmit
+                )
             }
 
-            birthdayField
+            if shows(.gender) {
+                genderTiles
+            }
 
-            // City stays free-text for MVP — full country/city catalogs are a later decision.
-            ProfileLimitedTextField(
-                title: "City",
-                text: $city,
-                placeholder: "Where are you based?"
-            )
+            if shows(.age) {
+                birthdayField
+            }
+
+            // Hometown stays free-text for MVP — full country/city catalogs are a later decision.
+            if shows(.city) {
+                ProfileLimitedTextField(
+                    title: "Hometown",
+                    text: $city,
+                    placeholder: "Istanbul, London…",
+                    autofocus: autofocusCity,
+                    submitLabel: onCitySubmit == nil ? nil : .continue,
+                    textContentType: .addressCity,
+                    onSubmit: onCitySubmit
+                )
+            }
 
             if let jobTitle, let university, let hangoutLookingFor {
                 ProfileHangoutEssentialsForm(
@@ -71,7 +92,7 @@ struct ProfileBasicsForm: View {
 
     private var birthdayField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Age")
+            Text("Birthday")
                 .font(NADATheme.captionFont)
                 .foregroundStyle(NADATheme.secondaryInk)
 
@@ -79,7 +100,7 @@ struct ProfileBasicsForm: View {
                 isBirthdayPickerPresented = true
             } label: {
                 HStack(spacing: 10) {
-                    Text(ageCapsuleLabel)
+                    Text(birthdayCapsuleLabel)
                         .font(NADATheme.bodyFont)
                         .foregroundStyle(dateOfBirth == nil ? NADATheme.secondaryInk : NADATheme.ink)
                     Spacer(minLength: 0)
@@ -95,21 +116,60 @@ struct ProfileBasicsForm: View {
                 )
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Age")
+            .accessibilityLabel("Birthday")
             .accessibilityHint("Opens birthday picker")
+            .accessibilityValue(birthdayCapsuleLabel)
 
-            Text("Friends only see your age, not your birthday. NADA is \(ProfileAge.minimumAge)+.")
-                .font(NADATheme.captionFont)
-                .foregroundStyle(NADATheme.secondaryInk)
-                .fixedSize(horizontal: false, vertical: true)
+            if let dateOfBirth, visibleFields == [.age] {
+                agePreviewCard(for: dateOfBirth)
+            } else {
+                Text("Friends only see your age, not your birthday.")
+                    .font(NADATheme.captionFont)
+                    .foregroundStyle(NADATheme.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
-    private var ageCapsuleLabel: String {
+    private var birthdayCapsuleLabel: String {
         if let dateOfBirth {
-            return "\(ProfileAge.age(from: dateOfBirth))"
+            return Self.birthdayFormatter.string(from: dateOfBirth)
         }
-        return "Add your age"
+        return "Add your birthday"
+    }
+
+    private static let birthdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    private func agePreviewCard(for dateOfBirth: Date) -> some View {
+        let years = ProfileAge.age(from: dateOfBirth)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Friends will see \(years).")
+                .font(NADATheme.headlineFont)
+                .foregroundStyle(NADATheme.ink)
+
+            Text("Hangouts feel more natural with people around the same age. Your birthday stays private.")
+            .font(NADATheme.bodyFont)
+            .foregroundStyle(NADATheme.warmSecondaryInk)
+            .lineSpacing(3)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            NADATheme.card,
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(NADATheme.ink.opacity(0.06), lineWidth: 1)
+        )
+        .padding(.top, 8)
     }
 
     private var birthdayPickerSheet: some View {
@@ -167,31 +227,52 @@ struct ProfileBasicsForm: View {
         )
     }
 
-    private func comboField<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
+    private var genderTiles: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Gender")
                 .font(NADATheme.captionFont)
                 .foregroundStyle(NADATheme.secondaryInk)
-            content()
-        }
-    }
+                .padding(.horizontal, 4)
 
-    private func comboLabel(text: String?, placeholder: String) -> some View {
-        HStack {
-            Text(text ?? placeholder)
-                .font(NADATheme.bodyFont)
-                .foregroundStyle(text == nil ? NADATheme.secondaryInk : NADATheme.ink)
-            Spacer()
-            Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(NADATheme.secondaryInk)
+            VStack(spacing: 10) {
+                ForEach(ProfileGender.allCases) { option in
+                    let isSelected = gender == option
+                    Button {
+                        gender = option
+                    } label: {
+                        Text(option.title)
+                            .font(NADATheme.bodyFont)
+                            .foregroundStyle(NADATheme.ink)
+                            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                            .padding(.horizontal, 20)
+                            .background(
+                                isSelected ? NADATheme.brandSoft : NADATheme.surface,
+                                in: RoundedRectangle(cornerRadius: NADATheme.Layout.fieldRadius, style: .continuous)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: NADATheme.Layout.fieldRadius, style: .continuous)
+                                    .strokeBorder(
+                                        isSelected ? NADATheme.brand.opacity(0.55) : Color.clear,
+                                        lineWidth: 1.5
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .background(
+                NADATheme.card,
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(NADATheme.ink.opacity(0.06), lineWidth: 1)
+            )
         }
-        .padding(.horizontal, NADATheme.Layout.fieldHPadding)
-        .frame(maxWidth: .infinity, minHeight: NADATheme.Layout.fieldMinHeight, alignment: .leading)
-        .background(
-            NADATheme.surface,
-            in: RoundedRectangle(cornerRadius: NADATheme.Layout.fieldRadius, style: .continuous)
-        )
+        .padding(.horizontal, 8)
     }
 }
 
@@ -249,6 +330,10 @@ private struct ProfileLimitedTextField: View {
     var maxLength: Int? = nil
     var axis: Axis = .horizontal
     var hint: String? = nil
+    var autofocus = false
+    var submitLabel: SubmitLabel? = nil
+    var textContentType: UITextContentType? = nil
+    var onSubmit: (() -> Void)? = nil
 
     @FocusState private var isFocused: Bool
 
@@ -265,6 +350,7 @@ private struct ProfileLimitedTextField: View {
                         .foregroundStyle(NADATheme.secondaryInk)
                 }
             }
+            .nadaDismissKeyboardOnTap()
 
             Group {
                 if axis == .vertical {
@@ -276,6 +362,9 @@ private struct ProfileLimitedTextField: View {
             }
             .textFieldStyle(.plain)
             .focused($isFocused)
+            .nadaSubmitLabel(submitLabel)
+            .onSubmit { onSubmit?() }
+            .nadaTextContentType(textContentType)
             .textInputAutocapitalization(axis == .vertical ? .sentences : .words)
             .autocorrectionDisabled()
             .padding(.horizontal, NADATheme.Layout.fieldHPadding)
@@ -297,6 +386,31 @@ private struct ProfileLimitedTextField: View {
                     .foregroundStyle(NADATheme.secondaryInk)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+        .task(id: autofocus) {
+            guard autofocus else { return }
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            isFocused = true
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func nadaSubmitLabel(_ label: SubmitLabel?) -> some View {
+        if let label {
+            self.submitLabel(label)
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func nadaTextContentType(_ type: UITextContentType?) -> some View {
+        if let type {
+            self.textContentType(type)
+        } else {
+            self
         }
     }
 }

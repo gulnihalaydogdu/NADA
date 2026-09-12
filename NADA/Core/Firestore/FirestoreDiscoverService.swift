@@ -8,7 +8,7 @@ import Foundation
 /// excludes self + liked / liked-you / skipped / seen / blocked, ranks by distance then recency.
 @MainActor
 final class FirestoreDiscoverService {
-    static let defaultPageSize = 10
+    nonisolated static let defaultPageSize = 10
     private static let queryBatchSize = 40
     private static let maxQueryBatches = 12
 
@@ -371,6 +371,7 @@ final class FirestoreDiscoverService {
                 data["hangoutLookingFor"] as? String,
                 max: NADAUser.maxHangoutLookingForLength
             ),
+            zodiac: dateOfBirth.map { ZodiacSign.from(dateOfBirth: $0) },
             interestIds: InterestSelection.normalized(data["interestIds"] as? [String] ?? []),
             photos: photos,
             bits: bits,

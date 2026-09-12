@@ -2,7 +2,7 @@ import FirebaseMessaging
 import UIKit
 import UserNotifications
 
-/// APNs + FCM glue for W3-05 / W3-09. Deep-link routing is Week 4 (W4-08).
+/// APNs + FCM glue (W3-05 / W3-09) and tap routing to Clicks / Mutuals / chat (W4-08 / W5-07).
 final class NADAAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     func application(
         _ application: UIApplication,
@@ -47,6 +47,15 @@ final class NADAAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        completionHandler()
+        let tappedBanner = response.actionIdentifier == UNNotificationDefaultActionIdentifier
+        let route = tappedBanner
+            ? PushRoute.fromNotificationUserInfo(response.notification.request.content.userInfo)
+            : nil
+        Task { @MainActor in
+            if let route {
+                PushRouter.shared.handle(route)
+            }
+            completionHandler()
+        }
     }
 }

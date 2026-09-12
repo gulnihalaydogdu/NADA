@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Hinge-inspired “about” card for Discover / Preview — age · gender · city, then job / uni / looking-for.
+/// Quick facts + background rows for Discover / Preview / inbox profile.
 struct ProfileEssentialsCard: View {
     struct Model: Equatable {
         var age: Int?
@@ -9,7 +9,6 @@ struct ProfileEssentialsCard: View {
         var jobTitle: String?
         var university: String?
         var hangoutLookingFor: String?
-        var openToGroups: Bool?
     }
 
     let model: Model
@@ -31,10 +30,10 @@ struct ProfileEssentialsCard: View {
                     detailList
                 }
             }
-            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(NADATheme.ink.opacity(0.08), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(NADATheme.hairline.opacity(0.38), lineWidth: 1)
             )
         }
     }
@@ -57,7 +56,6 @@ struct ProfileEssentialsCard: View {
         !(model.jobTitle ?? "").isEmpty
             || !(model.university ?? "").isEmpty
             || !(model.hangoutLookingFor ?? "").isEmpty
-            || model.openToGroups == true
     }
 
     private var topRow: some View {
@@ -123,13 +121,14 @@ struct ProfileEssentialsCard: View {
         if let lookingFor = model.hangoutLookingFor, !lookingFor.isEmpty {
             rows.append(("magnifyingglass", lookingFor))
         }
-        if model.openToGroups == true {
-            rows.append(("person.2", "Open to including friends in groups"))
-        }
         return rows
     }
 
-    private func detailRow(systemImage: String, text: String, showDivider: Bool = false) -> some View {
+    private func detailRow(
+        systemImage: String,
+        text: String,
+        showDivider: Bool = false
+    ) -> some View {
         VStack(spacing: 0) {
             if showDivider {
                 Rectangle()
@@ -142,7 +141,8 @@ struct ProfileEssentialsCard: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(NADATheme.brandPressed)
                     .frame(width: 22, alignment: .center)
-                    .padding(.top, 2)
+                    .padding(.top, 1)
+
                 Text(text)
                     .font(NADATheme.bodyFont)
                     .foregroundStyle(NADATheme.ink)
@@ -155,16 +155,33 @@ struct ProfileEssentialsCard: View {
     }
 }
 
+/// Sign + name under a display name. Coral, not in the essentials card.
+struct ProfileZodiacCaption: View {
+    let sign: ZodiacSign?
+
+    var body: some View {
+        if let sign {
+            HStack(spacing: 5) {
+                Text(sign.glyph)
+                Text(sign.title)
+            }
+            .font(.system(size: 15, weight: .medium))
+            .foregroundStyle(NADATheme.brand)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(sign.title)
+        }
+    }
+}
+
 #Preview("Essentials card") {
     ProfileEssentialsCard(
         model: .init(
-            age: 21,
+            age: 22,
             gender: "Woman",
-            city: "Istanbul",
-            jobTitle: "Student",
-            university: "Bilkent University",
-            hangoutLookingFor: "Looking for a travel-buddy from Istanbul",
-            openToGroups: nil
+            city: "Ankara",
+            jobTitle: "Singer",
+            university: "Istanbul Technical University",
+            hangoutLookingFor: "Looking for Guno"
         )
     )
     .padding(24)

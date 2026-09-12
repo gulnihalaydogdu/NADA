@@ -22,11 +22,11 @@ enum ProfileSection: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .photos: return "photo.on.rectangle"
-        case .bits: return "bubble.left.and.text.bubble.right"
-        case .interests: return "sparkles"
-        case .about: return "person"
-        case .location: return "slider.horizontal.3"
+        case .photos: return "photo"
+        case .bits: return "text.bubble"
+        case .interests: return "sparkle"
+        case .about: return "person.crop.circle"
+        case .location: return "location"
         }
     }
 }
@@ -34,6 +34,7 @@ enum ProfileSection: String, CaseIterable, Identifiable {
 struct ProfileSuggestion: Identifiable {
     let section: ProfileSection
     let title: String
+    let note: String
 
     var id: String { section.id }
 }
@@ -138,34 +139,77 @@ struct ProfileCompletion {
         var items: [ProfileSuggestion] = []
 
         if photoCount == 0 {
-            items.append(ProfileSuggestion(section: .photos, title: "Add your first photo"))
+            items.append(
+                ProfileSuggestion(
+                    section: .photos,
+                    title: "Add your first photo",
+                    note: "A clear photo makes it easier to say hi."
+                )
+            )
         } else if photoCount < Self.photoTarget {
-            items.append(ProfileSuggestion(section: .photos, title: "Add another photo"))
+            items.append(
+                ProfileSuggestion(
+                    section: .photos,
+                    title: "Add another photo",
+                    note: "A couple more shots give people a better sense of you."
+                )
+            )
         }
 
         if answeredBits == 0 {
-            items.append(ProfileSuggestion(section: .bits, title: "Answer your first Bit"))
+            items.append(
+                ProfileSuggestion(
+                    section: .bits,
+                    title: "Answer your first Bit",
+                    note: "A short answer people can click — hangout energy, not a bio."
+                )
+            )
         } else if answeredBits < Self.bitTarget {
-            items.append(ProfileSuggestion(section: .bits, title: "Answer one more Bit"))
+            items.append(
+                ProfileSuggestion(
+                    section: .bits,
+                    title: "Answer one more Bit",
+                    note: "One more makes your card feel lived-in."
+                )
+            )
         }
 
         if interestCount == 0 {
-            items.append(ProfileSuggestion(section: .interests, title: "Add interest badges"))
+            items.append(
+                ProfileSuggestion(
+                    section: .interests,
+                    title: "Add interest badges",
+                    note: "A few interests help the right people find you."
+                )
+            )
         }
 
         if !hasName || !hasGender || !hasBirthday {
-            items.append(ProfileSuggestion(section: .about, title: "Finish the about you basics"))
+            items.append(
+                ProfileSuggestion(
+                    section: .about,
+                    title: "Finish the about you basics",
+                    note: "Name, gender, and birthday keep Discover accurate."
+                )
+            )
         } else if !hasHangoutEssentials {
             items.append(
                 ProfileSuggestion(
                     section: .about,
-                    title: "Add job, school, or hangout looking-for"
+                    title: "Add job, school, or hangout looking-for",
+                    note: "Small details that make hangouts easier to picture."
                 )
             )
         }
 
         if !hasCity {
-            items.append(ProfileSuggestion(section: .location, title: "Add your city"))
+            items.append(
+                ProfileSuggestion(
+                    section: .location,
+                    title: "Add your city",
+                    note: "City is how we show people nearby."
+                )
+            )
         }
 
         return Array(items.prefix(3))

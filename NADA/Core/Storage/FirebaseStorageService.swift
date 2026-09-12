@@ -23,11 +23,6 @@ final class FirebaseStorageService {
         "users/\(userId)/photos/\(photoId)_thumb.\(fileExtension)"
     }
 
-    /// Legacy W1 single-photo path.
-    static func profilePhotoPath(userId: String) -> String {
-        "users/\(userId)/photos/profile.jpg"
-    }
-
     private var storage: Storage? {
         guard FirebaseApp.app() != nil else { return nil }
         return Storage.storage()
@@ -103,11 +98,6 @@ final class FirebaseStorageService {
             names.append("profile.jpg")
         }
         return names
-    }
-
-    /// W1 compatibility: uploads as primary-style `profile.jpg`.
-    func uploadProfilePhoto(userId: String, image: UIImage) async throws -> StoredPhotoURLs {
-        try await uploadPhoto(userId: userId, photoId: "profile", image: image)
     }
 
     private func put(

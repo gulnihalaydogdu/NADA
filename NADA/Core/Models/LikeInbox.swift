@@ -1,7 +1,7 @@
 import Foundation
 
-/// Other person on an inbox like — sender (incoming) or recipient (sent). Never includes email.
-struct LikePartySummary: Identifiable, Equatable, Sendable {
+/// Other person on an incoming like. Never includes email.
+struct LikePartySummary: Identifiable, Equatable, Hashable, Sendable {
     let id: String
     let displayName: String
     let photoURL: String?
@@ -43,7 +43,7 @@ enum LikeInboxDirection: String, Sendable, Hashable, CaseIterable, Identifiable 
 
     var title: String {
         switch self {
-        case .incoming: return "Likes you"
+        case .incoming: return "Clicks you"
         case .sent: return "Sent"
         }
     }

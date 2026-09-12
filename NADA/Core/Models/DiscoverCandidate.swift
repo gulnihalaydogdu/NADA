@@ -11,6 +11,8 @@ struct DiscoverCandidate: Identifiable, Equatable, Sendable {
     var jobTitle: String?
     var university: String?
     var hangoutLookingFor: String?
+    /// Derived from birthday month/day only — full date of birth is never on the candidate.
+    var zodiac: ZodiacSign?
     var interestIds: [String]
     /// Ordered photos (primary first). May be a single primary URL when subcollection is empty.
     let photos: [ProfilePhoto]

@@ -25,10 +25,10 @@ final class FirestoreLikeService {
     ) async throws -> DiscoverLike {
         guard let database else { throw AuthError.notConfigured }
         guard fromUserId != toUserId else {
-            throw AuthError.unknown("You can't like your own profile.")
+            throw AuthError.unknown("You can't click your own profile.")
         }
         guard !toUserId.isEmpty, !targetId.isEmpty else {
-            throw AuthError.unknown("Missing like target.")
+            throw AuthError.unknown("Missing click target.")
         }
 
         let trimmedComment = comment?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -73,6 +73,42 @@ final class FirestoreLikeService {
             comment: commentValue,
             createdAt: Date()
         )
+    }
+
+    func fetchLikes(fromUserId: String, toUserId: String) async throws -> [DiscoverLike] {
+        guard let database else { throw AuthError.notConfigured }
+        guard !fromUserId.isEmpty, !toUserId.isEmpty else { return [] }
+        let snapshot = try await database.collection(Self.collectionName)
+            .whereField("fromUserId", isEqualTo: fromUserId)
+            .whereField("toUserId", isEqualTo: toUserId)
+            .getDocuments()
+        return snapshot.documents
+            .map { mapLike(id: $0.documentID, data: $0.data()) }
+            .sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+    }
+
+    /// True if `fromUserId` has liked `toUserId` on any target (profile / Bit / photo).
+    func hasLike(fromUserId: String, toUserId: String) async throws -> Bool {
+        guard let database else { throw AuthError.notConfigured }
+        guard !fromUserId.isEmpty, !toUserId.isEmpty else { return false }
+        let snapshot = try await database.collection(Self.collectionName)
+            .whereField("fromUserId", isEqualTo: fromUserId)
+            .whereField("toUserId", isEqualTo: toUserId)
+            .limit(to: 1)
+            .getDocuments()
+        return !snapshot.documents.isEmpty
+    }
+
+    func fetchIncomingFromUserIds(toUserId: String) async throws -> Set<String> {
+        guard let database else { throw AuthError.notConfigured }
+        let snapshot = try await database.collection(Self.collectionName)
+            .whereField("toUserId", isEqualTo: toUserId)
+            .getDocuments()
+        return Set(snapshot.documents.compactMap { $0.data()["fromUserId"] as? String })
+    }
+
+    func blockedUserIds(for viewerId: String) async -> Set<String> {
+        await loadBlockedUserIds(viewerId: viewerId)
     }
 
     func fetchLikedUserIds(fromUserId: String) async throws -> Set<String> {
@@ -184,9 +220,15 @@ final class FirestoreLikeService {
         var excluded = await loadBlockedUserIds(viewerId: viewerId)
         if direction == .incoming {
             excluded.formUnion(await loadHandledUserIds(viewerId: viewerId))
+        } else {
+            excluded.formUnion(await fetchIncomingIdsForExclusions(viewerId: viewerId))
         }
         excludedCache = excluded
         return excluded
+    }
+
+    private func fetchIncomingIdsForExclusions(viewerId: String) async -> Set<String> {
+        (try? await fetchIncomingFromUserIds(toUserId: viewerId)) ?? []
     }
 
     private func hydrateAll(

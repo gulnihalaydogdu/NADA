@@ -59,16 +59,16 @@ struct InterestBadgeChip: View {
                     .font(.system(size: 11, weight: .bold))
             }
             Text(label)
-                .font(NADATheme.captionFont.weight(.medium))
+                .font(.system(size: 13, weight: .medium))
         }
         .foregroundStyle(chipForeground)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .frame(minHeight: 34)
-        .background(chipBackground, in: Capsule())
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .frame(minHeight: 32)
+        .background(chipBackground, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay(
-            Capsule()
-                .strokeBorder(chipStroke, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(chipStroke, lineWidth: 0.8)
         )
     }
 
@@ -106,81 +106,63 @@ struct ProfileInterestBadgesView: View {
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 Text(title)
-                    .font(NADATheme.headlineFont)
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(NADATheme.ink)
 
-                InterestBadgeWrap(interests: interests, emphasized: emphasized)
+                InterestBadgeWrap(interests: interests, allEmphasized: emphasized)
             }
-            .padding(18)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(NADATheme.ink.opacity(0.08), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(NADATheme.hairline.opacity(0.38), lineWidth: 1)
             )
         }
     }
 }
 
-/// Discover: shared badges first as “You both like…”, the rest as quieter Interests.
+/// Discover: one Interests card. Shared badges are coral; the rest stay outlined.
 struct DiscoverInterestOverlapView: View {
     let interests: [Interest]
     let viewerInterestIds: [String]
 
-    private var viewerSet: Set<String> { Set(viewerInterestIds) }
-
-    private var shared: [Interest] {
-        interests.filter { viewerSet.contains($0.id) }
-    }
-
-    private var others: [Interest] {
-        interests.filter { !viewerSet.contains($0.id) }
-    }
+    private var sharedIds: Set<String> { Set(viewerInterestIds) }
 
     var body: some View {
         if interests.isEmpty {
             EmptyView()
         } else {
-            VStack(alignment: .leading, spacing: 16) {
-                if !shared.isEmpty {
-                    section(title: "You both like…", interests: shared, emphasized: true)
-                }
-                if !others.isEmpty {
-                    section(
-                        title: shared.isEmpty ? "Interests" : "Also into",
-                        interests: others,
-                        emphasized: false
-                    )
-                }
-            }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(NADATheme.ink.opacity(0.08), lineWidth: 1)
-            )
-        }
-    }
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Interests")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(NADATheme.ink)
 
-    private func section(title: String, interests: [Interest], emphasized: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(NADATheme.headlineFont)
-                .foregroundStyle(NADATheme.ink)
-            InterestBadgeWrap(interests: interests, emphasized: emphasized)
+                InterestBadgeWrap(interests: interests, selectedIds: sharedIds)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(NADATheme.hairline.opacity(0.38), lineWidth: 1)
+            )
         }
     }
 }
 
 private struct InterestBadgeWrap: View {
     let interests: [Interest]
-    var emphasized = true
+    var selectedIds: Set<String> = []
+    var allEmphasized = false
 
     var body: some View {
-        WrappingHStack(spacing: 8, lineSpacing: 8) {
+        WrappingHStack(spacing: 7, lineSpacing: 7) {
             ForEach(interests) { interest in
-                InterestBadgeChip(label: interest.label, isSelected: emphasized)
+                InterestBadgeChip(
+                    label: interest.label,
+                    isSelected: allEmphasized || selectedIds.contains(interest.id)
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

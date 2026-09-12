@@ -21,12 +21,13 @@ City + `radiusKm` are also mirrored on `users/{uid}`. Preferences is the discove
 | `lookingForGenders` | string | yes | `women` / `men` / `nonBinary` / `everyone` |
 | `minAge` | number | yes | 18…99; default **18** |
 | `maxAge` | number | yes | 18…99; default **45** |
-| `buddyTypes` | array&lt;string&gt; | yes | Always written as `openToAll`. Not shown in Discover preferences — hangout intent lives on the Discover card (`hangoutLookingFor`). |
+| `notifyOnLikes` | boolean | yes | Missing in Firestore means true |
+| `notifyOnMessages` | boolean | yes | Missing in Firestore means true (W5-02) |
 | `updatedAt` | timestamp | yes | Server timestamp on write |
 
 † Required when calling `updatePreferences`.
 
-Legacy `showMe` is removed on write (migrated to `lookingForGenders`).
+Legacy `showMe` and unused `buddyTypes` are removed on write.
 
 ---
 

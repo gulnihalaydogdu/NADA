@@ -54,4 +54,5 @@ struct RootView: View {
     RootView()
         .environment(AuthManager())
         .environment(SplashController())
+        .environment(PushRouter.shared)
 }

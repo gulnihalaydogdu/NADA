@@ -393,7 +393,6 @@ struct ProfilePreferencesSheet: View {
         prefs.lookingForGenders = lookingFor
         prefs.minAge = age.min
         prefs.maxAge = age.max
-        prefs.buddyTypes = [.openToAll]
 
         let ok = await auth.updatePreferences(prefs)
         if ok, let approxLatitude, let approxLongitude {
@@ -608,7 +607,8 @@ private struct PreferenceOptionPicker<Option: Identifiable & Hashable>: View {
 }
 
 /// How friends will see you — Hinge-inspired stack:
-/// name → primary photo → first Bit → essentials → remaining photos interleaved with Bits.
+/// name → primary photo → first Bit → essentials → interests →
+/// photo, photo, Bit, photo, Bit, photo, photo.
 struct ProfilePreviewSheet: View {
     @Environment(AuthManager.self) private var auth
 
@@ -649,8 +649,7 @@ struct ProfilePreviewSheet: View {
             city: auth.currentUser?.city,
             jobTitle: auth.currentUser?.trimmedJobTitle,
             university: auth.currentUser?.trimmedUniversity,
-            hangoutLookingFor: auth.currentUser?.trimmedHangoutLookingFor,
-            openToGroups: nil
+            hangoutLookingFor: auth.currentUser?.trimmedHangoutLookingFor
         )
     }
 
@@ -659,31 +658,21 @@ struct ProfilePreviewSheet: View {
         return (auth.currentUser?.interestIds ?? []).compactMap { byId[$0] }
     }
 
-    /// After name / primary / first Bit / essentials: photo → bit → photo → bit → …
+    /// After name / primary / first Bit / essentials / interests.
     private var interleavedBlocks: [ProfilePreviewBlock] {
         let remainingPhotos = Array(photos.dropFirst())
         let remainingBits = Array(sortedAnswers.dropFirst())
-        var blocks: [ProfilePreviewBlock] = []
-        var photoIndex = 0
-        var bitIndex = 0
-
-        while photoIndex < remainingPhotos.count || bitIndex < remainingBits.count {
-            if photoIndex < remainingPhotos.count {
-                blocks.append(.photo(remainingPhotos[photoIndex]))
-                photoIndex += 1
-            }
-            if bitIndex < remainingBits.count {
-                let answer = remainingBits[bitIndex]
-                blocks.append(
-                    .bit(
-                        prompt: promptText(for: answer.promptId),
-                        answer: answer.answerText
-                    )
+        return ProfileStackRhythm.tail(photos: remainingPhotos, bits: remainingBits).map { item in
+            switch item {
+            case .photo(let photo):
+                return .photo(photo)
+            case .bit(let answer):
+                return .bit(
+                    prompt: promptText(for: answer.promptId),
+                    answer: answer.answerText
                 )
-                bitIndex += 1
             }
         }
-        return blocks
     }
 
     var body: some View {
@@ -714,11 +703,16 @@ struct ProfilePreviewSheet: View {
 
     @ViewBuilder
     private var profileStack: some View {
-        // 1. Name (Active / pronouns later)
-        Text(auth.currentUser?.displayName ?? "Your name")
-            .font(NADATheme.displayFont)
-            .foregroundStyle(NADATheme.ink)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        // 1. Name + zodiac
+        VStack(alignment: .leading, spacing: 4) {
+            Text(auth.currentUser?.displayName ?? "Your name")
+                .font(NADATheme.displayFont)
+                .foregroundStyle(NADATheme.ink)
+            ProfileZodiacCaption(
+                sign: auth.currentUser?.dateOfBirth.map { ZodiacSign.from(dateOfBirth: $0) }
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
 
         // 2. Primary photo
         if let primary = photos.first {
@@ -746,7 +740,7 @@ struct ProfilePreviewSheet: View {
         // 5. Interest badges under essentials
         ProfileInterestBadgesView(interests: previewInterests)
 
-        // 6. Remaining photos interleaved with remaining Bits
+        // 6. Remaining: photo, photo, Bit, photo, Bit, photo, photo
         if interleavedBlocks.isEmpty, firstBit == nil, photos.count <= 1 {
             Text("Add more photos and Bits — they’ll show up here like on Discover.")
                 .font(NADATheme.captionFont)
@@ -798,6 +792,53 @@ private enum ProfilePreviewBlock {
     case bit(prompt: String, answer: String)
 }
 
+/// Remaining cards after primary photo + first Bit + essentials + interests.
+/// Full 6-photo / 3-Bit profile: photo, photo, Bit, photo, Bit, photo, photo.
+enum ProfileStackRhythm {
+    enum Item<Photo, Bit> {
+        case photo(Photo)
+        case bit(Bit)
+    }
+
+    private enum Slot {
+        case photo
+        case bit
+    }
+
+    private static let tailSlots: [Slot] = [
+        .photo, .photo, .bit, .photo, .bit, .photo, .photo
+    ]
+
+    static func tail<Photo, Bit>(photos: [Photo], bits: [Bit]) -> [Item<Photo, Bit>] {
+        var photoIndex = 0
+        var bitIndex = 0
+        var items: [Item<Photo, Bit>] = []
+
+        for slot in tailSlots {
+            switch slot {
+            case .photo:
+                guard photoIndex < photos.count else { continue }
+                items.append(.photo(photos[photoIndex]))
+                photoIndex += 1
+            case .bit:
+                guard bitIndex < bits.count else { continue }
+                items.append(.bit(bits[bitIndex]))
+                bitIndex += 1
+            }
+        }
+
+        while photoIndex < photos.count {
+            items.append(.photo(photos[photoIndex]))
+            photoIndex += 1
+        }
+        while bitIndex < bits.count {
+            items.append(.bit(bits[bitIndex]))
+            bitIndex += 1
+        }
+        return items
+    }
+}
+
 /// Full-width square photo tile (Discover / Preview).
 struct ProfilePreviewPhotoTile: View {
     let urlString: String?
@@ -806,6 +847,7 @@ struct ProfilePreviewPhotoTile: View {
 
     /// Display decode size for Discover / Preview tiles (matches prefetch).
     static let displayPointSize: CGFloat = 430
+    var cornerRadius: CGFloat = 22
 
     /// Full-bleed inside the sheet — one iPad-safe cap keeps this off `UIScreen`.
     private var targetPointSize: CGFloat { Self.displayPointSize }
@@ -824,7 +866,7 @@ struct ProfilePreviewPhotoTile: View {
         }
         .frame(maxWidth: .infinity)
         .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 
     private var placeholder: some View {
@@ -837,29 +879,42 @@ struct ProfilePreviewPhotoTile: View {
     }
 }
 
-/// Hinge-style Bit card — content-height rectangle (not square); sans prompt + bold answer.
+/// Editorial Bit card — prompt is secondary, the answer is the voice.
 struct ProfilePreviewBitCard: View {
     let prompt: String
     let answer: String
+    var showsChrome: Bool = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             if !prompt.isEmpty {
                 Text(prompt)
-                    .font(.system(size: 17, weight: .regular))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(NADATheme.brandPressed)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Text(answer)
-                .font(.system(size: 28, weight: .bold, design: .default))
+                .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(NADATheme.ink)
                 .multilineTextAlignment(.leading)
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(24)
+        .padding(showsChrome ? 20 : 0)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NADATheme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background {
+            if showsChrome {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(NADATheme.card)
+            }
+        }
+        .overlay {
+            if showsChrome {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(NADATheme.hairline.opacity(0.38), lineWidth: 1)
+            }
+        }
     }
 }
 
@@ -875,10 +930,13 @@ struct ProfilePreviewBitCard: View {
 #Preview("Preview stack") {
     ScrollView {
         VStack(spacing: 14) {
-            Text("Defne")
-                .font(NADATheme.displayFont)
-                .foregroundStyle(NADATheme.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Defne")
+                    .font(NADATheme.displayFont)
+                    .foregroundStyle(NADATheme.ink)
+                ProfileZodiacCaption(sign: .leo)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(NADATheme.brandSoft)
@@ -901,8 +959,7 @@ struct ProfilePreviewBitCard: View {
                     city: "Istanbul",
                     jobTitle: "Student",
                     university: "Bilkent University",
-                    hangoutLookingFor: "Looking for a travel-buddy from Istanbul",
-                    openToGroups: nil
+                    hangoutLookingFor: "Looking for a travel-buddy from Istanbul"
                 )
             )
 

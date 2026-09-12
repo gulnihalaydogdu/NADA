@@ -279,6 +279,51 @@ Detay: [`docs/FIRESTORE_LIKES.md`](FIRESTORE_LIKES.md)
 
 ---
 
+## 8f. Matches API (W4-02)
+
+Detay: [`docs/FIRESTORE_MATCHES.md`](FIRESTORE_MATCHES.md)
+
+1. Firestore → **Rules** → `firebase/firestore.rules` yapıştır → **Publish** (`matches` bloğu)
+2. Indexes: `likes` `fromUserId` + `toUserId`; `matches` `userIds` (Arrays) + `createdAt`
+3. A, B’yi beğensin → henüz match yok
+4. B, A’yı beğensin → `matches/{küçükUid_büyükUid}` tek doküman
+5. `AuthManager.fetchMatches()` diğer kişiyi dönmeli
+6. Mutuals’ta satıra basılı tut → Remove. `unmatchedAt` yazılır; iki tarafta da listeden düşer (W4-04 — rules’ı yeniden Publish)
+
+---
+
+## 8g. Like + match push (W4-03)
+
+Detay: [`docs/FIRESTORE_PUSH.md`](FIRESTORE_PUSH.md)
+
+1. Blaze plan + `cd firebase/functions && npm install`
+2. `firebase deploy --only functions` (project `nada-app-33`)
+3. APNs `.p8` hâlâ Firebase Cloud Messaging’de yoksa gönderim loglanır, telefon sessiz kalır
+4. A, B’yi beğensin → B **New click**; B click-back → ikisine **You're mutuals**
+5. Banner’a basınca **New click** → Clicks, **You're mutuals** → Mutuals (uygulama açıkken ve kapalıyken)
+
+---
+
+## 8h. Chat messages (W5-01)
+
+Detay: [`docs/FIRESTORE_MESSAGES.md`](FIRESTORE_MESSAGES.md)
+
+1. Firestore → **Rules** → `firebase/firestore.rules` yapıştır → **Publish** (`matches/{id}/messages`)
+2. Mutuals’ta bir satıra tap → chat. Mesaj yaz; diğer hesapta görünsün
+3. Karşı taraf thread’i açınca son kendi balonunda **Seen**
+
+---
+
+## 8i. Chat message push (W5-02)
+
+Detay: [`docs/FIRESTORE_PUSH.md`](FIRESTORE_PUSH.md)
+
+1. `firebase deploy --only functions` (project `nada-app-33`)
+2. A sohbette bir satır yazsın → B banner (APNs `.p8` varsa). Tap → o thread
+3. `preferences.notifyOnMessages: false` → B mesaj push’u almaz
+
+---
+
 ## 9. Notlar
 
 - Project ID: `nada-app-33`
