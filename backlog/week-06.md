@@ -1,6 +1,6 @@
 # Week 6 Backlog — Voice & Audit
 
-**Dates:** Sep 21 – Sep 27, 2026 · **Theme:** Voicemail + women-% safety audit  
+**Dates:** Oct 5 – Oct 11, 2026 · **Theme:** Voicemail + women-% safety audit  
 **Roles:** Dev A = iOS · Dev B = Backend · Source: [`../UYGULAMA_SEMASI.md`](../UYGULAMA_SEMASI.md)
 
 **Sprint goal:** Matched users can send async voicemail (no video call), and the backend computes men’s women-% among connections and flags skewed accounts for an ops moderation queue.

@@ -1,6 +1,6 @@
 # Week 7 Backlog — Polish
 
-**Dates:** Sep 28 – Oct 4, 2026 · **Theme:** Design system, onboarding tour, hangout ideas, TR/EN  
+**Dates:** Oct 12 – Oct 18, 2026 · **Theme:** Design system, onboarding tour, hangout ideas, TR/EN  
 **Roles:** Dev A = iOS · Dev B = Backend · Source: [`../UYGULAMA_SEMASI.md`](../UYGULAMA_SEMASI.md)
 
 **Sprint goal:** The app looks and feels finished — consistent minimal design (§12 palette), a first-launch tour, hangout ideas, clean empty/error states, TR + EN, and analytics.
