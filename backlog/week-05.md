@@ -1,6 +1,6 @@
 # Week 5 Backlog — Chat & Safety
 
-**Dates:** Sep 28 – Oct 4, 2026 · **Theme:** Text chat + report/block  
+**Dates:** Oct 5 – Oct 11, 2026 · **Theme:** Text chat + report/block  
 **Roles:** Dev A = iOS · Dev B = Backend · Source: [`../UYGULAMA_SEMASI.md`](../UYGULAMA_SEMASI.md)
 
 **Sprint goal:** Matched users can chat (text) with push notifications, and anyone can report/block/unmatch — with **Flirting** as a report reason.

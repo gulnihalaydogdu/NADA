@@ -1,8 +1,8 @@
 # NADA — 8-Week Roadmap (MVP)
 
 **Goal:** Ship a polished, TestFlight/App Store-ready MVP of NADA (Not a Dating App!) in **8 weeks**.  
-**Start:** Monday, **27 July 2026** · **Target launch:** week of **19–25 October 2026**.  
-Weeks 1–4 stay on the original calendar. Week 5 (chat & safety, where we paused) restarts **Monday 28 September 2026**; Weeks 6–8 follow.  
+**Start:** Monday, **27 July 2026** · **Target launch:** week of **26 October – 1 November 2026**.  
+Weeks 1–4 stay on the original calendar. Week 5 (chat & safety, where we paused) restarts **Monday 5 October 2026**; Weeks 6–8 follow.  
 **Team:** Dev A = iOS (SwiftUI) · Dev B = Backend + ops.  
 **Product source of truth:** [`../UYGULAMA_SEMASI.md`](../UYGULAMA_SEMASI.md)
 
@@ -16,10 +16,10 @@ Weeks 1–4 stay on the original calendar. Week 5 (chat & safety, where we pause
 | 2 | Aug 3 – Aug 9 | Profile & prompts | Full profile setup: photos, prompts, gender, location, preferences |
 | 3 | Aug 10 – Aug 16 | Discover | Discovery feed, like/skip, prompt like + comment, undo |
 | 4 | Aug 17 – Aug 23 | Likes & match | Incoming/sent likes inbox, mutual match, push notifications |
-| 5 | Sep 28 – Oct 4 | Chat & safety | Text chat, report/block (incl. Flirting), unmatch |
-| 6 | Oct 5 – Oct 11 | Voice & audit | Voicemail, women-% audit + ops moderation queue |
-| 7 | Oct 12 – Oct 18 | Polish | Design system, onboarding tour, hangout ideas, empty states, TR/EN |
-| 8 | Oct 19 – Oct 25 | Ship | QA, bugfix, TestFlight, App Store submission, soft launch |
+| 5 | Oct 5 – Oct 11 | Chat & safety | Text chat, report/block (incl. Flirting), unmatch |
+| 6 | Oct 12 – Oct 18 | Voice & audit | Voicemail, women-% audit + ops moderation queue |
+| 7 | Oct 19 – Oct 25 | Polish | Design system, onboarding tour, hangout ideas, empty states, TR/EN |
+| 8 | Oct 26 – Nov 1 | Ship | QA, bugfix, TestFlight, App Store submission, soft launch |
 
 ---
 
@@ -52,16 +52,16 @@ Discovery feed (one profile at a time), like whole profile, **like a prompt/phot
 ### Week 4 — Likes & match (Aug 17–23)
 Sent likes + **incoming likes inbox** (“someone liked you”), mutual like → **Match**, match screen, push notifications (match / like). → [`week-04.md`](week-04.md)
 
-### Week 5 — Chat & safety (Sep 28–Oct 4)
+### Week 5 — Chat & safety (Oct 5–11)
 Text chat unlocked on match, “your turn” nudge, report/block/unmatch, report reasons incl. **Flirting**, push for new message. → [`week-05.md`](week-05.md)
 
-### Week 6 — Voice & audit (Oct 5–11)
+### Week 6 — Voice & audit (Oct 12–18)
 **Voicemail** (async voice, skippable, no video call), microphone permission, **women-% ConnectionStats** job + flagging, minimal **ops moderation queue**. → [`week-06.md`](week-06.md)
 
-### Week 7 — Polish (Oct 12–18)
+### Week 7 — Polish (Oct 19–25)
 Design system from §12 palette, first-launch **product tour**, **hangout ideas**, empty/error states, TR + EN strings, accessibility pass, analytics funnel. → [`week-07.md`](week-07.md)
 
-### Week 8 — Ship (Oct 19–25)
+### Week 8 — Ship (Oct 26–Nov 1)
 Full QA pass, bug bash, privacy policy / KVKK, App Store assets, TestFlight beta, submission, soft launch. → [`week-08.md`](week-08.md)
 
 ---

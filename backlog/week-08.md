@@ -1,6 +1,6 @@
 # Week 8 Backlog — Ship
 
-**Dates:** Oct 19 – Oct 25, 2026 · **Theme:** QA, submission, soft launch  
+**Dates:** Oct 26 – Nov 1, 2026 · **Theme:** QA, submission, soft launch  
 **Roles:** Dev A = iOS · Dev B = Backend · Source: [`../UYGULAMA_SEMASI.md`](../UYGULAMA_SEMASI.md)
 
 **Sprint goal:** NADA MVP is bug-bashed, legally compliant, submitted to the App Store, and soft-launched via TestFlight.
